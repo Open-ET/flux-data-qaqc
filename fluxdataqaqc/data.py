@@ -18,12 +18,12 @@ class Data(object):
     and file path. Methods include tools to load climate time series data into a
     :obj:`pandas.DataFrame` and convert units if needed.
 
-    TODO: 
-     * make standard naming convention for renaming variables, e.g. LE, LE_CORR
+    TODO:
      * add handling for different formats of string dates
      * handling of climate data files of non- .xlsx format (i.e. not fluxnet)
      * metadata variable missing_data_value is read in df, maybe reorganize
      * store other metadata values from config file if needed?
+     * check how pd.read_csv's parse_dates works with discrete y/m/d columns
     """
 
     def __init__(self, config):
@@ -81,24 +81,33 @@ class Data(object):
         :return: Pandas series of all the variables and their indices
         """
 
-        # needs work: read datestring format from config and parse
-        date= self.config['DATA']['datestring_col']
-        year= self.config['DATA']['year_col']
-        month= self.config['DATA']['month_col']
-        day= self.config['DATA']['day_col']
+        date = self.config['DATA']['datestring_col']
+        # TODO: config parser errors on reading in %'s, will have to come up with alternative way of reading in
+        # date_format = self.config['DATA']['datestring_format']
+        year = self.config['DATA']['year_col']
+        month = self.config['DATA']['month_col']
+        day = self.config['DATA']['day_col']
         
         # need to verify units (modify code below) 
         Rn = self.config['DATA']['net_radiation_col']
         G = self.config['DATA']['ground_flux_col']
         LE = self.config['DATA']['latent_heat_flux_col']
+        LE_corr = self.config['DATA']['latent_heat_flux_corrected_col']  # Pre-corrected values from fluxnet
         H = self.config['DATA']['sensible_heat_flux_col']
+        H_corr = self.config['DATA']['sensible_heat_flux_corrected_col']  # Pre-corrected values from fluxnet
+
         # rename variables at later dev for standard naming convention
-        cols = [date, Rn, G, LE, H]
+        cols = [date, Rn, G, LE, LE_corr, H, H_corr]
+
         # parse_dates usually works on most string formats
-        df = pd.read_csv(
-            self.climate_file, 
-            parse_dates=[date])[cols]
-        
+        df = pd.read_csv(self.climate_file, parse_dates=[date],
+                         na_values=['NaN', 'NAN', '#VALUE!', '-9999'])[cols]
+
+        # Now rename all df columns to consistent names
+        df.rename(columns={date: 'stringdate',
+                           Rn: 'net_rad', G: 'g_flux', LE: 'le_flux', LE_corr: 'le_flux_corr',
+                           H: 'h_flux', H_corr: 'h_flux_corr'}, inplace=True)
+
         return df
 
 ####### all below not in working shape or not needed currently
