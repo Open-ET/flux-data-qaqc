@@ -18,6 +18,10 @@ class Data(object):
     and file path. Methods include tools to load climate time series data into a
     :obj:`pandas.DataFrame` and convert units if needed.
 
+    Note:
+        Path to climate time series file specified in the config_file should
+        be relative to the config file's location.
+
     TODO:
      * add handling for different formats of string dates
      * handling of climate data files of non- .xlsx format (i.e. not fluxnet)
@@ -32,8 +36,7 @@ class Data(object):
         self.config = self.load_config(self.config_file)
         self.climate_file = self._get_climate_file()
         self.header = self._get_header(self.climate_file)
-#        self.data_valid = self.check_data(self.config_file, self.header_names)
-        self.df = self._locate_variables()
+        self._df = None
 
     def load_config(self, config_file):
         if not config_file.is_file():
@@ -44,10 +47,10 @@ class Data(object):
 
     def _get_climate_file(self):
         """
-        Reads config file and returns absolute path to climate time series file
+        Read config file and return absolute path to climate time series file
         """
         file_path = self.config['METADATA']['climate_file_path']
-        climate_file = Path(file_path).absolute()
+        climate_file = self.config_file.parent.joinpath(file_path)
         
         if not climate_file.is_file():
             err_msg = 'ERROR: climate file:{} does not exist'.format(
@@ -57,8 +60,9 @@ class Data(object):
         return climate_file
 
     def _get_header(self, climate_file):
-        # read top line of climate time series file return header names
-
+        """
+        Read top line of climate time series file return header names.
+        """
         header_data = np.genfromtxt(
             climate_file, 
             dtype='U', 
@@ -68,47 +72,81 @@ class Data(object):
             case_sensitive='lower'
         )
         return header_data
-
-    def _locate_variables(self):
+    
+    @property
+    def df(self):
         """
-        Pulls all climate variables out of config file and attempts to find 
-        them among the column names of the data file. Uses the function 
-        _find_variable_in_header to find matches or report errors.
+        Pulls energy balance variables out of config file and attempts to load 
+        them into a date-indexed pandas.DataFrame. 
 
-        :param config_file: string of absolute path to configuration file
-        :param header_names:  ndarray of header strings pulled from data file
-
-        :return: Pandas series of all the variables and their indices
+        :return: pandas.DataFrame of all the variables and their indices
         """
 
-        date = self.config['DATA']['datestring_col']
-        # TODO: config parser errors on reading in %'s, will have to come up with alternative way of reading in
-        # date_format = self.config['DATA']['datestring_format']
-        year = self.config['DATA']['year_col']
-        month = self.config['DATA']['month_col']
-        day = self.config['DATA']['day_col']
-        
+        # TODO: config parser errors on reading in %'s, if pandas parse_dates
+        # fails will have to come up with alternative way of reading in
+
+        # avoid overwriting pre-assigned data
+        if isinstance(self._df, pd.DataFrame):
+            return self._df
+
         # need to verify units (modify code below) 
-        Rn = self.config['DATA']['net_radiation_col']
-        G = self.config['DATA']['ground_flux_col']
-        LE = self.config['DATA']['latent_heat_flux_col']
-        LE_corr = self.config['DATA']['latent_heat_flux_corrected_col']  # Pre-corrected values from fluxnet
-        H = self.config['DATA']['sensible_heat_flux_col']
-        H_corr = self.config['DATA']['sensible_heat_flux_corrected_col']  # Pre-corrected values from fluxnet
+        variables = {}
+        variables['date'] = self.config['DATA']['datestring_col']
+        variables['year'] = self.config['DATA']['year_col']
+        variables['month'] = self.config['DATA']['month_col']
+        variables['day'] = self.config['DATA']['day_col']
+        variables['Rn'] = self.config['DATA']['net_radiation_col']
+        variables['G'] = self.config['DATA']['ground_flux_col']
+        variables['LE'] = self.config['DATA']['latent_heat_flux_col']
+        variables['LE_corr'] = self.config['DATA']\
+            ['latent_heat_flux_corrected_col']
+        variables['H'] = self.config['DATA']['sensible_heat_flux_col']
+        variables['H_corr'] = self.config['DATA']\
+            ['sensible_heat_flux_corrected_col']
 
-        # rename variables at later dev for standard naming convention
-        cols = [date, Rn, G, LE, LE_corr, H, H_corr]
+        # handle missing 'na' data
+        for k,v in variables.items():
+            if v == 'na':
+                print('WARNING: {} is missing from input data'.format(k))
+        vars_notnull = dict((k, v) for k, v in variables.items() if v != 'na')
+        cols = list(vars_notnull.values())
+
+        if not set(cols).issubset(self.header):
+            err_msg = ('One of more of the column names below '
+                'was not found in the input climate file: {}'.format(
+                    ' '.join(cols)))
+            raise KeyError(err_msg)
 
         # parse_dates usually works on most string formats
-        df = pd.read_csv(self.climate_file, parse_dates=[date],
-                         na_values=['NaN', 'NAN', '#VALUE!', '-9999'])[cols]
+        df = pd.read_csv(
+            self.climate_file,
+            parse_dates = [variables.get('date')],
+            usecols = cols,
+            na_values=['NaN', 'NAN', '#VALUE!', '-9999']
+        )
 
-        # Now rename all df columns to consistent names
-        df.rename(columns={date: 'stringdate',
-                           Rn: 'net_rad', G: 'g_flux', LE: 'le_flux', LE_corr: 'le_flux_corr',
-                           H: 'h_flux', H_corr: 'h_flux_corr'}, inplace=True)
-
+        # rename all df columns to consistent names
+        df.rename(
+            columns={
+               variables['date']: 'date',
+               variables['Rn']: 'net_rad', 
+               variables['G']: 'g_flux', 
+               variables['LE']: 'le_flux', 
+               variables['LE_corr']: 'le_flux_corr',
+               variables['H']: 'h_flux', 
+               variables['H_corr']: 'h_flux_corr'
+            }, inplace=True
+        )
+        
+        df.index = df.date
+        df.drop('date', axis=1, inplace=True)
         return df
+
+    @df.setter
+    def df(self, data_frame):
+        if not isinstance(data_frame, pd.DataFrame):
+            raise TypeError("Must assign a Pandas.DataFrame object for PRMS data input")
+        self._df = data_frame
 
 ####### all below not in working shape or not needed currently
 #
@@ -221,47 +259,3 @@ class Data(object):
 #
 #        return self.converted_values
 #
-#    def data_frame(self, config_file, climate_file, provided_variables, initial_units):
-#        """
-#        :param config_file:
-#        :param climate_file:
-#        :param provided_variables:
-#        :param initial_units:
-#        :return:
-#        """
-#
-#        self.climate_data = pd.DataFrame({})
-#
-#        config_reader = cp.ConfigParser()
-#        config_reader.read(config_file)
-#
-#        missing_data_value = config_reader['METADATA']['missing_data_value']
-#
-#        raw_data = np.genfromtxt(climate_file, dtype='U', delimiter=',', skip_header=1, autostrip=True,
-#                                 case_sensitive='lower')
-#
-#        raw_rows = raw_data.shape[0]  # number of rows in data
-#        raw_cols = raw_data.shape[1]  # number of columns in data
-#
-#        # go through raw data and replace missing data values with nans
-#        # note that values will not be nan until list is typecast as a float
-#        for i in range(raw_rows):
-#            for j in range(raw_cols):
-#                if missing_data_value in raw_data[i, j]:
-#                    raw_data[i, j] = np.nan
-#                else:
-#                    pass
-#
-#        # Iterate through all entries in the dictionary, check to see if they are set to -1, otherwise pull that column
-#        # of data from the climate file and add it to the pandas dataframe
-#        for variable_name, column in provided_variables.items():
-#            if column == -1:  # Variable was not provided, fill empty column with nans
-#                variable_observations = np.empty(raw_rows)
-#                variable_observations[:] = np.nan
-#            else:
-#                variable_observations = np.array(raw_data[:, column].astype('float'))
-#                variable_observations = self._convert_units(variable_name, variable_observations, initial_units)
-#
-#                self.climate_data[variable_name] = variable_observations
-#
-#        return self.climate_data
