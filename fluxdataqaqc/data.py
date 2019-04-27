@@ -137,15 +137,16 @@ class Data(object):
                variables['H_corr']: 'h_flux_corr'
             }, inplace=True
         )
-        
+        # date index
         df.index = df.date
         df.drop('date', axis=1, inplace=True)
+        self._df = df
         return df
 
     @df.setter
     def df(self, data_frame):
         if not isinstance(data_frame, pd.DataFrame):
-            raise TypeError("Must assign a Pandas.DataFrame object for PRMS data input")
+            raise TypeError("Must assign a Pandas.DataFrame object")
         self._df = data_frame
 
 ####### all below not in working shape or not needed currently
