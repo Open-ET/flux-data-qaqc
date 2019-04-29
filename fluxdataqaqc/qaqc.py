@@ -67,6 +67,7 @@ class QaQc(object):
             'energy': 'mean',
             'flux': 'mean',
             'flux_adj': 'mean',
+            'flux_corr': 'mean',
             'bowen_ratio': 'mean',
             'et_reg': 'sum',
             'et_adj': 'sum',
@@ -94,7 +95,16 @@ class QaQc(object):
             'h_flux_adj': 'mean',
         }
 
-        df = df.groupby(df.index.month).agg(agg_dict)
+        sum_cols = ['et_reg', 'et_adj', 'et_corr', 'ppt']
+        mean_cols = set(df.columns) - set(sum_cols)
+        
+        means = df.loc[:,mean_cols].resample('M').mean()
+        sums = df.loc[:,sum_cols].resample('M').sum()
+        df = pd.concat([means, sums], sort=False)
+
+        # for monthly stats not time series
+        #df = df.groupby(df.index.month).agg(agg_dict)
+        
         df.index.name = 'month'
 
         return df
@@ -181,6 +191,9 @@ class QaQc(object):
         self.df['le_flux_adj'] = le_flux_adj
         self.df['h_flux_adj'] = h_flux_adj
         self.df['flux_adj'] = flux_adj
+
+        # corrected turbulent flux if given from input data
+        self.df['flux_corr'] = self.df.le_flux_corr + self.df.h_flux_corr 
 
         # add ET/EBC columns to dataframe using le_flux and h_flux of various sources
         #  _reg uses uncorrected le_flux and h_flux
