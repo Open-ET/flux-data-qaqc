@@ -97,13 +97,12 @@ class Plot(object):
             title = usage + ' SW and LW Radiation'
 
         elif code == 3:  # Potential vs Actual Incoming Shortwave Radiation
-            # TODO add rso_a to this
             var_one_name = 'Incoming Shortwave Potential'
             var_one_color = 'black'
             var_two_name = 'Incoming Shortwave Actual'
             var_two_color = 'red'
-            var_three_name = 'null'
-            var_three_color = 'black'
+            var_three_name = 'ASCE Rso_a'
+            var_three_color = 'blue'
             var_four_name = 'null'
             var_four_color = 'black'
             units = 'w/m2'

@@ -15,7 +15,7 @@ TODO:
 import numpy as np
 import pandas as pd
 
-from .data import Data
+from data import Data
 
 class QaQc(object):
     """
@@ -32,6 +32,7 @@ class QaQc(object):
         
         if isinstance(data, Data):
             self._df = data.df
+            self._elevation = data.elevation
         elif data is not None:
             raise TypeError("Must assign a fluxdataqaqc.data.Data object")
         else:
@@ -212,8 +213,10 @@ class QaQc(object):
         self.df.ebc_adj = self.df.ebc_adj.replace([np.inf, -np.inf], np.nan)
         self.df.ebc_corr = self.df.ebc_corr.replace([np.inf, -np.inf], np.nan)
 
-        #TODO: clear sky radiation calc goes here
-        self.df['rso'] = np.nan
+        # clear sky radiation calc (simple version based on elevation)
+        ra_mj_m2 = np.array(self.df.sw_in * 0.0864)  # http://www.fao.org/3/X0490E/x0490e0i.htm
+        rso_a_mj_m2 = np.array((0.75 + 2E-5 * self._elevation) * ra_mj_m2)  # asce 19 and 45
+        self.df['rso'] = rso_a_mj_m2 * 11.574
 
         # update flag for other methods
         self.corrected = True
