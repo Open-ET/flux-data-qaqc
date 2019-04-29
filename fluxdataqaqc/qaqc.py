@@ -75,6 +75,7 @@ class QaQc(object):
             'ebc_adj': 'mean',
             'ebc_corr': 'mean',
             't_avg': 'mean',
+            'rso': 'mean',
             'sw_pot': 'mean',
             'sw_in': 'mean',
             'lw_in': 'mean',
@@ -197,6 +198,9 @@ class QaQc(object):
         self.df.ebc_reg = self.df.ebc_reg.replace([np.inf, -np.inf], np.nan)
         self.df.ebc_adj = self.df.ebc_adj.replace([np.inf, -np.inf], np.nan)
         self.df.ebc_corr = self.df.ebc_corr.replace([np.inf, -np.inf], np.nan)
+
+        #TODO: clear sky radiation calc goes here
+        self.df['rso'] = np.nan
 
         # update flag for other methods
         self.corrected = True
