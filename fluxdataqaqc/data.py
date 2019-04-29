@@ -33,6 +33,9 @@ class Data(object):
         self.elevation = int(dict(
             self.config.items('METADATA')).get('station_elevation')
         )
+        self.latitude = float(dict(
+            self.config.items('METADATA')).get('station_latitude')
+        )
         self.climate_file = self._get_climate_file()
         self.header = self._get_header(self.climate_file)
         self._df = None

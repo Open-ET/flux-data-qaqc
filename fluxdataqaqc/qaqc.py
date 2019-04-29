@@ -12,9 +12,11 @@ TODO:
  * add monthly stat calcs, energy balance closure error, energy-balance ratio
 """
 
+import datetime as dt
 import numpy as np
 import pandas as pd
-
+import refet as ret
+from refet.calcs import _ra_daily
 from data import Data
 
 class QaQc(object):
@@ -33,6 +35,7 @@ class QaQc(object):
         if isinstance(data, Data):
             self._df = data.df
             self._elevation = data.elevation
+            self._latitude = data.latitude
         elif data is not None:
             raise TypeError("Must assign a fluxdataqaqc.data.Data object")
         else:
@@ -139,7 +142,6 @@ class QaQc(object):
         # get length of data set
         data_length = len(self.df.index)
 
-        # create energy, flux, and bowen ratio columns within dataframe
         self.df['energy'] = self.df.net_rad - self.df.g_flux
         self.df['flux'] = self.df.le_flux + self.df.h_flux
         self.df['bowen_ratio'] = self.df.h_flux / self.df.le_flux
@@ -186,7 +188,6 @@ class QaQc(object):
             if h_flux_adj[i] < h_flux[i]:
                 h_flux_adj[i] = h_flux[i]
 
-
         # add le_flux_adj, h_flux_adj, and flux_adj to dataframe
         # TODO: flux_adj in blake's code is placed to not reflect final h_flux and le_flux adj values, confirm with him
         self.df['le_flux_adj'] = le_flux_adj
@@ -213,8 +214,24 @@ class QaQc(object):
         self.df.ebc_adj = self.df.ebc_adj.replace([np.inf, -np.inf], np.nan)
         self.df.ebc_corr = self.df.ebc_corr.replace([np.inf, -np.inf], np.nan)
 
+        # create date vectors for obtaining day of year for use in calculating ra and then rso
+        date = pd.DatetimeIndex(self.df.index)
+        day = np.array(date.day)
+        month = np.array(date.month)
+        year = np.array(date.year)
+
+        # Calculate DOY from Y/M/D values
+        doy = []
+        for i in range(data_length):
+            doy.append(
+                dt.date(year[i], month[i], day[i]).strftime("%j"))  # list of string DOY values
+
+        doy = np.array(list(map(int, doy)))  # Converts list of string values into ints and saves as numpy array
+
+        # obtain extraterrestrial radiation from doy and latitude
+        ra_mj_m2 = _ra_daily(self._latitude, doy, method='asce')
+
         # clear sky radiation calc (simple version based on elevation)
-        ra_mj_m2 = np.array(self.df.sw_in * 0.0864)  # http://www.fao.org/3/X0490E/x0490e0i.htm
         rso_a_mj_m2 = np.array((0.75 + 2E-5 * self._elevation) * ra_mj_m2)  # asce 19 and 45
         self.df['rso'] = rso_a_mj_m2 * 11.574
 
