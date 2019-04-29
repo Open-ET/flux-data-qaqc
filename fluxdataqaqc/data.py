@@ -30,6 +30,9 @@ class Data(object):
 
         self.config_file = Path(config).absolute()
         self.config = self.load_config(self.config_file)
+        self.elevation = int(dict(
+            self.config.items('METADATA')).get('station_elevation')
+        )
         self.climate_file = self._get_climate_file()
         self.header = self._get_header(self.climate_file)
         self._df = None
