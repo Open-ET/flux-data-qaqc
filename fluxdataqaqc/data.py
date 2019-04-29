@@ -23,11 +23,7 @@ class Data(object):
         be relative to the config file's location.
 
     TODO:
-     * add handling for different formats of string dates
      * handling of climate data files of non- .xlsx format (i.e. not fluxnet)
-     * metadata variable missing_data_value is read in df, maybe reorganize
-     * store other metadata values from config file if needed?
-     * check how pd.read_csv's parse_dates works with discrete y/m/d columns
     """
 
     def __init__(self, config):
@@ -82,9 +78,6 @@ class Data(object):
         :return: pandas.DataFrame of all the variables and their indices
         """
 
-        # TODO: config parser errors on reading in %'s, if pandas parse_dates
-        # fails will have to come up with alternative way of reading in
-
         # avoid overwriting pre-assigned data
         if isinstance(self._df, pd.DataFrame):
             return self._df
@@ -103,6 +96,17 @@ class Data(object):
         variables['H'] = self.config['DATA']['sensible_heat_flux_col']
         variables['H_corr'] = self.config['DATA']\
             ['sensible_heat_flux_corrected_col']
+        variables['P'] = self.config['DATA']['precip_col']
+        variables['SW_IN'] = self.config['DATA']['shortwave_in_col']
+        variables['SW_OUT'] = self.config['DATA']['shortwave_out_col']
+        variables['SW_POT'] = self.config['DATA']['shortwave_pot_col']
+        variables['LW_IN'] = self.config['DATA']['longwave_in_col']
+        variables['LW_OUT'] = self.config['DATA']['longwave_out_col']
+        variables['VP'] = self.config['DATA']['vap_press_col']
+        variables['VPD'] = self.config['DATA']['vap_press_def_col']
+        variables['T_AVG'] = self.config['DATA']['avg_temp_col']
+        variables['WS'] = self.config['DATA']['wind_spd_col']
+
 
         # handle missing 'na' data
         for k,v in variables.items():
@@ -134,7 +138,17 @@ class Data(object):
                variables['LE']: 'le_flux', 
                variables['LE_corr']: 'le_flux_corr',
                variables['H']: 'h_flux', 
-               variables['H_corr']: 'h_flux_corr'
+               variables['H_corr']: 'h_flux_corr',
+               variables['P']: 'ppt', 
+               variables['SW_IN']: 'sw_in', 
+               variables['SW_OUT']: 'sw_out', 
+               variables['SW_POT']: 'sw_pot', 
+               variables['LW_IN']: 'lw_in', 
+               variables['LW_OUT']: 'lw_out', 
+               variables['VP']: 'vp', 
+               variables['VPD']: 'vpd', 
+               variables['T_AVG']: 't_avg', 
+               variables['WS']: 'ws', 
             }, inplace=True
         )
         # date index
