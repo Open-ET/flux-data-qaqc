@@ -20,15 +20,14 @@ class Plot(object):
 
         if isinstance(qaqc, QaQc):
             self._df = qaqc.df
-            #TODO: placeholder for monthly df
-            self._monthly_df = []
+            self._monthly_df = qaqc.monthly_df
         elif qaqc is not None:
             raise TypeError("Must assign a fluxdataqaqc.qaqc.QaQc object")
         else:
             self._df = None
 
         self.provided_vars = self._inventory_variables(self._df)
-        self.aggregate_plot = self._create_plots(self._df, self._monthly_df, self.provided_vars)
+        self.aggregate_plot = self._create_plots(self._df, self._monthly_df)
 
         output_file('example_output.html')
         save(self.aggregate_plot)
@@ -192,7 +191,7 @@ class Plot(object):
             var_four_name = 'null'
             var_four_color = 'black'
             units = 'Ratio of Flux/Energy'
-            title = usage + ' Latent Heat Flux'
+            title = usage + ' Energy Balance Ratio'
 
         elif code == 11:  # energy balance scatter plot, raw vs fluxnet Corr
             var_one_name = 'Energy'
@@ -309,8 +308,8 @@ class Plot(object):
         # linalg.lstsq requires a column vector
         # TODO test this more
         var_one_lstsq = var_one[:, np.newaxis]
-        slope_orig, _, _, _ = np.linalg.lstsq(var_one_lstsq, var_two)
-        slope_corr, _, _, _ = np.linalg.lstsq(var_one_lstsq, var_three)
+        #slope_orig, _, _, _ = np.linalg.lstsq(var_one_lstsq, var_two)
+        #slope_corr, _, _, _ = np.linalg.lstsq(var_one_lstsq, var_three)
 
         if link_plot is None:  # No plot to link with
             subplot = figure(
@@ -325,8 +324,8 @@ class Plot(object):
                 tools='pan, box_zoom, undo, reset, hover, save')
 
         subplot.line(x, y, line_color='black', legend='1:1 Line')
-        subplot.line(var_one, var_one*slope_orig, line_color='orange', legend='LS Line, Raw, {}'.format(slope_orig))
-        subplot.line(var_one, var_one*slope_corr, line_color='navy', legend='LS Line, Corr, {}'.format(slope_corr))
+        #subplot.line(var_one, var_one*slope_orig, line_color='orange', legend='LS Line, Raw, {}'.format(slope_orig))
+        #subplot.line(var_one, var_one*slope_corr, line_color='navy', legend='LS Line, Corr, {}'.format(slope_corr))
 
         subplot.triangle(var_one, var_two, size=5, color="lightsalmon", alpha=0.5, legend=var_two_name)
         subplot.circle(var_one, var_three, size=5, color="lightcoral", alpha=0.5, legend=var_three_name)
@@ -351,13 +350,13 @@ class Plot(object):
         # Plot potential vs. measured inc_sw_rad
         plot_sw_rad = self._generate_line_plot(x_size, y_size, df.index, 3, '', df.sw_pot, df.sw_in, df.rso, None)
         # Plot temperature
-        plot_temp = self._generate_line_plot(x_size, y_size, df.index, '', 4, df.t_avg, None, None, None)
+        plot_temp = self._generate_line_plot(x_size, y_size, df.index, 4, '', df.t_avg, None, None, None)
         # Plot Vapor_Pres and VPD
-        plot_vapor_pres = self._generate_line_plot(x_size, y_size, df.index, 5, '', df.vp, df.vpd, None, None)
+        # plot_vapor_pres = self._generate_line_plot(x_size, y_size, df.index, 5, '', df.vp, df.vpd, None, None)
         # Plot windspeed
         plot_windspeed = self._generate_line_plot(x_size, y_size, df.index, 6, '', df.ws, None, None, None)
         # Plot precipitation
-        plot_precip = self._generate_line_plot(x_size, y_size, df.index, 7, '', df.p, None, None, None)
+        plot_precip = self._generate_line_plot(x_size, y_size, df.index, 7, '', df.ppt, None, None, None)
         # Plot ET
         plot_et = self._generate_line_plot(x_size, y_size, df.index, 8, '', df.et_reg, df.et_corr, df.et_adj, None)
         # Plot le_flux
@@ -384,16 +383,16 @@ class Plot(object):
         monthly_plot_sw_rad = self._generate_line_plot(x_size, y_size, monthly_df.index, 3, 'Monthly ',
                                                        monthly_df.sw_pot, monthly_df.sw_in, monthly_df.rso, None)
         # Plot temperature
-        monthly_plot_temp = self._generate_line_plot(x_size, y_size, monthly_df.index, 'Monthly ', 4, monthly_df.t_avg,
+        monthly_plot_temp = self._generate_line_plot(x_size, y_size, monthly_df.index, 4, 'Monthly ', monthly_df.t_avg,
                                                      None, None, None)
         # Plot Vapor_Pres and VPD
-        monthly_plot_vapor_pres = self._generate_line_plot(x_size, y_size, monthly_df.index, 5, 'Monthly ',
-                                                           monthly_df.vp, monthly_df.vpd, None, None)
+        # monthly_plot_vapor_pres = self._generate_line_plot(x_size, y_size, monthly_df.index, 5, 'Monthly ',
+        #                                                   monthly_df.vp, monthly_df.vpd, None, None)
         # Plot windspeed
         monthly_plot_windspeed = self._generate_line_plot(x_size, y_size, monthly_df.index, 6, 'Monthly ',
                                                           monthly_df.ws, None, None, None)
         # Plot precipitation
-        monthly_plot_precip = self._generate_line_plot(x_size, y_size, monthly_df.index, 7, 'Monthly ', monthly_df.p,
+        monthly_plot_precip = self._generate_line_plot(x_size, y_size, monthly_df.index, 7, 'Monthly ', monthly_df.ppt,
                                                        None, None, None)
         # Plot ET
         monthly_plot_et = self._generate_line_plot(x_size, y_size, monthly_df.index, 8, 'Monthly ', monthly_df.et_reg,
@@ -415,11 +414,11 @@ class Plot(object):
 
         fig = gridplot([[plot_surface_bal, plot_net_rad, plot_sw_rad],
                         [plot_temp, plot_windspeed, plot_precip],
-                        [plot_vapor_pres, plot_et, plot_le],
+                        [plot_et, plot_le],
                         [plot_ebr, plot_ebc_corr, plot_ebc_adj],
                         [monthly_plot_surface_bal, monthly_plot_net_rad, monthly_plot_sw_rad],
                         [monthly_plot_temp, monthly_plot_windspeed, monthly_plot_precip],
-                        [monthly_plot_vapor_pres, monthly_plot_et, monthly_plot_le],
+                        [monthly_plot_et, monthly_plot_le],
                         [monthly_plot_ebr, monthly_plot_ebc_corr, monthly_plot_ebc_adj]], toolbar_location="left")
 
         return fig
