@@ -12,6 +12,11 @@ TODO:
  * add monthly stat calcs, energy balance closure error, energy-balance ratio
 """
 
+import numpy as np
+import pandas as pd
+
+from .data import Data
+
 class QaQc(object):
     """
     Adjust latent energy and sensible heat flux to close the surface energy 
@@ -31,6 +36,8 @@ class QaQc(object):
             raise TypeError("Must assign a fluxdataqaqc.data.Data object")
         else:
             self._df = None
+
+        self.corrected = False 
             
     @property     
     def df(self):
@@ -43,6 +50,54 @@ class QaQc(object):
         if not isinstance(data_frame, pd.DataFrame):
             raise TypeError("Must assign a Pandas.DataFrame object")
         self._df = data_frame
+
+    @property
+    def monthly_df(self):
+        """
+        Return current state of df as monthly time series.
+
+        # TODO: maybe improve handling of units/var names
+        """
+        if not self.corrected:
+            self.correct_data()
+
+        df = self._df
+
+        agg_dict = {
+            'energy': 'mean',
+            'flux': 'mean',
+            'flux_adj': 'mean',
+            'bowen_ratio': 'mean',
+            'et_reg': 'sum',
+            'et_adj': 'sum',
+            'et_corr': 'sum',
+            'ebc_reg': 'mean',
+            'ebc_adj': 'mean',
+            'ebc_corr': 'mean',
+            't_avg': 'mean',
+            'rso': 'mean',
+            'sw_pot': 'mean',
+            'sw_in': 'mean',
+            'lw_in': 'mean',
+            'vpd': 'mean',
+            'ppt': 'sum',
+            'ws': 'mean',
+            'net_rad': 'mean',
+            'sw_out': 'mean',
+            'lw_out': 'mean',
+            'g_flux': 'mean',
+            'le_flux': 'mean',
+            'le_flux_corr': 'mean',
+            'le_flux_adj': 'mean',
+            'h_flux': 'mean',
+            'h_flux_corr': 'mean',
+            'h_flux_adj': 'mean',
+        }
+
+        df = df.groupby(df.index.month).agg(agg_dict)
+        df.index.name = 'month'
+
+        return df
 
     @classmethod
     def from_dataframe(cls, df):
@@ -143,3 +198,9 @@ class QaQc(object):
         self.df.ebc_reg = self.df.ebc_reg.replace([np.inf, -np.inf], np.nan)
         self.df.ebc_adj = self.df.ebc_adj.replace([np.inf, -np.inf], np.nan)
         self.df.ebc_corr = self.df.ebc_corr.replace([np.inf, -np.inf], np.nan)
+
+        #TODO: clear sky radiation calc goes here
+        self.df['rso'] = np.nan
+
+        # update flag for other methods
+        self.corrected = True
