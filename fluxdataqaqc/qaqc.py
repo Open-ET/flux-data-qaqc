@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import refet as ret
 from refet.calcs import _ra_daily
-from data import Data
+from .data import Data
 
 class QaQc(object):
     """
@@ -56,7 +56,7 @@ class QaQc(object):
         self._df = data_frame
 
     @property
-    def monthly_df(self):
+    def monthly_df(self, how='time_series'):
         """
         Return current state of df as monthly time series.
 
@@ -87,28 +87,36 @@ class QaQc(object):
             'vpd': 'mean',
             'ppt': 'sum',
             'ws': 'mean',
-            'net_rad': 'mean',
+            'Rn': 'mean',
             'sw_out': 'mean',
             'lw_out': 'mean',
-            'g_flux': 'mean',
-            'le_flux': 'mean',
-            'le_flux_corr': 'mean',
-            'le_flux_adj': 'mean',
-            'h_flux': 'mean',
-            'h_flux_corr': 'mean',
-            'h_flux_adj': 'mean',
+            'G': 'mean',
+            'LE': 'mean',
+            'LE_corr': 'mean',
+            'LE_adj': 'mean',
+            'H': 'mean',
+            'H_corr': 'mean',
+            'H_adj': 'mean',
         }
 
-        sum_cols = ['et_reg', 'et_adj', 'et_corr', 'ppt']
-        mean_cols = set(df.columns) - set(sum_cols)
-        
-        means = df.loc[:,mean_cols].resample('M').mean()
-        sums = df.loc[:,sum_cols].resample('M').sum()
-        df = pd.concat([means, sums], sort=False)
+        if how == 'time_series':
+            sum_cols = ['et_reg', 'et_adj', 'et_corr', 'ppt']
+            mean_cols = set(df.columns) - set(sum_cols)
+            
+            means = df.loc[:,mean_cols].resample('M').mean()
+            sums = df.loc[:,sum_cols].resample('M').sum()
+            df = pd.concat([means, sums], sort=False)
+            # use monthly sums for ebc columns not means of ratio
+            df.ebc_reg = (df.H + df.LE) / (df.Rn - df.G)
+            df.ebc_corr= (df.H_corr + df.LE_corr) / (df.Rn - df.G)
+            df.ebc_adj = (df.H_adj + df.LE_adj) / (df.Rn - df.G)
+        elif how == 'aggregate':
+            # for monthly stats not time series
+            df = df.groupby(df.index.month).agg(agg_dict)
+        else:
+            err_msg='Invalid "how" option, use "time_series" or "aggregate"'
+            raise ValueError(err_msg)
 
-        # for monthly stats not time series
-        #df = df.groupby(df.index.month).agg(agg_dict)
-        
         df.index.name = 'month'
 
         return df
@@ -142,31 +150,31 @@ class QaQc(object):
         # get length of data set
         data_length = len(self.df.index)
 
-        self.df['energy'] = self.df.net_rad - self.df.g_flux
-        self.df['flux'] = self.df.le_flux + self.df.h_flux
-        self.df['bowen_ratio'] = self.df.h_flux / self.df.le_flux
+        self.df['energy'] = self.df.Rn - self.df.G
+        self.df['flux'] = self.df.LE + self.df.H
+        self.df['bowen_ratio'] = self.df.H / self.df.LE
 
         # numpy arrays of dataframe vars
-        net_rad = np.array(self.df.net_rad)
-        g_flux = np.array(self.df.g_flux)
-        le_flux = np.array(self.df.le_flux)
-        h_flux = np.array(self.df.h_flux)
+        Rn = np.array(self.df.Rn)
+        g = np.array(self.df.G)
+        le = np.array(self.df.LE)
+        h = np.array(self.df.H)
         bowen = np.array(self.df.bowen_ratio)
         # numpy arrays of new vars
-        le_flux_adj = np.full(data_length, np.NaN)
-        h_flux_adj = np.full(data_length, np.NaN)
+        le_adj = np.full(data_length, np.NaN)
+        h_adj = np.full(data_length, np.NaN)
         flux_adj = np.full(data_length, np.NaN)
 
         # compute adjusted turbulent fluxes for when Rn > 0
         # correcting LE and H, method may be faster as function and vectorized
         for i in range(0, data_length):
-            if net_rad[i] > 0:
-                le_flux_adj[i] = (net_rad[i] - g_flux[i]) / (1 + bowen[i])
-                h_flux_adj[i] = (bowen[i] / (1 + bowen[i])) * (net_rad[i] - g_flux[i])
+            if Rn[i] > 0:
+                le_adj[i] = (Rn[i] - g[i]) / (1 + bowen[i])
+                h_adj[i] = (bowen[i] / (1 + bowen[i])) * (Rn[i] - g[i])
 
             else:
-                le_flux_adj[i] = le_flux[i]
-                h_flux_adj[i] = h_flux[i]
+                le_adj[i] = le[i]
+                h_adj[i] = h[i]
 
         # compute adjusted turbulent fluxes for when Rn > 0 and Bowen ratio < 0.05
         # instead of forcing closure when bowen ratio is often <- 0.8 or threshold when 
@@ -175,39 +183,39 @@ class QaQc(object):
         # during periods of possibly "bad" data, usually while the measured LE is going down
 
         for i in range(0, data_length):
-            if net_rad[i] > 0 and bowen[i] < 0.05:
-                le_flux_adj[i] = ((le_flux[i - 1]) + (le_flux[i + 1]))/2
-                h_flux_adj[i] = ((h_flux[i - 1]) + (h_flux[i + 1]))/2
+            if Rn[i] > 0 and bowen[i] < 0.05:
+                le_adj[i] = ((le[i - 1]) + (le[i + 1]))/2
+                h_adj[i] = ((h[i - 1]) + (h[i + 1]))/2
 
-            flux_adj[i] = le_flux_adj[i] + h_flux_adj[i]
+            flux_adj[i] = le_adj[i] + h_adj[i]
 
             # If adjusted fluxes are less than original fluxes, keep originals
-            if le_flux_adj[i] < le_flux[i]:
-                le_flux_adj[i] = le_flux[i]
+            if le_adj[i] < le[i]:
+                le_adj[i] = le[i]
 
-            if h_flux_adj[i] < h_flux[i]:
-                h_flux_adj[i] = h_flux[i]
+            if h_adj[i] < h[i]:
+                h_adj[i] = h[i]
 
-        # add le_flux_adj, h_flux_adj, and flux_adj to dataframe
-        # TODO: flux_adj in blake's code is placed to not reflect final h_flux and le_flux adj values, confirm with him
-        self.df['le_flux_adj'] = le_flux_adj
-        self.df['h_flux_adj'] = h_flux_adj
+        # add le_adj, h_adj, and flux_adj to dataframe
+        # TODO: flux_adj in blake's code is placed to not reflect final h and le adj values, confirm with him
+        self.df['LE_adj'] = le_adj
+        self.df['H_adj'] = h_adj
         self.df['flux_adj'] = flux_adj
 
         # corrected turbulent flux if given from input data
-        self.df['flux_corr'] = self.df.le_flux_corr + self.df.h_flux_corr 
+        self.df['flux_corr'] = self.df.LE_corr + self.df.H_corr 
 
-        # add ET/EBC columns to dataframe using le_flux and h_flux of various sources
-        #  _reg uses uncorrected le_flux and h_flux
-        #  _adj uses ajusted le_flux and h_flux from our bowen ratio corrections
-        #  _corr uses corrected le_flux and h_flux as found in data file (if provided)
-        self.df['et_reg'] = 86400 * (self.df.le_flux/(2500000 * 1000)) * 1000
-        self.df['et_adj'] = 86400 * (self.df.le_flux_adj/(2500000 * 1000)) * 1000
-        self.df['et_corr'] = 86400 * (self.df.le_flux_corr /(2500000 * 1000)) * 1000
+        # add ET/EBC columns to dataframe using le and h of various sources
+        #  _reg uses uncorrected le and h
+        #  _adj uses ajusted le and h from our bowen ratio corrections
+        #  _corr uses corrected le and h as found in data file (if provided)
+        self.df['et_reg'] = 86400 * (self.df.LE/(2500000 * 1000)) * 1000
+        self.df['et_adj'] = 86400 * (self.df.LE_adj/(2500000 * 1000)) * 1000
+        self.df['et_corr'] = 86400 * (self.df.LE_corr /(2500000 * 1000)) * 1000
 
-        self.df['ebc_reg'] = (self.df.h_flux + self.df.le_flux) / (self.df.net_rad - self.df.g_flux)
-        self.df['ebc_adj'] = (self.df.h_flux_adj + self.df.le_flux_adj) / (self.df.net_rad - self.df.g_flux)
-        self.df['ebc_corr'] = (self.df.h_flux_corr + self.df.le_flux_corr) / (self.df.net_rad - self.df.g_flux)
+        self.df['ebc_reg'] = (self.df.H + self.df.LE) / (self.df.Rn - self.df.G)
+        self.df['ebc_adj'] = (self.df.H_adj + self.df.LE_adj) / (self.df.Rn - self.df.G)
+        self.df['ebc_corr'] = (self.df.H_corr + self.df.LE_corr) / (self.df.Rn - self.df.G)
 
         # replace undefined/infinity with nans in all EBC columns
         self.df.ebc_reg = self.df.ebc_reg.replace([np.inf, -np.inf], np.nan)

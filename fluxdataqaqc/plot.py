@@ -341,8 +341,8 @@ class Plot(object):
         # Create all the daily plots
 
         # Plot surface balance components
-        plot_surface_bal = self._generate_line_plot(x_size, y_size, df.index, 1, '', df.net_rad, df.le_flux,
-                                                    df.h_flux, df.g_flux)
+        plot_surface_bal = self._generate_line_plot(x_size, y_size, df.index, 1, '', df.Rn, df.LE,
+                                                    df.H, df.G)
         # Plot net radiation components
         plot_net_rad = self._generate_line_plot(x_size, y_size, df.index, 2, '', df.sw_in, df.lw_in, df.sw_out,
                                                 df.lw_out)
@@ -358,8 +358,8 @@ class Plot(object):
         plot_precip = self._generate_line_plot(x_size, y_size, df.index, 7, '', df.ppt, None, None, None)
         # Plot ET
         plot_et = self._generate_line_plot(x_size, y_size, df.index, 8, '', df.et_reg, df.et_corr, df.et_adj, None)
-        # Plot le_flux
-        plot_le = self._generate_line_plot(x_size, y_size, df.index, 9, '', df.le_flux, df.le_flux_corr, df.le_flux_adj,
+        # Plot le
+        plot_le = self._generate_line_plot(x_size, y_size, df.index, 9, '', df.LE, df.LE_corr, df.LE_adj,
                                            None)
         # Plot energy balance ratios
         plot_ebr = self._generate_line_plot(x_size, y_size, df.index, 10, '', df.ebc_reg, df.ebc_corr, df.ebc_adj,
@@ -372,8 +372,8 @@ class Plot(object):
         # Create all the monthly plots
         # Plot surface balance components
         monthly_plot_surface_bal = self._generate_line_plot(x_size, y_size, monthly_df.index, 1, 'Monthly ',
-                                                            monthly_df.net_rad, monthly_df.le_flux,
-                                                            monthly_df.h_flux, monthly_df.g_flux)
+                                                            monthly_df.Rn, monthly_df.LE,
+                                                            monthly_df.H, monthly_df.G)
         # Plot net radiation components
         monthly_plot_net_rad = self._generate_line_plot(x_size, y_size, monthly_df.index, 2, 'Monthly ',
                                                         monthly_df.sw_in, monthly_df.lw_in, monthly_df.sw_out,
@@ -396,9 +396,9 @@ class Plot(object):
         # Plot ET
         monthly_plot_et = self._generate_line_plot(x_size, y_size, monthly_df.index, 8, 'Monthly ', monthly_df.et_reg,
                                                    monthly_df.et_corr, monthly_df.et_adj, None)
-        # Plot le_flux
-        monthly_plot_le = self._generate_line_plot(x_size, y_size, monthly_df.index, 9, 'Monthly ', monthly_df.le_flux,
-                                                   monthly_df.le_flux_corr, monthly_df.le_flux_adj,
+        # Plot le
+        monthly_plot_le = self._generate_line_plot(x_size, y_size, monthly_df.index, 9, 'Monthly ', monthly_df.LE,
+                                                   monthly_df.LE_corr, monthly_df.LE_adj,
                                                    None)
         # Plot energy balance ratios
         monthly_plot_ebr = self._generate_line_plot(x_size, y_size, monthly_df.index, 10, 'Monthly ',

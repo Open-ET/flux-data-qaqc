@@ -139,12 +139,12 @@ class Data(object):
         df.rename(
             columns={
                variables['date']: 'date',
-               variables['Rn']: 'net_rad', 
-               variables['G']: 'g_flux', 
-               variables['LE']: 'le_flux', 
-               variables['LE_corr']: 'le_flux_corr',
-               variables['H']: 'h_flux', 
-               variables['H_corr']: 'h_flux_corr',
+               variables['Rn']: 'Rn', 
+               variables['G']: 'G', 
+               variables['LE']: 'LE', 
+               variables['LE_corr']: 'LE_corr',
+               variables['H']: 'H', 
+               variables['H_corr']: 'H_corr',
                variables['P']: 'ppt', 
                variables['SW_IN']: 'sw_in', 
                variables['SW_OUT']: 'sw_out', 
