@@ -34,9 +34,10 @@ class QaQc(object):
         
         if isinstance(data, Data):
             self._df = data.df
-            self._elevation = data.elevation
-            self._latitude = data.latitude
+            self.elevation = data.elevation
+            self.latitude = data.latitude
         elif data is not None:
+            print('{} is not a valid input type'.format(type(data)))
             raise TypeError("Must assign a fluxdataqaqc.data.Data object")
         else:
             self._df = None
@@ -108,8 +109,9 @@ class QaQc(object):
             df = pd.concat([means, sums], sort=False)
             # use monthly sums for ebc columns not means of ratio
             df.ebc_reg = (df.H + df.LE) / (df.Rn - df.G)
-            df.ebc_corr= (df.H_corr + df.LE_corr) / (df.Rn - df.G)
             df.ebc_adj = (df.H_adj + df.LE_adj) / (df.Rn - df.G)
+            if set(['LE_corr','H_corr']).issubset(df.columns):
+                df.ebc_corr= (df.H_corr + df.LE_corr) / (df.Rn - df.G)
         elif how == 'aggregate':
             # for monthly stats not time series
             df = df.groupby(df.index.month).agg(agg_dict)
@@ -122,7 +124,7 @@ class QaQc(object):
         return df
 
     @classmethod
-    def from_dataframe(cls, df):
+    def from_dataframe(cls, df, elev_m, lat_dec_deg):
         """
         Create a ``QaQc`` object from a pandas.DataFrame object.
         
@@ -131,7 +133,8 @@ class QaQc(object):
         qaqc = cls()
         # use property setter, will load dataframe if needed
         qaqc.df = df  
-        
+        qaqc.latitude = lat_dec_deg
+        qaqc.elevation = elev_m
         return qaqc
     
     def correct_data(self):
@@ -203,7 +206,11 @@ class QaQc(object):
         self.df['flux_adj'] = flux_adj
 
         # corrected turbulent flux if given from input data
-        self.df['flux_corr'] = self.df.LE_corr + self.df.H_corr 
+        if set(['LE_corr','H_corr']).issubset(self.df.columns):
+            self.df['flux_corr'] = self.df.LE_corr + self.df.H_corr 
+            self.df['et_corr'] = 86400 * (self.df.LE_corr /(2500000 * 1000)) * 1000
+            self.df['ebc_corr'] = (self.df.H_corr + self.df.LE_corr) / (self.df.Rn - self.df.G)
+            self.df.ebc_corr = self.df.ebc_corr.replace([np.inf, -np.inf], np.nan)
 
         # add ET/EBC columns to dataframe using le and h of various sources
         #  _reg uses uncorrected le and h
@@ -211,16 +218,13 @@ class QaQc(object):
         #  _corr uses corrected le and h as found in data file (if provided)
         self.df['et_reg'] = 86400 * (self.df.LE/(2500000 * 1000)) * 1000
         self.df['et_adj'] = 86400 * (self.df.LE_adj/(2500000 * 1000)) * 1000
-        self.df['et_corr'] = 86400 * (self.df.LE_corr /(2500000 * 1000)) * 1000
 
         self.df['ebc_reg'] = (self.df.H + self.df.LE) / (self.df.Rn - self.df.G)
         self.df['ebc_adj'] = (self.df.H_adj + self.df.LE_adj) / (self.df.Rn - self.df.G)
-        self.df['ebc_corr'] = (self.df.H_corr + self.df.LE_corr) / (self.df.Rn - self.df.G)
 
         # replace undefined/infinity with nans in all EBC columns
         self.df.ebc_reg = self.df.ebc_reg.replace([np.inf, -np.inf], np.nan)
         self.df.ebc_adj = self.df.ebc_adj.replace([np.inf, -np.inf], np.nan)
-        self.df.ebc_corr = self.df.ebc_corr.replace([np.inf, -np.inf], np.nan)
 
         # create date vectors for obtaining day of year for use in calculating ra and then rso
         date = pd.DatetimeIndex(self.df.index)
@@ -237,10 +241,10 @@ class QaQc(object):
         doy = np.array(list(map(int, doy)))  # Converts list of string values into ints and saves as numpy array
 
         # obtain extraterrestrial radiation from doy and latitude
-        ra_mj_m2 = _ra_daily(self._latitude, doy, method='asce')
+        ra_mj_m2 = _ra_daily(self.latitude, doy, method='asce')
 
         # clear sky radiation calc (simple version based on elevation)
-        rso_a_mj_m2 = np.array((0.75 + 2E-5 * self._elevation) * ra_mj_m2)  # asce 19 and 45
+        rso_a_mj_m2 = np.array((0.75 + 2E-5 * self.elevation) * ra_mj_m2)  # asce 19 and 45
         self.df['rso'] = rso_a_mj_m2 * 11.574
 
         # update flag for other methods

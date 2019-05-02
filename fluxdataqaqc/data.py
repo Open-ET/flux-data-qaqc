@@ -29,18 +29,15 @@ class Data(object):
     def __init__(self, config):
 
         self.config_file = Path(config).absolute()
-        self.config = self.load_config(self.config_file)
-        self.elevation = int(dict(
-            self.config.items('METADATA')).get('station_elevation')
-        )
-        self.latitude = float(dict(
-            self.config.items('METADATA')).get('station_latitude')
-        )
+        self.config = self._load_config(self.config_file)
+        self.na_val = self.config.get('METADATA', 'missing_data_value')
+        self.elevation = int(self.config.get('METADATA', 'station_elevation'))
+        self.latitude = float(self.config.get('METADATA', 'station_latitude'))
         self.climate_file = self._get_climate_file()
         self.header = self._get_header(self.climate_file)
         self._df = None
 
-    def load_config(self, config_file):
+    def _load_config(self, config_file):
         if not config_file.is_file():
             raise FileNotFoundError('ERROR: config file not found')
         config = cp.ConfigParser()
@@ -63,17 +60,24 @@ class Data(object):
 
     def _get_header(self, climate_file):
         """
-        Read top line of climate time series file return header names.
+        Read only top line of climate time series file return header names.
         """
-        header_data = np.genfromtxt(
-            climate_file, 
-            dtype='U', 
-            delimiter=',', 
-            max_rows=1, 
-            autostrip=True,                             
-            case_sensitive='lower'
-        )
-        return header_data
+        if climate_file.suffix in ('.xlsx', '.xls'):
+            workbook = pd.ExcelFile(climate_file)
+            rows = workbook.book.sheet_by_index(0).nrows
+            header = pd.read_excel(workbook, skipfooter = (rows - 1))
+            header = header.columns
+        
+        else: # assume CSV
+            header = np.genfromtxt(
+                climate_file, 
+                dtype='U', 
+                delimiter=',', 
+                max_rows=1, 
+                autostrip=True,                             
+                case_sensitive='lower'
+            )
+        return header
     
     @property
     def df(self):
@@ -81,7 +85,7 @@ class Data(object):
         Pulls energy balance variables out of config file and attempts to load 
         them into a date-indexed pandas.DataFrame. 
 
-        :return: pandas.DataFrame of all the variables and their indices
+        :return: pandas.DataFrame of all variables specified in config file
         """
 
         # avoid overwriting pre-assigned data
@@ -113,7 +117,6 @@ class Data(object):
         variables['T_AVG'] = self.config['DATA']['avg_temp_col']
         variables['WS'] = self.config['DATA']['wind_spd_col']
 
-
         # handle missing 'na' data
         for k,v in variables.items():
             if v == 'na':
@@ -121,19 +124,36 @@ class Data(object):
         vars_notnull = dict((k, v) for k, v in variables.items() if v != 'na')
         cols = list(vars_notnull.values())
 
+        missing_cols = None
         if not set(cols).issubset(self.header):
-            err_msg = ('One of more of the column names below '
-                'was not found in the input climate file: {}'.format(
-                    ' '.join(cols)))
-            raise KeyError(err_msg)
+            missing_cols = set(cols) - set(self.header)
+            err_msg = ('WARNING: the following columns are missing '
+                'in the input climate file:\n{}\nThey will be filled with '
+                'NaN values'.format(' '.join(missing_cols)))
+            print(err_msg)
+            cols = set(cols).intersection(self.header)
+        #self.variables = variables
+        #self.cols = cols
+        # load data file depending on file format
+        if self.climate_file.suffix in ('.xlsx', '.xls'):
+            # find indices of headers we want, only read those, excel needs ints
+            ix=[i for i, e in enumerate(self.header) if e in set(cols)]
+            df = pd.read_excel(
+                self.climate_file,
+                parse_dates = [variables.get('date')],
+                usecols = ix,
+                na_values=['NaN', 'NAN', '#VALUE!', self.na_val]
+            )
+        else:
+            df = pd.read_csv(
+                self.climate_file,
+                parse_dates = [variables.get('date')],
+                usecols = cols,
+                na_values=['NaN', 'NAN', '#VALUE!', self.na_val]
+            )
 
-        # parse_dates usually works on most string formats
-        df = pd.read_csv(
-            self.climate_file,
-            parse_dates = [variables.get('date')],
-            usecols = cols,
-            na_values=['NaN', 'NAN', '#VALUE!', '-9999']
-        )
+        if missing_cols:
+            df = df.reindex(columns=list(cols)+list(missing_cols))
 
         # rename all df columns to consistent names
         df.rename(
@@ -169,114 +189,3 @@ class Data(object):
             raise TypeError("Must assign a Pandas.DataFrame object")
         self._df = data_frame
 
-####### all below not in working shape or not needed currently
-#
-#    def _obtain_units(self, config_file, provided_variables):
-#        """
-#        Iterates through the dictionary of all variables and looks up units for only those that are provided.
-#        There is no error checking at this stage, checks to see if units are valid is performed later on
-#
-#        :param config_file: Absolute path to configuration file
-#        :param provided_variables: Pandas series (dictionary) that contains the indicies of all provided variables
-#
-#        :return: A pandas series (dictionary) where the variable names are the keys and the unit strings are the values
-#        """
-#        config_reader = cp.ConfigParser()
-#        config_reader.read(config_file)
-#
-#        self.units_dict = {}
-#
-#        # Iterate through all entries in the dictionary, check to see if they are set to -1, otherwise look up the units
-#        # in the config file and put them in a dictionary
-#        for variable, index in provided_variables.items():
-#            if index == -1:  # Variable was not provided, do not look up units
-#                pass
-#            else:
-#                variable_units_string = variable + '_units'
-#                units = config_reader['DATA'][variable_units_string]
-#
-#                self.units_dict.update({variable: units.lower()})
-#
-#        return self.units_dict
-#
-#    def _convert_units(self, variable_name, original_values, initial_units):
-#        """
-#        Determines what variable has been passed, finds the initial units of that variable, and then converts the
-#        original data into the appropriate units if necessary
-#
-#        :param variable_name: String of variable name
-#        :param original_values: 1D numpy array of climate observations in original units
-#        :param initial_units: pandas series (dictionary) of provided variables and their
-#        :return: A numpy array of climate observations that have been converted into the appropriate units
-#        """
-#
-#        unit_string = initial_units[variable_name]
-#
-#        # Units of radiation
-#        if unit_string == 'w/m2':
-#            # observations are already in their desired units
-#            self.converted_values = original_values
-#        elif unit_string == 'langleys' or unit_string == 'ly':
-#            # convert langleys to w/m2
-#            self.converted_values = np.array(original_values * 0.48458)
-#        elif unit_string == 'kw-hr/m2' or unit_string == 'kw_hr/m2' or unit_string == 'kwhr/m2':
-#            # convert kilowatt hours to w/m2
-#            self.converted_values = np.array((original_values * 1000) / 24)
-#        elif unit_string == 'mj/m2':
-#            # convert mj/m2 to w/m2
-#            self.converted_values = np.array(original_values * 11.574)
-#
-#        # Units of temperature
-#        elif unit_string == 'c' or unit_string == 'celsius':
-#            # observations are already in their desired units
-#            self.converted_values = original_values
-#        elif unit_string == 'f' or unit_string == 'fahrenheit':
-#            # convert fahrenheit to celsius
-#            self.converted_values = np.array(((original_values - 32.0) * (5.0 / 9.0)))
-#        elif unit_string == 'k' or unit_string == 'kelvin':
-#            # convert kelvin to celsius
-#            self.converted_values = np.array(original_values - 273.15)
-#
-#        # Units of pressure
-#        elif unit_string == 'kpa' or unit_string == 'kilopascals':
-#            # observations are already in their desired units
-#            self.converted_values = original_values
-#        elif unit_string == 'torr' or unit_string == 'mmhg':
-#            # convert from torr or mmhg into kilopascals
-#            self.converted_values = np.array(original_values * 0.133322)
-#        elif unit_string == 'p' or unit_string == 'pascals':
-#            # convert from pascals to kilopascals
-#            self.converted_values = np.array(original_values / 1000)
-#
-#        # Units of distance
-#        elif unit_string == 'mm' or unit_string == 'millimeters':
-#            # observations are already in their desired units
-#            self.converted_values = original_values
-#        elif unit_string == 'in' or unit_string == 'inches':
-#            # convert inches to mm
-#            self.converted_values = np.array(original_values * 25.4)
-#        elif unit_string == 'ft' or unit_string == 'feet':
-#            # convert ft to mm
-#            self.converted_values = np.array(original_values * 304.8)
-#
-#        # Units of speed
-#        elif unit_string == 'm/s':
-#            # observations are already in their desired units
-#            self.converted_values = original_values
-#        elif unit_string == 'mph':
-#            # convert mph to m/s
-#            self.converted_values = np.array(original_values * 0.44704)
-#
-#        # Units for percentages
-#        elif unit_string == '%' or unit_string == 'percent':
-#            # observations are already in their desired units
-#            self.converted_values = original_values
-#        elif unit_string == 'fract' or unit_string == 'fraction':
-#            self.converted_values = np.array(original_values * 100)
-#
-#        # Unrecognized string for variable units, raise an error
-#        else:
-#            raise ValueError('Parameter {} had an unsupported unit string of {}.'.format(variable_name, unit_string))
-#
-#        return self.converted_values
-#
