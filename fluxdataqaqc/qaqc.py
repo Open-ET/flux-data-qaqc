@@ -4,19 +4,21 @@ Tools for correcting surface energy-balance components and calculating
 relevant variables such as Bowen's ratio, crop coefficient, energy balance
 closure error fraction, and others. 
 
-Input data is currently expected as a daily time series that has been 
-converted into a pandas.DataFrame from an eddy covariance climate station.
+Input data is expected to be a :obj:`fluxdataqaqc.data.Data` instance.
 
 TODO: 
- * add calcs, reading in of data for comparing ETr:ETo (gridMET)
- * add monthly stat calcs, energy balance closure error, energy-balance ratio
+ * reading in of data for comparing ETr:ETo (gridMET)
 """
 
+
 import datetime as dt
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import refet as ret
 from refet.calcs import _ra_daily
+
 from .data import Data
 
 class QaQc(object):
@@ -29,7 +31,38 @@ class QaQc(object):
     can also be initialized with a :obj:`pandas.DataFrame` that contains the
     required variables. 
     """
-    
+    agg_dict = {
+        'energy': 'mean',
+        'flux': 'mean',
+        'flux_adj': 'mean',
+        'flux_corr': 'mean',
+        'bowen_ratio': 'mean',
+        'et_reg': 'sum',
+        'et_adj': 'sum',
+        'et_corr': 'sum',
+        'ebc_reg': 'mean',
+        'ebc_adj': 'mean',
+        'ebc_corr': 'mean',
+        't_avg': 'mean',
+        'rso': 'mean',
+        'sw_pot': 'mean',
+        'sw_in': 'mean',
+        'lw_in': 'mean',
+        'vpd': 'mean',
+        'ppt': 'sum',
+        'ws': 'mean',
+        'Rn': 'mean',
+        'sw_out': 'mean',
+        'lw_out': 'mean',
+        'G': 'mean',
+        'LE': 'mean',
+        'LE_corr': 'mean',
+        'LE_adj': 'mean',
+        'H': 'mean',
+        'H_corr': 'mean',
+        'H_adj': 'mean',
+    }
+ 
     def __init__(self, data=None):
         
         if isinstance(data, Data):
@@ -43,7 +76,37 @@ class QaQc(object):
             self._df = None
 
         self.corrected = False 
+        self._df = self._check_daily_freq()
             
+    def _check_daily_freq(self):
+        """check temporal frequency of input Data, resample to daily"""
+        df = self._df
+
+        if not isinstance(df, pd.DataFrame):
+            return
+
+        freq = pd.infer_freq(df.index)
+
+        if freq > 'D':
+            print('WARNING: it looks like the input data temporal frequency',
+                'is greater than daily, downsampling to daily, proceed with' ,
+                'caution!')
+        if freq < 'D':
+            print('The input data temporal frequency appears to be less than',
+                'daily, it will be resampled to daily.')
+
+        if not freq == 'D':
+            sum_cols = [k for k,v in QaQc.agg_dict.items() if v == 'sum']
+            sum_cols = list(set(sum_cols).intersection(df.columns))
+            mean_cols = set(df.columns) - set(sum_cols)
+            means = df.loc[:,mean_cols].resample('D').mean()
+            sums = df.loc[:,sum_cols].resample('D').sum()
+            df = pd.concat([means, sums], sort=False)
+
+            self._df = df
+
+        return df
+
     @property     
     def df(self):
         # avoid overwriting pre-assigned data
@@ -57,71 +120,84 @@ class QaQc(object):
         self._df = data_frame
 
     @property
-    def monthly_df(self, how='time_series'):
+    def monthly_df(self):
         """
         Return current state of df as monthly time series.
 
-        # TODO: maybe improve handling of units/var names
         """
         if not self.corrected:
             self.correct_data()
 
         df = self._df
 
-        agg_dict = {
-            'energy': 'mean',
-            'flux': 'mean',
-            'flux_adj': 'mean',
-            'flux_corr': 'mean',
-            'bowen_ratio': 'mean',
-            'et_reg': 'sum',
-            'et_adj': 'sum',
-            'et_corr': 'sum',
-            'ebc_reg': 'mean',
-            'ebc_adj': 'mean',
-            'ebc_corr': 'mean',
-            't_avg': 'mean',
-            'rso': 'mean',
-            'sw_pot': 'mean',
-            'sw_in': 'mean',
-            'lw_in': 'mean',
-            'vpd': 'mean',
-            'ppt': 'sum',
-            'ws': 'mean',
-            'Rn': 'mean',
-            'sw_out': 'mean',
-            'lw_out': 'mean',
-            'G': 'mean',
-            'LE': 'mean',
-            'LE_corr': 'mean',
-            'LE_adj': 'mean',
-            'H': 'mean',
-            'H_corr': 'mean',
-            'H_adj': 'mean',
-        }
-
-        if how == 'time_series':
-            sum_cols = ['et_reg', 'et_adj', 'et_corr', 'ppt']
-            mean_cols = set(df.columns) - set(sum_cols)
-            
-            means = df.loc[:,mean_cols].resample('M').mean()
-            sums = df.loc[:,sum_cols].resample('M').sum()
-            df = pd.concat([means, sums], sort=False)
-            # use monthly sums for ebc columns not means of ratio
-            df.ebc_reg = (df.H + df.LE) / (df.Rn - df.G)
-            df.ebc_adj = (df.H_adj + df.LE_adj) / (df.Rn - df.G)
-            if set(['LE_corr','H_corr']).issubset(df.columns):
-                df.ebc_corr= (df.H_corr + df.LE_corr) / (df.Rn - df.G)
-        elif how == 'aggregate':
-            # for monthly stats not time series
-            df = df.groupby(df.index.month).agg(agg_dict)
-        else:
-            err_msg='Invalid "how" option, use "time_series" or "aggregate"'
-            raise ValueError(err_msg)
+        sum_cols = [k for k,v in QaQc.agg_dict.items() if v == 'sum']
+        # to avoid warning/error of missing columns
+        sum_cols = list(set(sum_cols).intersection(df.columns))
+        mean_cols = set(df.columns) - set(sum_cols)
+        
+        means = df.loc[:,mean_cols].resample('M').mean()
+        sums = df.loc[:,sum_cols].resample('M').sum()
+        df = pd.concat([means, sums], sort=False)
+        # use monthly sums for ebc columns not means of ratio
+        df.ebc_reg = (df.H + df.LE) / (df.Rn - df.G)
+        df.ebc_adj = (df.H_adj + df.LE_adj) / (df.Rn - df.G)
+        if set(['LE_corr','H_corr']).issubset(df.columns):
+            df.ebc_corr= (df.H_corr + df.LE_corr) / (df.Rn - df.G)
+        
+        #elif how == 'aggregate':
+        #    # for monthly stats not time series
+        #    df = df.groupby(df.index.month).agg(self.agg_dict)
+        #else:
+        #    err_msg='Invalid "how" option, use "time_series" or "aggregate"'
+        #    raise ValueError(err_msg)
 
         df.index.name = 'month'
+        df.replace([np.inf, -np.inf], np.nan, inplace=True)
 
         return df
+
+    def write(self, out_dir=None):
+        """
+        Save a copy of the "corrected" energy balance time series
+        including raw input, save two CSVs one at daily and one at monthly
+        time frequencies. 
+
+        Arguments:
+            out_dir (str or None): default None. Directory to save CSVs
+
+        Returns:
+            None
+
+        Note:
+            If this method is used before correcting the data according to the
+            QA/QC routines in ``correct_data`` it will be done before saving. 
+            Similarly, if monthly time series data has not yet been calculated, 
+            it will be created here before saving. 
+        """
+
+        if out_dir is None:
+            out_dir = Path('output')
+        else:
+            out_dir = Path(out_dir)
+
+        if not out_dir.is_dir():
+            print(
+                '{} does not exist, creating directory'.format(
+                    out_dir.absolute()
+                )
+            )
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+        self.output_dir = out_dir.absolute()
+
+        if not self.corrected:
+            self.correct_data
+
+        daily_outf = out_dir / 'daily_data.csv'
+        monthly_outf = out_dir / 'monthly_data.csv'
+
+        self.df.to_csv(daily_outf)
+        self.monthly_df.to_csv(monthly_outf)
 
     @classmethod
     def from_dataframe(cls, df, elev_m, lat_dec_deg):

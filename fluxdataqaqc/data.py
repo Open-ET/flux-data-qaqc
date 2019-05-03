@@ -118,16 +118,17 @@ class Data(object):
         variables['WS'] = self.config['DATA']['wind_spd_col']
 
         # handle missing 'na' data
-        for k,v in variables.items():
-            if v == 'na':
-                print('WARNING: {} is missing from input data'.format(k))
+        # loop for debugging only
+        #for k,v in variables.items():
+        #    if v == 'na':
+        #        print('WARNING: {} is missing from input data'.format(k))
         vars_notnull = dict((k, v) for k, v in variables.items() if v != 'na')
         cols = list(vars_notnull.values())
 
         missing_cols = None
         if not set(cols).issubset(self.header):
             missing_cols = set(cols) - set(self.header)
-            err_msg = ('WARNING: the following columns are missing '
+            err_msg = ('WARNING: the following config variables are missing '
                 'in the input climate file:\n{}\nThey will be filled with '
                 'NaN values'.format(' '.join(missing_cols)))
             print(err_msg)
