@@ -3,7 +3,7 @@
 Plot fluxnet data using bokeh packages
 """
 
-from qaqc import QaQc
+from .qaqc import QaQc
 from bokeh.layouts import gridplot
 from bokeh.models import Label
 from bokeh.plotting import figure, output_file, save
