@@ -318,12 +318,8 @@ class QaQc(object):
         doy = np.array(list(map(int, doy)))  # Converts list of string values into ints and saves as numpy array
 
         # obtain extraterrestrial radiation from doy and latitude
-<<<<<<< HEAD
-        latitude_rads = self._latitude * (np.pi / 180)
+        latitude_rads = self.latitude * (np.pi / 180)
         ra_mj_m2 = _ra_daily(latitude_rads, doy, method='asce')
-=======
-        ra_mj_m2 = _ra_daily(self.latitude, doy, method='asce')
->>>>>>> 111b854d6d6cbed5f673d475d9804ba3639ec502
 
         # clear sky radiation calc (simple version based on elevation)
         rso_a_mj_m2 = np.array((0.75 + 2E-5 * self.elevation) * ra_mj_m2)  # asce 19 and 45
