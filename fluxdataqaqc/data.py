@@ -85,14 +85,16 @@ class Data(object):
         Pulls energy balance variables out of config file and attempts to load 
         them into a date-indexed pandas.DataFrame. 
 
-        :return: pandas.DataFrame of all variables specified in config file
+        Returns:
+            df (pandas.DataFrame): dataframe of all variables specified in 
+                config file, if not found they will be filled with NaNs.
         """
 
         # avoid overwriting pre-assigned data
         if isinstance(self._df, pd.DataFrame):
             return self._df
 
-        # need to verify units (modify code below) 
+        # TODO verify units 
         variables = {}
         variables['date'] = self.config['DATA']['datestring_col']
         variables['year'] = self.config['DATA']['year_col']
@@ -117,6 +119,17 @@ class Data(object):
         variables['T_AVG'] = self.config['DATA']['avg_temp_col']
         variables['WS'] = self.config['DATA']['wind_spd_col']
 
+        # handle multiple G flux variables 
+        all_keys = dict(self.config.items('DATA')).keys()
+        # should be named as 'g_ or 'G_...
+        added_g_keys = []
+        for k in all_keys:
+            if k.startswith('g_') and not k.endswith('_units'):
+                added_g_keys.append(k)
+                
+        if added_g_keys:
+            for el in added_g_keys:
+                variables[el] = self.config.get('DATA', el)
         # handle missing 'na' data
         # loop for debugging only
         #for k,v in variables.items():
