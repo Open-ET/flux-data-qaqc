@@ -112,3 +112,5 @@ example_data/Flux Tower Datasets US_v2.xlsx
 example_data/FLX_US-AR2_FLUXNET2015_SUBSET_DD_2009-2012_1-3.xlsx
 *.xlsx
 *.csv
+*.html
+*.zip

@@ -16,6 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import math
 import refet as ret
 from refet.calcs import _ra_daily
 
@@ -317,7 +318,8 @@ class QaQc(object):
         doy = np.array(list(map(int, doy)))  # Converts list of string values into ints and saves as numpy array
 
         # obtain extraterrestrial radiation from doy and latitude
-        ra_mj_m2 = _ra_daily(self.latitude, doy, method='asce')
+        latitude_rads = self.latitude * (np.pi / 180)
+        ra_mj_m2 = _ra_daily(latitude_rads, doy, method='asce')
 
         # clear sky radiation calc (simple version based on elevation)
         rso_a_mj_m2 = np.array((0.75 + 2E-5 * self.elevation) * ra_mj_m2)  # asce 19 and 45

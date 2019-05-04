@@ -5,6 +5,7 @@ Plot fluxnet data using bokeh packages
 
 from .qaqc import QaQc
 from bokeh.layouts import gridplot
+from bokeh.models import Label
 from bokeh.plotting import figure, output_file, save
 import numpy as np
 
@@ -73,7 +74,7 @@ class Plot(object):
         """
 
         if code == 1:  # First graph, four variables
-            var_one_name = 'Net_Rad'
+            var_one_name = 'Rn'
             var_one_color = 'black'
             var_two_name = 'LE'
             var_two_color = 'blue'
@@ -85,23 +86,23 @@ class Plot(object):
             title = usage + ' Surface Balance Eq. Components'
 
         elif code == 2:  # Second graph, four variables
-            var_one_name = 'Incoming SW'
+            var_one_name = 'SW_in'
             var_one_color = 'red'
-            var_two_name = 'Incoming LW'
+            var_two_name = 'LW_in'
             var_two_color = 'darkred'
-            var_three_name = 'Outgoing SW'
+            var_three_name = 'SW_out'
             var_three_color = 'blue'
-            var_four_name = 'Outgoing LW'
+            var_four_name = 'LW_out'
             var_four_color = 'navy'
             units = 'w/m2'
             title = usage + ' SW and LW Radiation'
 
         elif code == 3:  # Potential vs Actual Incoming Shortwave Radiation
-            var_one_name = 'Incoming Shortwave Potential'
+            var_one_name = 'SW_in_pot'
             var_one_color = 'black'
-            var_two_name = 'Incoming Shortwave Actual'
+            var_two_name = 'SW_in'
             var_two_color = 'red'
-            var_three_name = 'ASCE Rso_a'
+            var_three_name = 'SW_pot_ASCE'
             var_three_color = 'blue'
             var_four_name = 'null'
             var_four_color = 'black'
@@ -202,7 +203,7 @@ class Plot(object):
             var_four_name = 'null'
             var_four_color = 'null'
             units = 'null'
-            title = usage + ' EBC, Raw vs. Fluxnet'
+            title = usage + ' EBC, Raw vs. Fluxnet Corrected'
 
         elif code == 12:  # energy balance scatter plot, raw vs Bowen Corr
             var_one_name = 'Energy'
@@ -293,6 +294,8 @@ class Plot(object):
     def _generate_scatter_plot(self, x_size, y_size, code, usage, var_one=None, var_two=None, var_three=None,
                                link_plot=None):
 
+        data_length = len(var_one)
+
         (units, title, var_one_name, var_one_color, var_two_name, var_two_color,
          var_three_name, var_three_color, var_four_name, var_four_color) = self._generate_plot_features(code, usage)
 
@@ -304,11 +307,29 @@ class Plot(object):
         x = np.array([-80, 280])
         y = np.array([-80, 280])
 
+        # have to loop elementwise to remove nans, TODO there is probably a better way to do this
+        var_one_lstsq = []
+        var_two_lstsq = []
+        var_three_lstsq = []
+
+        for i in range(0, data_length):
+            if np.isnan(var_one[i]) or np.isnan(var_two[i]) or np.isnan(var_three[i]):
+                # do nothing, skipping over this entry because at least one component is a nan
+                pass
+            else:
+                var_one_lstsq.append(var_one[i])
+                var_two_lstsq.append(var_two[i])
+                var_three_lstsq.append(var_three[i])
+
+        var_one_lstsq = np.array(var_one_lstsq)
+        var_two_lstsq = np.array(var_two_lstsq)
+        var_three_lstsq = np.array(var_three_lstsq)
+
         # linalg.lstsq requires a column vector
-        # TODO test this more
-        var_one_lstsq = var_one[:, np.newaxis]
-        #slope_orig, _, _, _ = np.linalg.lstsq(var_one_lstsq, var_two)
-        #slope_corr, _, _, _ = np.linalg.lstsq(var_one_lstsq, var_three)
+        var_one_lstsq = var_one_lstsq[:, np.newaxis]
+
+        slope_orig, _, _, _ = np.linalg.lstsq(var_one_lstsq, var_two_lstsq)
+        slope_corr, _, _, _ = np.linalg.lstsq(var_one_lstsq, var_three_lstsq)
 
         if link_plot is None:  # No plot to link with
             subplot = figure(
@@ -322,13 +343,15 @@ class Plot(object):
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
                 tools='pan, box_zoom, undo, reset, hover, save')
 
-        subplot.line(x, y, line_color='black', legend='1:1 Line')
-        #subplot.line(var_one, var_one*slope_orig, line_color='orange', legend='LS Line, Raw, {}'.format(slope_orig))
-        #subplot.line(var_one, var_one*slope_corr, line_color='navy', legend='LS Line, Corr, {}'.format(slope_corr))
+        subplot.line(x, y, line_color='black', legend='1:1 Line', line_dash='dashed')
+        subplot.line(var_one, var_one*slope_orig, line_color='skyblue', legend='LSL_raw, {:.3f}'
+                     .format(float(slope_orig)))
+        subplot.line(var_one, var_one*slope_corr, line_color='navy', legend='LSL_corr, {:.3f}'
+                     .format(float(slope_corr)))
 
         subplot.triangle(var_one, var_two, size=5, color="lightsalmon", alpha=0.5, legend=var_two_name)
         subplot.circle(var_one, var_three, size=5, color="lightcoral", alpha=0.5, legend=var_three_name)
-        subplot.legend.location = 'bottom_left'
+        subplot.legend.location = 'top_left'
         return subplot
 
     def _create_plots(self, df, monthly_df):
@@ -364,6 +387,27 @@ class Plot(object):
         # Plot energy balance ratios
         plot_ebr = self._generate_line_plot(x_size, y_size, df.index, 10, '', df.ebc_reg, df.ebc_corr, df.ebc_adj,
                                             None)
+
+        # Create label of overall averages between EBR approaches
+        avg_ebr_raw = (df.LE.mean() + df.H.mean()) / (df.Rn.mean() - df.G.mean())
+        avg_ebr_corr = (df.LE_corr.mean() + df.H_corr.mean()) / (df.Rn.mean() - df.G.mean())
+        avg_ebr_adj = (df.LE_adj.mean() + df.H_adj.mean()) / (df.Rn.mean() - df.G.mean())
+
+        ratio_averages_label = Label(x=70, y=225, x_units='screen', y_units='screen',
+                                     text='EBR_raw: {:.3f} \nEBR_corr: {:.3f} \n EBR_adj: {:.3f}'
+                                     .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_adj), render_mode='css',
+                                     border_line_color='black', border_line_alpha=0.25,
+                                     background_fill_color='white', background_fill_alpha=1.0)
+
+        # create a copy of the label because bokeh doesnt want to assign the same label twice
+        monthly_ratio_averages_label = Label(x=70, y=225, x_units='screen', y_units='screen',
+                                             text='EBR_raw: {:.3f} \nEBR_corr: {:.3f} \n EBR_adj: {:.3f}'
+                                             .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_adj), render_mode='css',
+                                             border_line_color='black', border_line_alpha=0.25,
+                                             background_fill_color='white', background_fill_alpha=1.0)
+
+        plot_ebr.add_layout(ratio_averages_label)
+
         plot_ebc_corr = self._generate_scatter_plot(x_size, y_size, 11, '', var_one=df.energy, var_two=df.flux,
                                                     var_three=df.flux_corr)
         plot_ebc_adj = self._generate_scatter_plot(x_size, y_size, 12, '', var_one=df.energy, var_two=df.flux,
@@ -404,6 +448,8 @@ class Plot(object):
         monthly_plot_ebr = self._generate_line_plot(x_size, y_size, monthly_df.index, 10, 'Monthly ',
                                                     monthly_df.ebc_reg, monthly_df.ebc_corr, monthly_df.ebc_adj,
                                                     None)
+        monthly_plot_ebr.add_layout(monthly_ratio_averages_label)
+
         monthly_plot_ebc_corr = self._generate_scatter_plot(x_size, y_size, 11, 'Monthly ', var_one=monthly_df.energy,
                                                             var_two=monthly_df.flux,
                                                             var_three=monthly_df.flux_corr)
