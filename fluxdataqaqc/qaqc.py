@@ -13,14 +13,12 @@ TODO:
 
 import datetime as dt
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
-import math
-import refet as ret
-from refet.calcs import _ra_daily
+from refet.calcs import _ra_daily, _rso_simple
 
 from .data import Data
+
 
 class QaQc(object):
     """
@@ -70,6 +68,9 @@ class QaQc(object):
             self._df = data.df
             self.elevation = data.elevation
             self.latitude = data.latitude
+            self.directory = data.directory
+            self.climate_file_name = data.climate_file_name
+
         elif data is not None:
             print('{} is not a valid input type'.format(type(data)))
             raise TypeError("Must assign a fluxdataqaqc.data.Data object")
@@ -317,12 +318,11 @@ class QaQc(object):
 
         doy = np.array(list(map(int, doy)))  # Converts list of string values into ints and saves as numpy array
 
-        # obtain extraterrestrial radiation from doy and latitude
+        # obtain extraterrestrial radiation from doy and latitude and then calculate
+        # clear sky radiation  (simple version based on elevation)
         latitude_rads = self.latitude * (np.pi / 180)
         ra_mj_m2 = _ra_daily(latitude_rads, doy, method='asce')
-
-        # clear sky radiation calc (simple version based on elevation)
-        rso_a_mj_m2 = np.array((0.75 + 2E-5 * self.elevation) * ra_mj_m2)  # asce 19 and 45
+        rso_a_mj_m2 = _rso_simple(ra_mj_m2, self.elevation)
         self.df['rso'] = rso_a_mj_m2 * 11.574
 
         # update flag for other methods

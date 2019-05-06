@@ -7,7 +7,9 @@ from .qaqc import QaQc
 from bokeh.layouts import gridplot
 from bokeh.models import Label
 from bokeh.plotting import figure, output_file, save
+from pathlib import Path
 import numpy as np
+from math import ceil
 
 
 class Plot(object):
@@ -22,16 +24,15 @@ class Plot(object):
         if isinstance(qaqc, QaQc):
             self._df = qaqc.df
             self._monthly_df = qaqc.monthly_df
+            self.directory = qaqc.directory
+            self.climate_file_name = qaqc.climate_file_name
+            self.provided_vars = self._inventory_variables(self._df)
         elif qaqc is not None:
             raise TypeError("Must assign a fluxdataqaqc.qaqc.QaQc object")
         else:
             self._df = None
 
-        self.provided_vars = self._inventory_variables(self._df)
-        self.aggregate_plot = self._create_plots(self._df, self._monthly_df)
-
-        output_file('example_output.html')
-        save(self.aggregate_plot)
+        self.plots_created = False
 
     def _inventory_variables(self, data):
         """
@@ -98,12 +99,12 @@ class Plot(object):
             title = usage + ' SW and LW Radiation'
 
         elif code == 3:  # Potential vs Actual Incoming Shortwave Radiation
-            var_one_name = 'SW_in_pot'
-            var_one_color = 'black'
-            var_two_name = 'SW_in'
-            var_two_color = 'red'
-            var_three_name = 'SW_pot_ASCE'
-            var_three_color = 'blue'
+            var_one_name = 'SW_in'
+            var_one_color = 'red'
+            var_two_name = 'SW_pot_ASCE'
+            var_two_color = 'black'
+            var_three_name = 'null'
+            var_three_color = 'black'
             var_four_name = 'null'
             var_four_color = 'black'
             units = 'w/m2'
@@ -301,7 +302,7 @@ class Plot(object):
 
         # Comparison plots of EBC
         x_label = 'Energy (Net Radiation - G)'
-        y_label = 'Flux (Latent Heat - Sensible Heat)'
+        y_label = 'Flux (Latent Heat + Sensible Heat)'
 
         # 1:1 line
         x = np.array([-80, 280])
@@ -354,121 +355,231 @@ class Plot(object):
         subplot.legend.location = 'top_left'
         return subplot
 
-    def _create_plots(self, df, monthly_df):
+    def _generate_scalable_plot(self):
+        pass
 
-        # TODO put if statements handling missing variables,
+    def create_and_aggregate_plots(self, provided_vars, df, monthly_df):
 
         x_size = 500
         y_size = 350
-
-        # Create all the daily plots
+        plot_list = []
+        monthly_plot_list = []
 
         # Plot surface balance components
-        plot_surface_bal = self._generate_line_plot(x_size, y_size, df.index, 1, '', df.Rn, df.LE,
+        if ('Rn' in provided_vars) and ('G' in provided_vars) and ('LE' in provided_vars) and ('H' in provided_vars):
+            plot_surface_bal = self._generate_line_plot(x_size, y_size, df.index, 1, '', df.Rn, df.LE,
                                                     df.H, df.G)
+
+            monthly_plot_surface_bal = self._generate_line_plot(x_size, y_size, monthly_df.index, 1, 'Monthly ',
+                                                                monthly_df.Rn, monthly_df.LE,
+                                                                monthly_df.H, monthly_df.G)
+            plot_list.append(plot_surface_bal)
+            monthly_plot_list.append(monthly_plot_surface_bal)
+        else:
+            print('\nSurface balance components graph missing a variable.')
+            plot_surface_bal = None
+            monthly_plot_surface_bal = None
+
         # Plot net radiation components
-        plot_net_rad = self._generate_line_plot(x_size, y_size, df.index, 2, '', df.sw_in, df.lw_in, df.sw_out,
+        if ('sw_in' in provided_vars) and ('sw_out' in provided_vars) and \
+                ('lw_in' in provided_vars) and ('lw_out' in provided_vars):
+
+            plot_net_rad = self._generate_line_plot(x_size, y_size, df.index, 2, '', df.sw_in, df.lw_in, df.sw_out,
                                                 df.lw_out)
+
+            monthly_plot_net_rad = self._generate_line_plot(x_size, y_size, monthly_df.index, 2, 'Monthly ',
+                                                            monthly_df.sw_in, monthly_df.lw_in, monthly_df.sw_out,
+                                                            monthly_df.lw_out)
+
+            plot_list.append(plot_net_rad)
+            monthly_plot_list.append(monthly_plot_net_rad)
+        else:
+            print('\nNet Radiation components graph missing a variable.')
+            plot_net_rad = None
+            monthly_plot_net_rad = None
+
         # Plot potential vs. measured inc_sw_rad
-        plot_sw_rad = self._generate_line_plot(x_size, y_size, df.index, 3, '', df.sw_pot, df.sw_in, df.rso, None)
+        if 'sw_in' in provided_vars:
+            # TODO add rso to agg dict and include it here
+            plot_sw_rad = self._generate_line_plot(x_size, y_size, df.index, 3, '', df.sw_in, df.rso, None)
+
+            monthly_plot_sw_rad = self._generate_line_plot(x_size, y_size, monthly_df.index, 3, 'Monthly ',
+                                                           monthly_df.sw_pot, monthly_df.sw_in, monthly_df.rso, None)
+            plot_list.append(plot_sw_rad)
+            monthly_plot_list.append(monthly_plot_sw_rad)
+        else:
+            print('\nMeasured vs Potential SW graph missing a variable.')
+            plot_sw_rad = None
+            monthly_plot_sw_rad = None
+
         # Plot temperature
-        plot_temp = self._generate_line_plot(x_size, y_size, df.index, 4, '', df.t_avg, None, None, None)
+        if 't_avg' in provided_vars:
+            plot_temp = self._generate_line_plot(x_size, y_size, df.index, 4, '', df.t_avg, None, None, None)
+            monthly_plot_temp = self._generate_line_plot(x_size, y_size, monthly_df.index, 4, 'Monthly ',
+                                                         monthly_df.t_avg, None, None, None)
+            plot_list.append(plot_temp)
+            monthly_plot_list.append(monthly_plot_temp)
+        else:
+            print('\nTemperature graph missing a variable.')
+            plot_temp = None
+            monthly_plot_temp = None
+
         # Plot Vapor_Pres and VPD
-        # plot_vapor_pres = self._generate_line_plot(x_size, y_size, df.index, 5, '', df.vp, df.vpd, None, None)
+        if ('vp' in provided_vars) and ('vpd' in provided_vars):
+            plot_vapor_pres = self._generate_line_plot(x_size, y_size, df.index, 5, '', df.vp, df.vpd, None, None)
+            monthly_plot_vapor_pres = self._generate_line_plot(x_size, y_size, monthly_df.index, 5, 'Monthly ',
+                                                               monthly_df.vp, monthly_df.vpd, None, None)
+            plot_list.append(plot_vapor_pres)
+            monthly_plot_list.append(monthly_plot_vapor_pres)
+
+        else:
+            print('\nVapor Pressure graph missing a variable.')
+            plot_vapor_pres = None
+            monthly_plot_vapor_pres = None
+
         # Plot windspeed
-        plot_windspeed = self._generate_line_plot(x_size, y_size, df.index, 6, '', df.ws, None, None, None)
+        if 'ws' in provided_vars:
+            plot_windspeed = self._generate_line_plot(x_size, y_size, df.index, 6, '', df.ws, None, None, None)
+            monthly_plot_windspeed = self._generate_line_plot(x_size, y_size, monthly_df.index, 6, 'Monthly ',
+                                                              monthly_df.ws, None, None, None)
+            plot_list.append(plot_windspeed)
+            monthly_plot_list.append(monthly_plot_windspeed)
+        else:
+            print('\nWindspeed graph missing a variable.')
+            plot_windspeed = None
+            monthly_plot_windspeed = None
+
         # Plot precipitation
-        plot_precip = self._generate_line_plot(x_size, y_size, df.index, 7, '', df.ppt, None, None, None)
+        if 'ppt' in provided_vars:
+            plot_precip = self._generate_line_plot(x_size, y_size, df.index, 7, '', df.ppt, None, None, None)
+            monthly_plot_precip = self._generate_line_plot(x_size, y_size, monthly_df.index, 7, 'Monthly ',
+                                                           monthly_df.ppt, None, None, None)
+            plot_list.append(plot_precip)
+            monthly_plot_list.append(monthly_plot_precip)
+        else:
+            print('\nPrecipitation graph missing a variable.')
+            plot_precip = None
+            monthly_plot_precip = None
+
         # Plot ET
-        plot_et = self._generate_line_plot(x_size, y_size, df.index, 8, '', df.et_reg, df.et_corr, df.et_adj, None)
-        # Plot le
-        plot_le = self._generate_line_plot(x_size, y_size, df.index, 9, '', df.LE, df.LE_corr, df.LE_adj,
-                                           None)
+        if 'et_reg' in provided_vars:
+            plot_et = self._generate_line_plot(x_size, y_size, df.index, 8, '', df.et_reg, df.et_corr, df.et_adj, None)
+            monthly_plot_et = self._generate_line_plot(x_size, y_size, monthly_df.index, 8, 'Monthly ',
+                                                       monthly_df.et_reg, monthly_df.et_corr, monthly_df.et_adj, None)
+            plot_list.append(plot_et)
+            monthly_plot_list.append(monthly_plot_et)
+        else:
+            print('\nEvapotranspiration graph missing a variable.')
+            plot_et = None
+            monthly_plot_et = None
+
+        # Plot LE
+        if 'LE' in provided_vars:
+            plot_le = self._generate_line_plot(x_size, y_size, df.index, 9, '', df.LE, df.LE_corr, df.LE_adj, None)
+            monthly_plot_le = self._generate_line_plot(x_size, y_size, monthly_df.index, 9, 'Monthly ', monthly_df.LE,
+                                                       monthly_df.LE_corr, monthly_df.LE_adj, None)
+            plot_list.append(plot_le)
+            monthly_plot_list.append(monthly_plot_le)
+        else:
+            print('\nLE graph missing a variable.')
+            plot_le = None
+            monthly_plot_le = None
+
         # Plot energy balance ratios
-        plot_ebr = self._generate_line_plot(x_size, y_size, df.index, 10, '', df.ebc_reg, df.ebc_corr, df.ebc_adj,
-                                            None)
+        if ('Rn' in provided_vars) and ('G' in provided_vars) and ('LE' in provided_vars) and ('H' in provided_vars):
+            # TODO redundant condition, organize better
+            plot_ebr = self._generate_line_plot(x_size, y_size, df.index, 10, '', df.ebc_reg, df.ebc_corr, df.ebc_adj,
+                                                None)
+            monthly_plot_ebr = self._generate_line_plot(x_size, y_size, monthly_df.index, 10, 'Monthly ',
+                                                        monthly_df.ebc_reg, monthly_df.ebc_corr, monthly_df.ebc_adj,
+                                                        None)
 
-        # Create label of overall averages between EBR approaches
-        avg_ebr_raw = (df.LE.mean() + df.H.mean()) / (df.Rn.mean() - df.G.mean())
-        avg_ebr_corr = (df.LE_corr.mean() + df.H_corr.mean()) / (df.Rn.mean() - df.G.mean())
-        avg_ebr_adj = (df.LE_adj.mean() + df.H_adj.mean()) / (df.Rn.mean() - df.G.mean())
+            # Create label of overall averages between EBR approaches
+            avg_ebr_raw = (df.LE.mean() + df.H.mean()) / (df.Rn.mean() - df.G.mean())
+            avg_ebr_corr = (df.LE_corr.mean() + df.H_corr.mean()) / (df.Rn.mean() - df.G.mean())
+            avg_ebr_adj = (df.LE_adj.mean() + df.H_adj.mean()) / (df.Rn.mean() - df.G.mean())
 
-        ratio_averages_label = Label(x=70, y=225, x_units='screen', y_units='screen',
-                                     text='EBR_raw: {:.3f} \nEBR_corr: {:.3f} \n EBR_adj: {:.3f}'
-                                     .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_adj), render_mode='css',
-                                     border_line_color='black', border_line_alpha=0.25,
-                                     background_fill_color='white', background_fill_alpha=1.0)
+            ratio_averages_label = Label(x=70, y=225, x_units='screen', y_units='screen',
+                                         text='EBR_raw: {:.3f} \nEBR_corr: {:.3f} \n EBR_adj: {:.3f}'
+                                         .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_adj), render_mode='css',
+                                         border_line_color='black', border_line_alpha=0.25,
+                                         background_fill_color='white', background_fill_alpha=1.0)
 
-        # create a copy of the label because bokeh doesnt want to assign the same label twice
-        monthly_ratio_averages_label = Label(x=70, y=225, x_units='screen', y_units='screen',
-                                             text='EBR_raw: {:.3f} \nEBR_corr: {:.3f} \n EBR_adj: {:.3f}'
-                                             .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_adj), render_mode='css',
-                                             border_line_color='black', border_line_alpha=0.25,
-                                             background_fill_color='white', background_fill_alpha=1.0)
+            # create a copy of the label because bokeh doesnt want to assign the same label twice
+            monthly_ratio_averages_label = Label(x=70, y=225, x_units='screen', y_units='screen',
+                                                 text='EBR_raw: {:.3f} \nEBR_corr: {:.3f} \n EBR_adj: {:.3f}'
+                                                 .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_adj), render_mode='css',
+                                                 border_line_color='black', border_line_alpha=0.25,
+                                                 background_fill_color='white', background_fill_alpha=1.0)
 
-        plot_ebr.add_layout(ratio_averages_label)
+            plot_ebr.add_layout(ratio_averages_label)
+            monthly_plot_ebr.add_layout(monthly_ratio_averages_label)
 
-        plot_ebc_corr = self._generate_scatter_plot(x_size, y_size, 11, '', var_one=df.energy, var_two=df.flux,
-                                                    var_three=df.flux_corr)
-        plot_ebc_adj = self._generate_scatter_plot(x_size, y_size, 12, '', var_one=df.energy, var_two=df.flux,
-                                                   var_three=df.flux_adj)
+            plot_list.append(plot_ebr)
+            monthly_plot_list.append(monthly_plot_ebr)
+        else:
+            print('\nEnergy balance ratio graph missing a variable.')
+            plot_ebr = None
+            monthly_plot_ebr = None
 
-        # Create all the monthly plots
-        # Plot surface balance components
-        monthly_plot_surface_bal = self._generate_line_plot(x_size, y_size, monthly_df.index, 1, 'Monthly ',
-                                                            monthly_df.Rn, monthly_df.LE,
-                                                            monthly_df.H, monthly_df.G)
-        # Plot net radiation components
-        monthly_plot_net_rad = self._generate_line_plot(x_size, y_size, monthly_df.index, 2, 'Monthly ',
-                                                        monthly_df.sw_in, monthly_df.lw_in, monthly_df.sw_out,
-                                                        monthly_df.lw_out)
-        # Plot potential vs. measured inc_sw_rad
-        monthly_plot_sw_rad = self._generate_line_plot(x_size, y_size, monthly_df.index, 3, 'Monthly ',
-                                                       monthly_df.sw_pot, monthly_df.sw_in, monthly_df.rso, None)
-        # Plot temperature
-        monthly_plot_temp = self._generate_line_plot(x_size, y_size, monthly_df.index, 4, 'Monthly ', monthly_df.t_avg,
-                                                     None, None, None)
-        # Plot Vapor_Pres and VPD
-        # monthly_plot_vapor_pres = self._generate_line_plot(x_size, y_size, monthly_df.index, 5, 'Monthly ',
-        #                                                   monthly_df.vp, monthly_df.vpd, None, None)
-        # Plot windspeed
-        monthly_plot_windspeed = self._generate_line_plot(x_size, y_size, monthly_df.index, 6, 'Monthly ',
-                                                          monthly_df.ws, None, None, None)
-        # Plot precipitation
-        monthly_plot_precip = self._generate_line_plot(x_size, y_size, monthly_df.index, 7, 'Monthly ', monthly_df.ppt,
-                                                       None, None, None)
-        # Plot ET
-        monthly_plot_et = self._generate_line_plot(x_size, y_size, monthly_df.index, 8, 'Monthly ', monthly_df.et_reg,
-                                                   monthly_df.et_corr, monthly_df.et_adj, None)
-        # Plot le
-        monthly_plot_le = self._generate_line_plot(x_size, y_size, monthly_df.index, 9, 'Monthly ', monthly_df.LE,
-                                                   monthly_df.LE_corr, monthly_df.LE_adj,
-                                                   None)
-        # Plot energy balance ratios
-        monthly_plot_ebr = self._generate_line_plot(x_size, y_size, monthly_df.index, 10, 'Monthly ',
-                                                    monthly_df.ebc_reg, monthly_df.ebc_corr, monthly_df.ebc_adj,
-                                                    None)
-        monthly_plot_ebr.add_layout(monthly_ratio_averages_label)
+        if ('energy' in provided_vars) and ('flux' in provided_vars):
+            plot_ebc_corr = self._generate_scatter_plot(x_size, y_size, 11, '', var_one=df.energy, var_two=df.flux,
+                                                        var_three=df.flux_corr)
+            plot_ebc_adj = self._generate_scatter_plot(x_size, y_size, 12, '', var_one=df.energy, var_two=df.flux,
+                                                       var_three=df.flux_adj)
 
-        monthly_plot_ebc_corr = self._generate_scatter_plot(x_size, y_size, 11, 'Monthly ', var_one=monthly_df.energy,
-                                                            var_two=monthly_df.flux,
-                                                            var_three=monthly_df.flux_corr)
-        monthly_plot_ebc_adj = self._generate_scatter_plot(x_size, y_size, 12, 'Monthly ', var_one=monthly_df.energy,
-                                                           var_two=monthly_df.flux,
-                                                           var_three=monthly_df.flux_adj)
+            monthly_plot_ebc_corr = self._generate_scatter_plot(x_size, y_size, 11, 'Monthly ',
+                                                                var_one=monthly_df.energy, var_two=monthly_df.flux,
+                                                                var_three=monthly_df.flux_corr)
+            monthly_plot_ebc_adj = self._generate_scatter_plot(x_size, y_size, 12, 'Monthly ',
+                                                               var_one=monthly_df.energy, var_two=monthly_df.flux,
+                                                               var_three=monthly_df.flux_adj)
+            plot_list.append(plot_ebc_corr)
+            monthly_plot_list.append(monthly_plot_ebc_corr)
+            plot_list.append(plot_ebc_adj)
+            monthly_plot_list.append(monthly_plot_ebc_adj)
+        else:
+            print('\nEnergy balance correlation graphs missing a variable.')
+            plot_ebc_corr = None
+            plot_ebc_adj = None
+            monthly_plot_ebc_corr = None
+            monthly_plot_ebc_adj = None
 
-        fig = gridplot([[plot_surface_bal, plot_net_rad, plot_sw_rad],
-                        [plot_temp, plot_windspeed, plot_precip],
-                        [plot_et, plot_le],
-                        [plot_ebr, plot_ebc_corr, plot_ebc_adj],
-                        [monthly_plot_surface_bal, monthly_plot_net_rad, monthly_plot_sw_rad],
-                        [monthly_plot_temp, monthly_plot_windspeed, monthly_plot_precip],
-                        [monthly_plot_et, monthly_plot_le],
-                        [monthly_plot_ebr, monthly_plot_ebc_corr, monthly_plot_ebc_adj]], toolbar_location="left")
+        number_of_plots = len(plot_list)*2
+        number_of_rows = ceil(number_of_plots / 3)
+        grid_of_plots = [[None] * 3 for i in range(number_of_rows)]
+
+        for i in range(number_of_rows):
+            for j in range(3):
+
+                if len(plot_list) > 0:
+                    grid_of_plots[i][j] = plot_list.pop(0)
+                elif len(plot_list) == 0 and len(monthly_plot_list) > 0:
+                    grid_of_plots[i][j] = monthly_plot_list.pop(0)
+                else:
+                    pass
+
+        fig = gridplot(grid_of_plots, toolbar_location='left')
+        # fig = gridplot([[plot_surface_bal, plot_net_rad, plot_sw_rad],
+        #                 [plot_temp, plot_windspeed, plot_precip],
+        #                 [plot_et, plot_le],
+        #                 [plot_ebr, plot_ebc_corr, plot_ebc_adj],
+        #                 [monthly_plot_surface_bal, monthly_plot_net_rad, monthly_plot_sw_rad],
+        #                 [monthly_plot_temp, monthly_plot_windspeed, monthly_plot_precip],
+        #                 [monthly_plot_et, monthly_plot_le],
+        #                 [monthly_plot_ebr, monthly_plot_ebc_corr, monthly_plot_ebc_adj]], toolbar_location="left")
 
         return fig
 
+    def generate_plots(self):
+        """
+        Create all of the graphs for provided variables,
 
+        """
+        figure_path = self.directory.joinpath(self.climate_file_name + '_figure.html')
+        output_file(figure_path)
 
-
+        compound_fig = self.create_and_aggregate_plots(self.provided_vars, self._df, self._monthly_df)
+        save(compound_fig)
+        self.plots_created = True
 

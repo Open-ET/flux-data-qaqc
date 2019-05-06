@@ -29,11 +29,13 @@ class Data(object):
     def __init__(self, config):
 
         self.config_file = Path(config).absolute()
+        self.directory = self.config_file.parent
         self.config = self._load_config(self.config_file)
         self.na_val = self.config.get('METADATA', 'missing_data_value')
         self.elevation = int(self.config.get('METADATA', 'station_elevation'))
         self.latitude = float(self.config.get('METADATA', 'station_latitude'))
         self.climate_file = self._get_climate_file()
+        self.climate_file_name = self.climate_file.name[:self.climate_file.name.rindex('.')]
         self.header = self._get_header(self.climate_file)
         self._df = None
 
