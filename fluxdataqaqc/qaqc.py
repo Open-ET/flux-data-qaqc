@@ -68,8 +68,7 @@ class QaQc(object):
             self._df = data.df
             self.elevation = data.elevation
             self.latitude = data.latitude
-            self.directory = data.directory
-            self.climate_file_name = data.climate_file_name
+            self.out_dir = data.out_dir
 
         elif data is not None:
             print('{} is not a valid input type'.format(type(data)))
@@ -88,6 +87,7 @@ class QaQc(object):
             return
 
         freq = pd.infer_freq(df.index)
+        self.temporal_freq = freq
 
         if freq > 'D':
             print('WARNING: it looks like the input data temporal frequency',
@@ -178,9 +178,10 @@ class QaQc(object):
         """
 
         if out_dir is None:
-            out_dir = Path('output')
+            out_dir = self.out_dir
         else:
             out_dir = Path(out_dir)
+            self.out_dir = out_dir.absolute()
 
         if not out_dir.is_dir():
             print(
@@ -189,8 +190,6 @@ class QaQc(object):
                 )
             )
             out_dir.mkdir(parents=True, exist_ok=True)
-
-        self.output_dir = out_dir.absolute()
 
         if not self.corrected:
             self.correct_data
@@ -202,7 +201,7 @@ class QaQc(object):
         self.monthly_df.to_csv(monthly_outf)
 
     @classmethod
-    def from_dataframe(cls, df, elev_m, lat_dec_deg):
+    def from_dataframe(cls, df, site_id, elev_m, lat_dec_deg):
         """
         Create a ``QaQc`` object from a pandas.DataFrame object.
         
@@ -213,6 +212,7 @@ class QaQc(object):
         qaqc.df = df  
         qaqc.latitude = lat_dec_deg
         qaqc.elevation = elev_m
+        qaqc.out_dir = Path(site_id + '_output').absolute()
         return qaqc
     
     def correct_data(self):
@@ -270,12 +270,13 @@ class QaQc(object):
 
             flux_adj[i] = le_adj[i] + h_adj[i]
 
-            # If adjusted fluxes are less than original fluxes, keep originals
-            if le_adj[i] < le[i]:
-                le_adj[i] = le[i]
+           # # If adjusted fluxes are less than original fluxes, keep originals
+           # no physical reason to include this
+           # if le_adj[i] < le[i]:
+           #     le_adj[i] = le[i]
 
-            if h_adj[i] < h[i]:
-                h_adj[i] = h[i]
+           # if h_adj[i] < h[i]:
+           #     h_adj[i] = h[i]
 
         # add le_adj, h_adj, and flux_adj to dataframe
         # TODO: flux_adj in blake's code is placed to not reflect final h and le adj values, confirm with him

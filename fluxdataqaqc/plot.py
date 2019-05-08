@@ -24,8 +24,7 @@ class Plot(object):
         if isinstance(qaqc, QaQc):
             self._df = qaqc.df
             self._monthly_df = qaqc.monthly_df
-            self.directory = qaqc.directory
-            self.climate_file_name = qaqc.climate_file_name
+            self.out_dir = qaqc.out_dir
             self.provided_vars = self._inventory_variables(self._df)
         elif qaqc is not None:
             raise TypeError("Must assign a fluxdataqaqc.qaqc.QaQc object")
@@ -33,6 +32,7 @@ class Plot(object):
             self._df = None
 
         self.plots_created = False
+        self.plot_file = None
 
     def _inventory_variables(self, data):
         """
@@ -576,10 +576,11 @@ class Plot(object):
         Create all of the graphs for provided variables,
 
         """
-        figure_path = self.directory.joinpath(self.climate_file_name + '_figure.html')
+        figure_path = self.out_dir.joinpath('plots.html')
         output_file(figure_path)
 
         compound_fig = self.create_and_aggregate_plots(self.provided_vars, self._df, self._monthly_df)
         save(compound_fig)
         self.plots_created = True
+        self.plot_file = figure_path
 

@@ -50,6 +50,7 @@ coverage.xml
 
 # Other testing for now
 test**
+*_output/
 
 # Translations
 *.mo
