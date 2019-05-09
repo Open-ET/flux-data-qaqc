@@ -23,19 +23,46 @@ class Data(object):
         be relative to the config file's location.
 
     TODO:
-     * handling of climate data files of non- .xlsx format (i.e. not fluxnet)
+     * verify/update input variable units
     """
+
+    # maps internal names to config names for variables
+    # updated with user's column names in instance attribute "variables"
+    variable_names_dict = {
+        'date' : 'datestring_col',
+        'year' : 'year_col',
+        'month' : 'month_col',
+        'day' : 'day_col',
+        'Rn' : 'net_radiation_col',
+        'G' : 'ground_flux_col',
+        'LE' : 'latent_heat_flux_col',
+        'LE_corr' : 'latent_heat_flux_corrected_col',
+        'H' : 'sensible_heat_flux_col',
+        'H_corr' : 'sensible_heat_flux_corrected_col',
+        'SW_IN' : 'shortwave_in_col',
+        'SW_OUT' : 'shortwave_out_col',
+        'SW_POT' : 'shortwave_pot_col',
+        'LW_IN' : 'longwave_in_col',
+        'LW_OUT' : 'longwave_out_col',
+        'VP' : 'vap_press_col',
+        'VPD' : 'vap_press_def_col',
+        'T_AVG' : 'avg_temp_col',
+        'P' : 'precip_col',
+        'WS' : 'wind_spd_col'
+    }
 
     def __init__(self, config):
 
         self.config_file = Path(config).absolute()
         self.config = self._load_config(self.config_file)
+        self.variables = self.get_config_vars()
         self.na_val = self.config.get('METADATA', 'missing_data_value')
         self.elevation = int(self.config.get('METADATA', 'station_elevation'))
         self.latitude = float(self.config.get('METADATA', 'station_latitude'))
         self.climate_file = self._get_climate_file()
         self.header = self._get_header(self.climate_file)
         self.site_id = self.config.get('METADATA', 'site_id')
+        # output dir will be in current working directory
         self.out_dir = Path(self.site_id + '_output').absolute()
         self._df = None
 
@@ -80,7 +107,46 @@ class Data(object):
                 case_sensitive='lower'
             )
         return header
-    
+
+    def get_config_vars(self):
+        """
+        Read config data section and get names of all variables, pair with
+        internal variable names in a dictionary.
+        """
+
+        variables = {}
+        # get all variables found in Data.variable_names_dict
+        for k, v in Data.variable_names_dict.items():
+            if self.config.has_option('DATA', v):
+                variables[k] = self.config.get('DATA', v)
+            else:
+                variables[k] = None
+
+        # get multiple G flux/soil moisture variables 
+        all_keys = dict(self.config.items('DATA')).keys()
+        # should be named as 'g_ or 'theta_ what comes after not strict yet
+        added_g_keys = []
+        added_theta_keys = []
+        for k in all_keys:
+            if k.startswith('g_') and not k.endswith('_units'):
+                added_g_keys.append(k)
+            if k.startswith('theta_') and not k.endswith('_units'):
+                added_theta_keys.append(k)
+                
+        if added_g_keys:
+            for el in added_g_keys:
+                variables[el] = self.config.get('DATA', el)
+        if added_theta_keys:
+            for el in added_theta_keys:
+                variables[el] = self.config.get('DATA', el)
+        
+        # update all None values in config with 'na' in variables dict
+        for k, v in variables.items():
+            if v is None:
+                variables[k] = 'na'
+
+        return variables
+
     @property
     def df(self):
         """
@@ -96,47 +162,13 @@ class Data(object):
         if isinstance(self._df, pd.DataFrame):
             return self._df
 
-        # TODO verify units 
-        variables = {}
-        variables['date'] = self.config['DATA']['datestring_col']
-        variables['year'] = self.config['DATA']['year_col']
-        variables['month'] = self.config['DATA']['month_col']
-        variables['day'] = self.config['DATA']['day_col']
-        variables['Rn'] = self.config['DATA']['net_radiation_col']
-        variables['G'] = self.config['DATA']['ground_flux_col']
-        variables['LE'] = self.config['DATA']['latent_heat_flux_col']
-        variables['LE_corr'] = self.config['DATA']\
-            ['latent_heat_flux_corrected_col']
-        variables['H'] = self.config['DATA']['sensible_heat_flux_col']
-        variables['H_corr'] = self.config['DATA']\
-            ['sensible_heat_flux_corrected_col']
-        variables['P'] = self.config['DATA']['precip_col']
-        variables['SW_IN'] = self.config['DATA']['shortwave_in_col']
-        variables['SW_OUT'] = self.config['DATA']['shortwave_out_col']
-        variables['SW_POT'] = self.config['DATA']['shortwave_pot_col']
-        variables['LW_IN'] = self.config['DATA']['longwave_in_col']
-        variables['LW_OUT'] = self.config['DATA']['longwave_out_col']
-        variables['VP'] = self.config['DATA']['vap_press_col']
-        variables['VPD'] = self.config['DATA']['vap_press_def_col']
-        variables['T_AVG'] = self.config['DATA']['avg_temp_col']
-        variables['WS'] = self.config['DATA']['wind_spd_col']
-
-        # handle multiple G flux variables 
-        all_keys = dict(self.config.items('DATA')).keys()
-        # should be named as 'g_ or 'G_...
-        added_g_keys = []
-        for k in all_keys:
-            if k.startswith('g_') and not k.endswith('_units'):
-                added_g_keys.append(k)
-                
-        if added_g_keys:
-            for el in added_g_keys:
-                variables[el] = self.config.get('DATA', el)
         # handle missing 'na' data
         # loop for debugging only
         #for k,v in variables.items():
         #    if v == 'na':
         #        print('WARNING: {} is missing from input data'.format(k))
+
+        variables = self.variables
         vars_notnull = dict((k, v) for k, v in variables.items() if v != 'na')
         cols = list(vars_notnull.values())
 
@@ -171,28 +203,9 @@ class Data(object):
         if missing_cols:
             df = df.reindex(columns=list(cols)+list(missing_cols))
 
-        # rename all df columns to consistent names
-        df.rename(
-            columns={
-               variables['date']: 'date',
-               variables['Rn']: 'Rn', 
-               variables['G']: 'G', 
-               variables['LE']: 'LE', 
-               variables['LE_corr']: 'LE_corr',
-               variables['H']: 'H', 
-               variables['H_corr']: 'H_corr',
-               variables['P']: 'ppt', 
-               variables['SW_IN']: 'sw_in', 
-               variables['SW_OUT']: 'sw_out', 
-               variables['SW_POT']: 'sw_pot', 
-               variables['LW_IN']: 'lw_in', 
-               variables['LW_OUT']: 'lw_out', 
-               variables['VP']: 'vp', 
-               variables['VPD']: 'vpd', 
-               variables['T_AVG']: 't_avg', 
-               variables['WS']: 'ws', 
-            }, inplace=True
-        )
+        # the only column that is always renamed is the datestring_col
+        df.rename(columns={variables['date']: 'date'}, inplace=True)
+        
         # date index
         df.index = df.date
         df.drop('date', axis=1, inplace=True)

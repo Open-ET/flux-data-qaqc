@@ -65,10 +65,14 @@ class QaQc(object):
     def __init__(self, data=None):
         
         if isinstance(data, Data):
+            self.variables = data.variables
             self._df = data.df
             self.elevation = data.elevation
             self.latitude = data.latitude
             self.out_dir = data.out_dir
+            # flip variable naming dict for internal use
+            self.inv_map = {v: k for k, v in self.variables.items()}
+            self._df = self._check_daily_freq()
 
         elif data is not None:
             print('{} is not a valid input type'.format(type(data)))
@@ -77,11 +81,11 @@ class QaQc(object):
             self._df = None
 
         self.corrected = False 
-        self._df = self._check_daily_freq()
             
     def _check_daily_freq(self):
         """check temporal frequency of input Data, resample to daily"""
-        df = self._df
+        # rename columns to internal names 
+        df = self._df.rename(columns=self.inv_map)
 
         if not isinstance(df, pd.DataFrame):
             return
@@ -105,7 +109,8 @@ class QaQc(object):
             sums = df.loc[:,sum_cols].resample('D').sum()
             df = pd.concat([means, sums], sort=False)
 
-            self._df = df
+            # rename columns back to user's
+            self._df = df.rename(columns=self.variables)
 
         return df
 
@@ -113,7 +118,7 @@ class QaQc(object):
     def df(self):
         # avoid overwriting pre-assigned data
         if isinstance(self._df, pd.DataFrame):
-            return self._df
+            return self._df.rename(columns=self.variables)
 
     @df.setter
     def df(self, data_frame):
@@ -130,7 +135,8 @@ class QaQc(object):
         if not self.corrected:
             self.correct_data()
 
-        df = self._df
+        # rename columns to internal names 
+        df = self._df.rename(columns=self.inv_map)
 
         sum_cols = [k for k,v in QaQc.agg_dict.items() if v == 'sum']
         # to avoid warning/error of missing columns
@@ -156,7 +162,7 @@ class QaQc(object):
         df.index.name = 'month'
         df.replace([np.inf, -np.inf], np.nan, inplace=True)
 
-        return df
+        return df.rename(columns=self.variables)
 
     def write(self, out_dir=None):
         """
@@ -201,18 +207,34 @@ class QaQc(object):
         self.monthly_df.to_csv(monthly_outf)
 
     @classmethod
-    def from_dataframe(cls, df, site_id, elev_m, lat_dec_deg):
+    def from_dataframe(cls, df, site_id, elev_m, lat_dec_deg, var_dict):
         """
         Create a ``QaQc`` object from a pandas.DataFrame object.
         
-        TODO: add checks for making sure mandatory columns are provided.
+        Arguments:
+            df (pandas.DataFrame): DataFrame of climate variables with
+                datetime index named 'date'
+            site_id (str): site identifier
+            elev_m (int or float): elevation of site in meters
+            lat_dec_deg (float): latitude of site in decimal degrees
+            var_dict (dict): dictionary that maps `flux-data-qaqc` variable
+                names to user's columns in `df` e.g. {'Rn': 'netrad', ...}
+                see :attr:`fluxdataqaqc.Data.variable_names_dict` for list of 
+                `flux-data-qaqc` variable names
+        
+        Returns:
+            None
+
         """
         qaqc = cls()
         # use property setter, will load dataframe if needed
-        qaqc.df = df  
+        qaqc._df = df  
         qaqc.latitude = lat_dec_deg
         qaqc.elevation = elev_m
         qaqc.out_dir = Path(site_id + '_output').absolute()
+        qaqc.variables = var_dict
+        qaqc.inv_map = {v: k for k, v in var_dict.items()}
+        qaqc._df = qaqc._check_daily_freq()
         return qaqc
     
     def correct_data(self):
@@ -231,16 +253,19 @@ class QaQc(object):
         # get length of data set
         data_length = len(self.df.index)
 
-        self.df['energy'] = self.df.Rn - self.df.G
-        self.df['flux'] = self.df.LE + self.df.H
-        self.df['bowen_ratio'] = self.df.H / self.df.LE
+        # rename columns to internal names 
+        df = self._df.rename(columns=self.inv_map)
+
+        df['energy'] = df.Rn - df.G
+        df['flux'] = df.LE + df.H
+        df['bowen_ratio'] = df.H / df.LE
 
         # numpy arrays of dataframe vars
-        Rn = np.array(self.df.Rn)
-        g = np.array(self.df.G)
-        le = np.array(self.df.LE)
-        h = np.array(self.df.H)
-        bowen = np.array(self.df.bowen_ratio)
+        Rn = np.array(df.Rn)
+        g = np.array(df.G)
+        le = np.array(df.LE)
+        h = np.array(df.H)
+        bowen = np.array(df.bowen_ratio)
         # numpy arrays of new vars
         le_adj = np.full(data_length, np.NaN)
         h_adj = np.full(data_length, np.NaN)
@@ -280,33 +305,33 @@ class QaQc(object):
 
         # add le_adj, h_adj, and flux_adj to dataframe
         # TODO: flux_adj in blake's code is placed to not reflect final h and le adj values, confirm with him
-        self.df['LE_adj'] = le_adj
-        self.df['H_adj'] = h_adj
-        self.df['flux_adj'] = flux_adj
+        df['LE_adj'] = le_adj
+        df['H_adj'] = h_adj
+        df['flux_adj'] = flux_adj
 
         # corrected turbulent flux if given from input data
-        if set(['LE_corr','H_corr']).issubset(self.df.columns):
-            self.df['flux_corr'] = self.df.LE_corr + self.df.H_corr 
-            self.df['et_corr'] = 86400 * (self.df.LE_corr /(2500000 * 1000)) * 1000
-            self.df['ebc_corr'] = (self.df.H_corr + self.df.LE_corr) / (self.df.Rn - self.df.G)
-            self.df.ebc_corr = self.df.ebc_corr.replace([np.inf, -np.inf], np.nan)
+        if set(['LE_corr','H_corr']).issubset(df.columns):
+            df['flux_corr'] = df.LE_corr + df.H_corr 
+            df['et_corr'] = 86400 * (df.LE_corr /(2500000 * 1000)) * 1000
+            df['ebc_corr'] = (df.H_corr + df.LE_corr) / (df.Rn - df.G)
+            df.ebc_corr = df.ebc_corr.replace([np.inf, -np.inf], np.nan)
 
         # add ET/EBC columns to dataframe using le and h of various sources
         #  _reg uses uncorrected le and h
         #  _adj uses ajusted le and h from our bowen ratio corrections
         #  _corr uses corrected le and h as found in data file (if provided)
-        self.df['et_reg'] = 86400 * (self.df.LE/(2500000 * 1000)) * 1000
-        self.df['et_adj'] = 86400 * (self.df.LE_adj/(2500000 * 1000)) * 1000
+        df['et_reg'] = 86400 * (df.LE/(2500000 * 1000)) * 1000
+        df['et_adj'] = 86400 * (df.LE_adj/(2500000 * 1000)) * 1000
 
-        self.df['ebc_reg'] = (self.df.H + self.df.LE) / (self.df.Rn - self.df.G)
-        self.df['ebc_adj'] = (self.df.H_adj + self.df.LE_adj) / (self.df.Rn - self.df.G)
+        df['ebc_reg'] = (df.H + df.LE) / (df.Rn - df.G)
+        df['ebc_adj'] = (df.H_adj + df.LE_adj) / (df.Rn - df.G)
 
         # replace undefined/infinity with nans in all EBC columns
-        self.df.ebc_reg = self.df.ebc_reg.replace([np.inf, -np.inf], np.nan)
-        self.df.ebc_adj = self.df.ebc_adj.replace([np.inf, -np.inf], np.nan)
+        df.ebc_reg = df.ebc_reg.replace([np.inf, -np.inf], np.nan)
+        df.ebc_adj = df.ebc_adj.replace([np.inf, -np.inf], np.nan)
 
         # create date vectors for obtaining day of year for use in calculating ra and then rso
-        date = pd.DatetimeIndex(self.df.index)
+        date = pd.DatetimeIndex(df.index)
         day = np.array(date.day)
         month = np.array(date.month)
         year = np.array(date.year)
@@ -324,7 +349,9 @@ class QaQc(object):
         latitude_rads = self.latitude * (np.pi / 180)
         ra_mj_m2 = _ra_daily(latitude_rads, doy, method='asce')
         rso_a_mj_m2 = _rso_simple(ra_mj_m2, self.elevation)
-        self.df['rso'] = rso_a_mj_m2 * 11.574
+        df['rso'] = rso_a_mj_m2 * 11.574
 
+        # revert column names to user's
+        self._df = df.rename(columns=self.variables)
         # update flag for other methods
         self.corrected = True
