@@ -39,16 +39,16 @@ class Data(object):
         'LE_corr' : 'latent_heat_flux_corrected_col',
         'H' : 'sensible_heat_flux_col',
         'H_corr' : 'sensible_heat_flux_corrected_col',
-        'SW_IN' : 'shortwave_in_col',
-        'SW_OUT' : 'shortwave_out_col',
-        'SW_POT' : 'shortwave_pot_col',
-        'LW_IN' : 'longwave_in_col',
-        'LW_OUT' : 'longwave_out_col',
-        'VP' : 'vap_press_col',
-        'VPD' : 'vap_press_def_col',
-        'T_AVG' : 'avg_temp_col',
-        'P' : 'precip_col',
-        'WS' : 'wind_spd_col'
+        'sw_in' : 'shortwave_in_col',
+        'sw_out' : 'shortwave_out_col',
+        'sw_pot' : 'shortwave_pot_col',
+        'lw_in' : 'longwave_in_col',
+        'lw_out' : 'longwave_out_col',
+        'vp' : 'vap_press_col',
+        'vpd' : 'vap_press_def_col',
+        't_avg' : 'avg_temp_col',
+        'ppt' : 'precip_col',
+        'ws' : 'wind_spd_col'
     }
 
     def __init__(self, config):

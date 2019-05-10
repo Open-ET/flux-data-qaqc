@@ -242,8 +242,15 @@ class QaQc(object):
         Create corrected/adjusted latent energy and sensible heat flux to 
         close surface energy balance. 
         
-        Updates :attr:`QaQc.df` attribute with new variables used for correcting
-        energy fluxes.
+        Compute adjusted turbulent fluxes for when Rn > 0 and Bowen ratio 
+        < 0.05 instead of forcing closure when bowen ratio is often <- 0.8 or 
+        threshold when Rn < 0. The average between i-1 and i+1 is taken. If 
+        closure is forced by partitioning the error equally between LE and H, 
+        LE is drastically increased during periods of possibly "bad" data, 
+        usually while the measured LE is going down.
+
+        Updates :attr:`QaQc.df` and :attr:`QaQc.variables` attributes with new 
+        variables used for closing energy balance.
         
         """
         if not isinstance(self._df, pd.DataFrame):
@@ -259,6 +266,12 @@ class QaQc(object):
         df['energy'] = df.Rn - df.G
         df['flux'] = df.LE + df.H
         df['bowen_ratio'] = df.H / df.LE
+
+        self.variables.update(
+            energy = 'energy',
+            flux = 'flux',
+            bowen_ratio = 'bowen_ratio'
+        )
 
         # numpy arrays of dataframe vars
         Rn = np.array(df.Rn)
@@ -282,12 +295,6 @@ class QaQc(object):
                 le_adj[i] = le[i]
                 h_adj[i] = h[i]
 
-        # compute adjusted turbulent fluxes for when Rn > 0 and Bowen ratio < 0.05
-        # instead of forcing closure when bowen ratio is often <- 0.8 or threshold when 
-        # Rn < 0. The average between i-1 and i+1 is taken. If closure is forced by 
-        # partitioning the error equally between LE and H, LE is drastically increased
-        # during periods of possibly "bad" data, usually while the measured LE is going down
-
         for i in range(0, data_length):
             if Rn[i] > 0 and bowen[i] < 0.05:
                 le_adj[i] = ((le[i - 1]) + (le[i + 1]))/2
@@ -304,10 +311,15 @@ class QaQc(object):
            #     h_adj[i] = h[i]
 
         # add le_adj, h_adj, and flux_adj to dataframe
-        # TODO: flux_adj in blake's code is placed to not reflect final h and le adj values, confirm with him
         df['LE_adj'] = le_adj
         df['H_adj'] = h_adj
         df['flux_adj'] = flux_adj
+
+        self.variables.update(
+            LE_adj = 'LE_adj',
+            H_adj = 'H_adj',
+            flux_adj = 'flux_adj'
+        )
 
         # corrected turbulent flux if given from input data
         if set(['LE_corr','H_corr']).issubset(df.columns):
@@ -315,6 +327,12 @@ class QaQc(object):
             df['et_corr'] = 86400 * (df.LE_corr /(2500000 * 1000)) * 1000
             df['ebc_corr'] = (df.H_corr + df.LE_corr) / (df.Rn - df.G)
             df.ebc_corr = df.ebc_corr.replace([np.inf, -np.inf], np.nan)
+
+            self.variables.update(
+                flux_corr = 'flux_corr',
+                et_corr = 'et_corr',
+                ebc_corr = 'ebc_corr'
+            )
 
         # add ET/EBC columns to dataframe using le and h of various sources
         #  _reg uses uncorrected le and h
@@ -326,11 +344,18 @@ class QaQc(object):
         df['ebc_reg'] = (df.H + df.LE) / (df.Rn - df.G)
         df['ebc_adj'] = (df.H_adj + df.LE_adj) / (df.Rn - df.G)
 
+        self.variables.update(
+            et_reg = 'et_reg',
+            et_adj = 'et_adj',
+            ebc_reg = 'ebc_reg',
+            ebc_adj = 'ebc_adj'
+        )
         # replace undefined/infinity with nans in all EBC columns
         df.ebc_reg = df.ebc_reg.replace([np.inf, -np.inf], np.nan)
         df.ebc_adj = df.ebc_adj.replace([np.inf, -np.inf], np.nan)
 
-        # create date vectors for obtaining day of year for use in calculating ra and then rso
+        # create date vectors for obtaining day of year for use in 
+        # calculating ra and then rso
         date = pd.DatetimeIndex(df.index)
         day = np.array(date.day)
         month = np.array(date.month)
@@ -338,18 +363,22 @@ class QaQc(object):
 
         # Calculate DOY from Y/M/D values
         doy = []
-        for i in range(data_length):
+        for i in range(data_length):# list of string DOY values
             doy.append(
-                dt.date(year[i], month[i], day[i]).strftime("%j"))  # list of string DOY values
+                dt.date(year[i], month[i], day[i]).strftime("%j"))  
+        # Converts list of string values into ints and saves as numpy array
+        doy = np.array(list(map(int, doy)))  
 
-        doy = np.array(list(map(int, doy)))  # Converts list of string values into ints and saves as numpy array
-
-        # obtain extraterrestrial radiation from doy and latitude and then calculate
+        # obtain extraterrestrial radiation from doy and latitude and calculate
         # clear sky radiation  (simple version based on elevation)
         latitude_rads = self.latitude * (np.pi / 180)
         ra_mj_m2 = _ra_daily(latitude_rads, doy, method='asce')
         rso_a_mj_m2 = _rso_simple(ra_mj_m2, self.elevation)
         df['rso'] = rso_a_mj_m2 * 11.574
+        
+        self.variables.update(
+            rso = 'rso'
+        )
 
         # revert column names to user's
         self._df = df.rename(columns=self.variables)
