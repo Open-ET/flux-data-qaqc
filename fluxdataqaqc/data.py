@@ -61,6 +61,7 @@ class Data(object):
         self.latitude = float(self.config.get('METADATA', 'station_latitude'))
         self.climate_file = self._get_climate_file()
         self.header = self._get_header(self.climate_file)
+        self.qc_var_pairs = self._get_qc_flags()
         self.site_id = self.config.get('METADATA', 'site_id')
         # output dir will be in current working directory
         self.out_dir = Path(self.site_id + '_output').absolute()
@@ -112,6 +113,17 @@ class Data(object):
         """
         Read config data section and get names of all variables, pair with
         internal variable names in a dictionary.
+
+        Also parses config file for optionally added multiple soil heat flux
+        and soil moisture variables if given following the naming convention
+        explained in ``flux-data-qaqc``.
+
+        Arguments:
+            None
+
+        Returns:
+            variables (dict): dictionary with internal climate variable names
+                as keys and user's names as found in config as values. 
         """
 
         variables = {}
@@ -146,12 +158,65 @@ class Data(object):
                 variables[k] = 'na'
 
         return variables
+    
+    def _get_qc_flags(self):
+        """
+        Process any existing QC flags for variables in config, also add
+        key,val to variables attribute.
+        """
+        qc_var_pairs = {}
+        tmp = {}
+        for k,v in self.variables.items():
+            qc_var = '{}_QC'.format(v)
+            if qc_var in self.header:
+                internal_name = '{}_qc_flag'.format(k)
+                tmp[internal_name] = qc_var
+                qc_var_pairs[v] = qc_var
+               
+        self.variables.update(tmp)
+        return qc_var_pairs
+
+    def apply_qc_flags(self, threshold = 0.5):
+        """
+        Use provided QC flags for climate variables to exclude bad data 
+        by forcing them to null values. 
+        
+        Specifically If the QC flag is < `threshold` change the variables 
+        value for that day to null. For FLUXNET datasets the QC flag for 
+        daily data is a fraction between 0 and 1 indicating the percentage 
+        of measured or good quality gap filled data used.
+
+        Keyword Arguments:
+            threshold (float): default 0.5. Threshold for QC flag, if flag
+            is below threshold replace that variables value with null.
+
+        Returns:
+            None
+
+        """
+
+        # load dataframe if not yet accessed
+        df = self.df
+        # loop over each variable that has a provided qc flag and set nulls
+        # where qc flag < threshold
+        for var, flag in self.qc_var_pairs.items():
+            df.loc[
+                (df[flag] < threshold) & (df[flag].notnull()) , var
+            ] = np.nan
+
+        self._df = df
 
     @property
     def df(self):
         """
         Pulls energy balance variables out of config file and attempts to load 
         them into a date-indexed pandas.DataFrame. 
+
+        Also read in any QC flag columns from input climate file if they exist
+        for later cleaning of data. The QC flags should have the same name as
+        the variables being used which are set in the config file. For example,
+        for FLUXNET data the gap filled variable for LE is LE_F_MDS and the
+        QC flag for that variable is LE_F_MDS_QC.        
 
         Returns:
             df (pandas.DataFrame): dataframe of all variables specified in 
@@ -180,8 +245,7 @@ class Data(object):
                 'NaN values'.format(' '.join(missing_cols)))
             print(err_msg)
             cols = set(cols).intersection(self.header)
-        #self.variables = variables
-        #self.cols = cols
+
         # load data file depending on file format
         if self.climate_file.suffix in ('.xlsx', '.xls'):
             # find indices of headers we want, only read those, excel needs ints
