@@ -61,6 +61,7 @@ class Data(object):
         self.latitude = float(self.config.get('METADATA', 'station_latitude'))
         self.climate_file = self._get_climate_file()
         self.header = self._get_header(self.climate_file)
+        self.soil_var_weight_pairs = self._get_soil_var_avg_weights()
         self.qc_var_pairs = self._get_qc_flags()
         self.site_id = self.config.get('METADATA', 'site_id')
         # output dir will be in current working directory
@@ -109,6 +110,33 @@ class Data(object):
             )
         return header
 
+    def _get_soil_var_avg_weights(self):
+        """
+        Read config and variable attribute to match user names for multiple
+        soil moisture/heat flux variables to user defined weights used for
+        calculating weighted/non-weighted average values in `Data.df`
+        """
+        soil_var_weight_pairs = {}
+        all_keys = dict(self.config.items('DATA')).keys()
+
+        for k,v in dict(self.config.items('DATA')).items():
+            weight_name = '{}_weight'.format(k)
+            var_name = self.variables.get(k)
+            if k in self.variables.keys() and weight_name in all_keys:
+                weight = self.config.get('DATA', weight_name)
+                tmp = {'name': var_name, 'weight' : weight}
+                soil_var_weight_pairs[k] = tmp
+                #print(k,v, var_name, weight)
+            # update dict with weights if not specified in config, normalized
+            # later in df
+            elif (k.startswith('g_') or k.startswith('theta')) and not \
+                    weight_name in all_keys and not k.endswith('_units') and \
+                    not k.endswith('_weight'):
+                tmp = {'name': var_name, 'weight' : 1}
+                soil_var_weight_pairs[k] = tmp
+
+        return soil_var_weight_pairs
+
     def get_config_vars(self):
         """
         Read config data section and get names of all variables, pair with
@@ -140,9 +168,11 @@ class Data(object):
         added_g_keys = []
         added_theta_keys = []
         for k in all_keys:
-            if k.startswith('g_') and not k.endswith('_units'):
+            if k.startswith('g_') and not k.endswith('_units') \
+                    and not k.endswith('_weight'):
                 added_g_keys.append(k)
-            if k.startswith('theta_') and not k.endswith('_units'):
+            if k.startswith('theta_') and not k.endswith('_units') \
+                    and not k.endswith('_weight'):
                 added_theta_keys.append(k)
                 
         if added_g_keys:
@@ -266,6 +296,68 @@ class Data(object):
 
         if missing_cols:
             df = df.reindex(columns=list(cols)+list(missing_cols))
+
+        # calculate weighted average soil vars if they exist
+        d = self.soil_var_weight_pairs
+        gs = []
+        thetas = []
+
+        if d:
+            gs = [d.get(e) for e in d if e.startswith('g_')]
+            thetas = [d.get(e) for e in d if e.startswith('theta_')] 
+        # soil heat flux weighted average
+        if len(gs) > 1: # if 1 or less no average
+            total_weights = np.sum([float(e.get('weight')) for e in gs])
+            # if weights are not normalized update them
+            if not np.isclose(total_weights, 1.0):
+                for k,v in d.items():
+                    if k.startswith('g_'):
+                        nw = float(v.get('weight')) / total_weights
+                        d[k] = {'name': v.get('name'), 'weight': nw}
+                # if not given in config weights are assigned 1 in 
+                # _get_soil_var_avg_weights 
+                if not total_weights == len(gs):
+                    print('Soil flux weights do not sum to one, normalizing')
+                    msg = ', '.join(
+                        [e.get('name')+': '+e.get('weight') for e in gs]
+                    )
+                    print('Here are the new weights:\n',msg)
+            # apply weights to calculate average
+            tmp_df = df[[e.get('name') for e in gs]].copy()
+            for pair in gs:
+                tmp_df[pair.get('name')] = tmp_df[pair.get('name')] * \
+                        float(pair.get('weight'))
+            df['g_mean'] = tmp_df.mean(axis=1)
+            self.variables.update(g_mean = 'g_mean')
+            del tmp_df
+
+        # calc theta soil moisture weighted average
+        if len(thetas) > 1: # if 1 or less no average
+            total_weights = np.sum([float(e.get('weight')) for e in thetas])
+            # if weights are not normalized update them
+            if not np.isclose(total_weights, 1.0):
+                for k,v in d.items():
+                    if k.startswith('theta_'):
+                        nw = float(v.get('weight')) / total_weights
+                        d[k] = {'name': v.get('name'), 'weight': nw}
+                # if not given in config weights are assigned 1 in 
+                # _get_soil_var_avg_weights 
+                if not total_weights == len(thetas):
+                    print(
+                        'Soil moisture weights do not sum to one, normalizing'
+                    )
+                    msg = ', '.join(
+                        [e.get('name')+': '+e.get('weight') for e in thetas]
+                    )
+                    print('Here are the new weights:\n',msg)
+            # apply weights to calculate average
+            tmp_df = df[[e.get('name') for e in thetas]].copy()
+            for pair in thetas:
+                tmp_df[pair.get('name')] = tmp_df[pair.get('name')] * \
+                        float(pair.get('weight'))
+            df['theta_mean'] = tmp_df.mean(axis=1)
+            self.variables.update(theta_mean = 'theta_mean')
+            del tmp_df
 
         # the only column that is always renamed is the datestring_col
         df.rename(columns={variables['date']: 'date'}, inplace=True)
