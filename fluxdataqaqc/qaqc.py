@@ -70,8 +70,14 @@ class QaQc(object):
             self.elevation = data.elevation
             self.latitude = data.latitude
             self.out_dir = data.out_dir
+            self.site_id = data.site_id
             # flip variable naming dict for internal use
             self.inv_map = {v: k for k, v in self.variables.items()}
+            # using 'G' in multiple g plot may overwrite G name internally
+            if not 'G' in self.inv_map.values():
+                user_G_name = self.variables.get('G') 
+                self.inv_map[user_G_name] = 'G'
+
             self._df = self._check_daily_freq()
 
         elif data is not None:
@@ -86,7 +92,7 @@ class QaQc(object):
         """check temporal frequency of input Data, resample to daily"""
         # rename columns to internal names 
         df = self._df.rename(columns=self.inv_map)
-
+       
         if not isinstance(df, pd.DataFrame):
             return
 
@@ -200,8 +206,8 @@ class QaQc(object):
         if not self.corrected:
             self.correct_data
 
-        daily_outf = out_dir / 'daily_data.csv'
-        monthly_outf = out_dir / 'monthly_data.csv'
+        daily_outf = out_dir / '{}_daily_data.csv'.format(self.site_id)
+        monthly_outf = out_dir / '{}_monthly_data.csv'.format(self.site_id)
 
         self.df.to_csv(daily_outf)
         self.monthly_df.to_csv(monthly_outf)

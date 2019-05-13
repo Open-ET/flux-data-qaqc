@@ -65,7 +65,7 @@ class Data(object):
         self.qc_var_pairs = self._get_qc_flags()
         self.site_id = self.config.get('METADATA', 'site_id')
         # output dir will be in current working directory
-        self.out_dir = Path(self.site_id + '_output').absolute()
+        self.out_dir = self.config_file.parent / 'output'
         self._df = None
 
     def _load_config(self, config_file):
