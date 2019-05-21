@@ -6,7 +6,7 @@ A Python package for correcting/validating the surface energy balance for `FLUXN
 Documentation
 -------------
 
-Online documentation is in development, until then it is recommended to view the `FLUXNET_2015_example <https://github.com/Open-ET/flux-data-qaqc/blob/master/example_data/FLUXNET_2015_example.ipynb>`_ Jupyter notebook. The example includes explanations of multiple functionalities of ``flux-data-qaqc`` and utilizes a provided `FLUXNET 2015 daily climate file <https://raw.githubusercontent.com/Open-ET/flux-data-qaqc/master/examples/FLX_US-AR1_FLUXNET2015_SUBSET_DD_2009-2012_1-3.xlsx>`_.
+Online documentation is in development, until then it is recommended to view the `FLUXNET_2015_example <https://github.com/Open-ET/flux-data-qaqc/blob/master/examples/FLUXNET_2015_example.ipynb>`_ Jupyter notebook. The example includes explanations of multiple functionalities of ``flux-data-qaqc`` and utilizes a provided `FLUXNET 2015 daily climate file <https://github.com/Open-ET/flux-data-qaqc/blob/master/examples/FLX_US-AR1_FLUXNET2015_SUBSET_DD_2009-2012_1-3.xlsx>`_.
 
 Installation
 ------------
