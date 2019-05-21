@@ -605,6 +605,9 @@ class Plot(object):
         Create all of the graphs for provided variables,
 
         """
+        if not self.out_dir.is_dir():
+            self.out_dir.mkdir(parents=True, exist_ok=True)
+
         figure_path = self.out_dir.joinpath('plots.html')
         output_file(figure_path)
 

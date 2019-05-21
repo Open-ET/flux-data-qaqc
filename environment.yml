@@ -1,0 +1,11 @@
+name: fluxdataqaqc
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - bokeh
+  - pandas
+  - python>=3.7
+  - refet
+  - xlrd>=1.2.0
+  - numpy>=1.15
