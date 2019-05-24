@@ -160,9 +160,21 @@ class Plot(object):
         elif code == 8:  # ET Comparison
             var_one_name = 'ET_raw'
             var_one_color = 'black'
-            var_two_name = 'ET_corr'
+            var_two_name = 'ET_adj'
             var_two_color = 'blue'
-            var_three_name = 'ET_adj'
+            var_three_name = 'ET_corr'
+            var_three_color = 'skyblue'
+            var_four_name = 'null'
+            var_four_color = 'black'
+            units = 'mm/day'
+            title = usage + ' Daily Evapotraspiration'
+
+        elif code == 81:  # ET Comparison no CORR
+            var_one_name = 'ET_raw'
+            var_one_color = 'black'
+            var_two_name = 'ET_adj'
+            var_two_color = 'blue'
+            var_three_name = 'null'
             var_three_color = 'skyblue'
             var_four_name = 'null'
             var_four_color = 'black'
@@ -172,9 +184,21 @@ class Plot(object):
         elif code == 9:  # LE comparison
             var_one_name = 'LE_raw'
             var_one_color = 'black'
-            var_two_name = 'LE_corr'
+            var_two_name = 'LE_adj'
             var_two_color = 'blue'
-            var_three_name = 'LE_adj'
+            var_three_name = 'LE_corr'
+            var_three_color = 'skyblue'
+            var_four_name = 'null'
+            var_four_color = 'black'
+            units = 'w/m2'
+            title = usage + ' Latent Heat Flux'
+
+        elif code == 91:  # LE comparison
+            var_one_name = 'LE_raw'
+            var_one_color = 'black'
+            var_two_name = 'LE_adj'
+            var_two_color = 'blue'
+            var_three_name = 'null'
             var_three_color = 'skyblue'
             var_four_name = 'null'
             var_four_color = 'black'
@@ -184,16 +208,28 @@ class Plot(object):
         elif code == 10:  # energy balance ratio comparison
             var_one_name = 'ebr_raw'
             var_one_color = 'black'
-            var_two_name = 'ebr_corr'
+            var_two_name = 'ebr_adj'
             var_two_color = 'blue'
-            var_three_name = 'ebr_adj'
+            var_three_name = 'ebr_corr'
             var_three_color = 'skyblue'
             var_four_name = 'null'
             var_four_color = 'black'
             units = 'Ratio of Flux/Energy'
             title = usage + ' Energy Balance Ratio'
 
-        elif code == 11:  # energy balance scatter plot, raw vs fluxnet Corr
+        elif code == 101:  # energy balance ratio comparison
+            var_one_name = 'ebr_raw'
+            var_one_color = 'black'
+            var_two_name = 'ebr_adj'
+            var_two_color = 'blue'
+            var_three_name = 'null'
+            var_three_color = 'skyblue'
+            var_four_name = 'null'
+            var_four_color = 'black'
+            units = 'Ratio of Flux/Energy'
+            title = usage + ' Energy Balance Ratio'
+
+        elif code == 11:  # energy balance scatter plot, raw vs user Corr
             var_one_name = 'Energy'
             var_one_color = 'null'
             var_two_name = 'Flux_raw'
@@ -203,7 +239,7 @@ class Plot(object):
             var_four_name = 'null'
             var_four_color = 'null'
             units = 'null'
-            title = usage + ' EBC, Raw vs. Fluxnet Corrected'
+            title = usage + ' EBC, Raw vs. Corrected'
 
         elif code == 12:  # energy balance scatter plot, raw vs Bowen Corr
             var_one_name = 'Energy'
@@ -311,49 +347,88 @@ class Plot(object):
         var_one_lstsq = []
         var_two_lstsq = []
         var_three_lstsq = []
+   
+        # TODO: better way to handle missing variable for user's corrected data
+        if var_three is not None:
+            for i in range(0, data_length):
+                if np.isnan(var_one[i]) or np.isnan(var_two[i]) or np.isnan(var_three[i]):
+                    # do nothing, skipping over this entry because at least one component is a nan
+                    pass
+                else:
+                    var_one_lstsq.append(var_one[i])
+                    var_two_lstsq.append(var_two[i])
+                    var_three_lstsq.append(var_three[i])
 
-        for i in range(0, data_length):
-            if np.isnan(var_one[i]) or np.isnan(var_two[i]) or np.isnan(var_three[i]):
-                # do nothing, skipping over this entry because at least one component is a nan
-                pass
-            else:
-                var_one_lstsq.append(var_one[i])
-                var_two_lstsq.append(var_two[i])
-                var_three_lstsq.append(var_three[i])
+            var_one_lstsq = np.array(var_one_lstsq)
+            var_two_lstsq = np.array(var_two_lstsq)
+            var_three_lstsq = np.array(var_three_lstsq)
 
-        var_one_lstsq = np.array(var_one_lstsq)
-        var_two_lstsq = np.array(var_two_lstsq)
-        var_three_lstsq = np.array(var_three_lstsq)
+            # linalg.lstsq requires a column vector
+            var_one_lstsq = var_one_lstsq[:, np.newaxis]
 
-        # linalg.lstsq requires a column vector
-        var_one_lstsq = var_one_lstsq[:, np.newaxis]
+            slope_orig, _, _, _ = np.linalg.lstsq(
+                    var_one_lstsq, var_two_lstsq, rcond=None)
+            slope_corr, _, _, _ = np.linalg.lstsq(
+                    var_one_lstsq, var_three_lstsq, rcond=None)
 
-        slope_orig, _, _, _ = np.linalg.lstsq(
-                var_one_lstsq, var_two_lstsq, rcond=None)
-        slope_corr, _, _, _ = np.linalg.lstsq(
-                var_one_lstsq, var_three_lstsq, rcond=None)
+            if link_plot is None:  # No plot to link with
+                subplot = figure(
+                    width=x_size, height=y_size, x_axis_type='linear',
+                    x_axis_label=x_label, y_axis_label=y_label, title=title,
+                    tools='pan, box_zoom, undo, reset, hover, save')
+            else:  # Plot is passed to link axis with
+                subplot = figure(
+                    x_range=link_plot.x_range, y_range=link_plot.y_range,
+                    width=x_size, height=y_size, x_axis_type='linear',
+                    x_axis_label=x_label, y_axis_label=y_label, title=title,
+                    tools='pan, box_zoom, undo, reset, hover, save')
 
-        if link_plot is None:  # No plot to link with
-            subplot = figure(
-                width=x_size, height=y_size, x_axis_type='linear',
-                x_axis_label=x_label, y_axis_label=y_label, title=title,
-                tools='pan, box_zoom, undo, reset, hover, save')
-        else:  # Plot is passed to link axis with
-            subplot = figure(
-                x_range=link_plot.x_range, y_range=link_plot.y_range,
-                width=x_size, height=y_size, x_axis_type='linear',
-                x_axis_label=x_label, y_axis_label=y_label, title=title,
-                tools='pan, box_zoom, undo, reset, hover, save')
+            subplot.line(x, y, line_color='black', legend='1:1 Line', line_dash='dashed')
+            subplot.line(var_one, var_one*slope_orig, line_color='skyblue', legend='LSL_raw, {:.3f}'
+                         .format(float(slope_orig)))
+            subplot.line(var_one, var_one*slope_corr, line_color='navy', legend='LSL_corr, {:.3f}'
+                         .format(float(slope_corr)))
 
-        subplot.line(x, y, line_color='black', legend='1:1 Line', line_dash='dashed')
-        subplot.line(var_one, var_one*slope_orig, line_color='skyblue', legend='LSL_raw, {:.3f}'
-                     .format(float(slope_orig)))
-        subplot.line(var_one, var_one*slope_corr, line_color='navy', legend='LSL_corr, {:.3f}'
-                     .format(float(slope_corr)))
+            subplot.triangle(var_one, var_two, size=5, color="lightsalmon", alpha=0.5, legend=var_two_name)
+            subplot.circle(var_one, var_three, size=5, color="lightcoral", alpha=0.5, legend=var_three_name)
+            subplot.legend.location = 'top_left'
 
-        subplot.triangle(var_one, var_two, size=5, color="lightsalmon", alpha=0.5, legend=var_two_name)
-        subplot.circle(var_one, var_three, size=5, color="lightcoral", alpha=0.5, legend=var_three_name)
-        subplot.legend.location = 'top_left'
+        else:
+            for i in range(0, data_length):
+                if np.isnan(var_one[i]) or np.isnan(var_two[i]):
+                    # do nothing, skipping over this entry because at least one component is a nan
+                    pass
+                else:
+                    var_one_lstsq.append(var_one[i])
+                    var_two_lstsq.append(var_two[i])
+
+            var_one_lstsq = np.array(var_one_lstsq)
+            var_two_lstsq = np.array(var_two_lstsq)
+
+            # linalg.lstsq requires a column vector
+            var_one_lstsq = var_one_lstsq[:, np.newaxis]
+
+            slope_orig, _, _, _ = np.linalg.lstsq(
+                    var_one_lstsq, var_two_lstsq, rcond=None)
+
+            if link_plot is None:  # No plot to link with
+                subplot = figure(
+                    width=x_size, height=y_size, x_axis_type='linear',
+                    x_axis_label=x_label, y_axis_label=y_label, title=title,
+                    tools='pan, box_zoom, undo, reset, hover, save')
+            else:  # Plot is passed to link axis with
+                subplot = figure(
+                    x_range=link_plot.x_range, y_range=link_plot.y_range,
+                    width=x_size, height=y_size, x_axis_type='linear',
+                    x_axis_label=x_label, y_axis_label=y_label, title=title,
+                    tools='pan, box_zoom, undo, reset, hover, save')
+
+            subplot.line(x, y, line_color='black', legend='1:1 Line', line_dash='dashed')
+            subplot.line(var_one, var_one*slope_orig, line_color='skyblue', legend='LSL_raw, {:.3f}'
+                         .format(float(slope_orig)))
+
+            subplot.triangle(var_one, var_two, size=5, color="lightsalmon", alpha=0.5, legend=var_two_name)
+            subplot.legend.location = 'top_left'
         return subplot
 
     def _generate_scalable_plot(self):
@@ -476,12 +551,20 @@ class Plot(object):
 
         # Plot ET
         if 'et_reg' in provided_vars:
-            plot_et = self._generate_line_plot(
-                    x_size, y_size, df.index, 8, '', df.et_reg, df.et_corr, 
-                    df.et_adj, None)
-            monthly_plot_et = self._generate_line_plot(x_size, y_size, 
-                    monthly_df.index, 8, 'Monthly ', monthly_df.et_reg, 
-                    monthly_df.et_corr, monthly_df.et_adj, None)
+            # still plot if user did not have their own corrected data
+            if not 'et_corr' in provided_vars:
+                plot_et = self._generate_line_plot(
+                    x_size, y_size, df.index, 81, '', df.et_reg, df.et_adj,None)
+                monthly_plot_et = self._generate_line_plot(x_size, y_size, 
+                    monthly_df.index, 81, 'Monthly ', monthly_df.et_reg, 
+                    monthly_df.et_adj, None)
+            else:
+                plot_et = self._generate_line_plot(
+                        x_size, y_size, df.index, 8, '', df.et_reg, df.et_corr, 
+                        df.et_adj, None)
+                monthly_plot_et = self._generate_line_plot(x_size, y_size, 
+                        monthly_df.index, 8, 'Monthly ', monthly_df.et_reg, 
+                        monthly_df.et_adj, monthly_df.et_corr, None)
             plot_list.append(plot_et)
             monthly_plot_list.append(monthly_plot_et)
         else:
@@ -491,12 +574,20 @@ class Plot(object):
 
         # Plot LE
         if 'LE' in provided_vars:
-            plot_le = self._generate_line_plot(
+            # still plot if no user corrected data
+            if not 'LE_corr' in provided_vars:
+                plot_le = self._generate_line_plot(
+                    x_size, y_size, df.index, 91, '', df.LE, df.LE_adj, None)
+                monthly_plot_le = self._generate_line_plot(
+                    x_size, y_size, monthly_df.index, 91, 'Monthly ', 
+                    monthly_df.LE, monthly_df.LE_adj, None)
+            else:
+                plot_le = self._generate_line_plot(
                     x_size, y_size, df.index, 9, '', df.LE, df.LE_corr, 
                     df.LE_adj, None)
-            monthly_plot_le = self._generate_line_plot(
+                monthly_plot_le = self._generate_line_plot(
                     x_size, y_size, monthly_df.index, 9, 'Monthly ', 
-                    monthly_df.LE, monthly_df.LE_corr, monthly_df.LE_adj, None)
+                    monthly_df.LE, monthly_df.LE_adj, monthly_df.LE_corr, None)
             plot_list.append(plot_le)
             monthly_plot_list.append(monthly_plot_le)
         else:
@@ -505,39 +596,71 @@ class Plot(object):
             monthly_plot_le = None
 
         # Plot energy balance ratios
-        if ('Rn' in provided_vars) and ('G' in provided_vars) and \
-                ('LE' in provided_vars) and ('H' in provided_vars):
-            # TODO redundant condition, organize better
-            plot_ebr = self._generate_line_plot(
-                    x_size, y_size, df.index, 10, '', df.ebc_reg, df.ebc_corr, 
-                    df.ebc_adj, None)
-            monthly_plot_ebr = self._generate_line_plot(
+        if ('ebc_adj' in provided_vars) and ('ebc_reg' in provided_vars):
+            # still plot if without user corrected data
+            if not 'ebc_corr' in provided_vars:
+                plot_ebr = self._generate_line_plot(
+                    x_size, y_size, df.index, 101, '', df.ebc_reg, df.ebc_adj, 
+                    None)
+                monthly_plot_ebr = self._generate_line_plot(
+                    x_size, y_size, monthly_df.index, 101, 'Monthly ', 
+                    monthly_df.ebc_reg, monthly_df.ebc_adj, None)
+
+                # Create label of overall averages between EBR approaches
+                avg_ebr_raw = (df.LE.mean() + df.H.mean()) / \
+                        (df.Rn.mean() - df.G.mean())
+                avg_ebr_adj = (df.LE_adj.mean() + df.H_adj.mean()) / \
+                        (df.Rn.mean() - df.G.mean())
+
+                ratio_averages_label = Label(x=70, y=225, x_units='screen', 
+                        y_units='screen', 
+                        text='EBR_raw:{:.3f}\nEBR_adj:{:.3f}'\
+                            .format(avg_ebr_raw, avg_ebr_adj), 
+                        render_mode='css', border_line_color='black', 
+                        border_line_alpha=0.25, background_fill_color='white', 
+                        background_fill_alpha=1.0) 
+                # create a copy of the label because bokeh doesnt want to assign 
+                # the same label twice
+                monthly_ratio_averages_label = Label(x=70, y=225, 
+                        x_units='screen', y_units='screen', 
+                        text='EBR_raw:{:.3f}\nEBR_adj:{:.3f}'\
+                            .format(avg_ebr_raw, avg_ebr_adj), 
+                        render_mode='css', border_line_color='black', 
+                        border_line_alpha=0.25, background_fill_color='white', 
+                        background_fill_alpha=1.0)
+            else:
+                plot_ebr = self._generate_line_plot(
+                    x_size, y_size, df.index, 10, '', df.ebc_reg, df.ebc_adj, 
+                    df.ebc_corr, None)
+                monthly_plot_ebr = self._generate_line_plot(
                     x_size, y_size, monthly_df.index, 10, 'Monthly ', 
-                    monthly_df.ebc_reg, monthly_df.ebc_corr, 
-                    monthly_df.ebc_adj, None)
+                    monthly_df.ebc_reg, monthly_df.ebc_adj, 
+                    monthly_df.ebc_corr, None)
 
-            # Create label of overall averages between EBR approaches
-            avg_ebr_raw = (df.LE.mean() + df.H.mean()) / \
-                    (df.Rn.mean() - df.G.mean())
-            avg_ebr_corr = (df.LE_corr.mean() + df.H_corr.mean()) / \
-                    (df.Rn.mean() - df.G.mean())
-            avg_ebr_adj = (df.LE_adj.mean() + df.H_adj.mean()) / \
-                    (df.Rn.mean() - df.G.mean())
+                # Create label of overall averages between EBR approaches
+                avg_ebr_raw = (df.LE.mean() + df.H.mean()) / \
+                        (df.Rn.mean() - df.G.mean())
+                avg_ebr_corr = (df.LE_corr.mean() + df.H_corr.mean()) / \
+                        (df.Rn.mean() - df.G.mean())
+                avg_ebr_adj = (df.LE_adj.mean() + df.H_adj.mean()) / \
+                        (df.Rn.mean() - df.G.mean())
 
-            ratio_averages_label = Label(x=70, y=225, x_units='screen', 
-                    y_units='screen', 
-                    text='EBR_raw: {:.3f} \nEBR_corr: {:.3f} \n EBR_adj: {:.3f}' .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_adj), 
-                    render_mode='css', border_line_color='black', 
-                    border_line_alpha=0.25, background_fill_color='white', 
-                    background_fill_alpha=1.0) 
-            # create a copy of the label because bokeh doesnt want to assign 
-            # the same label twice
-            monthly_ratio_averages_label = Label(x=70, y=225, 
-                    x_units='screen', y_units='screen', 
-                    text='EBR_raw: {:.3f} \nEBR_corr: {:.3f} \n EBR_adj: {:.3f}' .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_adj), 
-                    render_mode='css', border_line_color='black', 
-                    border_line_alpha=0.25, background_fill_color='white', 
-                    background_fill_alpha=1.0)
+                ratio_averages_label = Label(x=70, y=225, x_units='screen', 
+                        y_units='screen', 
+                        text='EBR_raw:{:.3f}\nEBR_corr:{:.3f} \nEBR_adj:{:.3f}'\
+                            .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_adj), 
+                        render_mode='css', border_line_color='black', 
+                        border_line_alpha=0.25, background_fill_color='white', 
+                        background_fill_alpha=1.0) 
+                # create a copy of the label because bokeh doesnt want to assign 
+                # the same label twice
+                monthly_ratio_averages_label = Label(x=70, y=225, 
+                        x_units='screen', y_units='screen', 
+                        text='EBR_raw:{:.3f}\nEBR_corr:{:.3f}\nEBR_adj:{:.3f}'\
+                            .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_adj), 
+                        render_mode='css', border_line_color='black', 
+                        border_line_alpha=0.25, background_fill_color='white', 
+                        background_fill_alpha=1.0)
 
             plot_ebr.add_layout(ratio_averages_label)
             monthly_plot_ebr.add_layout(monthly_ratio_averages_label)
@@ -550,21 +673,33 @@ class Plot(object):
             monthly_plot_ebr = None
 
         if ('energy' in provided_vars) and ('flux' in provided_vars):
-            plot_ebc_corr = self._generate_scatter_plot(
-                    x_size, y_size, 11, '', var_one=df.energy, var_two=df.flux, 
-                    var_three=df.flux_corr)
-            plot_ebc_adj = self._generate_scatter_plot(
+            # still plot if without user corrected data
+            if not 'flux_corr' in provided_vars:
+                plot_ebc_adj = self._generate_scatter_plot(
                     x_size, y_size, 12, '', var_one=df.energy, var_two=df.flux,
                     var_three=df.flux_adj)
 
-            monthly_plot_ebc_corr = self._generate_scatter_plot(
-                    x_size, y_size, 11, 'Monthly ', var_one=monthly_df.energy, 
-                    var_two=monthly_df.flux, var_three=monthly_df.flux_corr)
-            monthly_plot_ebc_adj = self._generate_scatter_plot(
+                monthly_plot_ebc_adj = self._generate_scatter_plot(
                     x_size, y_size, 12, 'Monthly ', var_one=monthly_df.energy, 
                     var_two=monthly_df.flux, var_three=monthly_df.flux_adj)
-            plot_list.append(plot_ebc_corr)
-            monthly_plot_list.append(monthly_plot_ebc_corr)
+            else:
+                plot_ebc_corr = self._generate_scatter_plot(
+                    x_size, y_size, 11, '', var_one=df.energy, 
+                    var_two=df.flux, var_three=df.flux_corr)
+                plot_ebc_adj = self._generate_scatter_plot(
+                    x_size, y_size, 12, '', var_one=df.energy, 
+                    var_two=df.flux, var_three=df.flux_adj)
+
+                monthly_plot_ebc_corr = self._generate_scatter_plot(
+                    x_size, y_size, 11, 'Monthly ', var_one=monthly_df.energy, 
+                    var_two=monthly_df.flux, var_three=monthly_df.flux_corr)
+                monthly_plot_ebc_adj = self._generate_scatter_plot(
+                    x_size, y_size, 12, 'Monthly ', var_one=monthly_df.energy, 
+                    var_two=monthly_df.flux, var_three=monthly_df.flux_adj)
+
+                plot_list.append(plot_ebc_corr)
+                monthly_plot_list.append(monthly_plot_ebc_corr)
+
             plot_list.append(plot_ebc_adj)
             monthly_plot_list.append(monthly_plot_ebc_adj)
         else:
