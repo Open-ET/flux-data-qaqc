@@ -235,6 +235,7 @@ class QaQc(object):
         qaqc = cls()
         # use property setter, will load dataframe if needed
         qaqc._df = df  
+        qaqc.site_id = site_id
         qaqc.latitude = lat_dec_deg
         qaqc.elevation = elev_m
         qaqc.out_dir = Path(site_id + '_output').absolute()

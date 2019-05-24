@@ -56,6 +56,7 @@ class Data(object):
         self.config_file = Path(config).absolute()
         self.config = self._load_config(self.config_file)
         self.variables = self.get_config_vars()
+        self.inv_map = {v: k for k, v in self.variables.items()}
         self.na_val = self.config.get('METADATA', 'missing_data_value')
         self.elevation = int(self.config.get('METADATA', 'station_elevation'))
         self.latitude = float(self.config.get('METADATA', 'station_latitude'))
@@ -206,7 +207,7 @@ class Data(object):
         self.variables.update(tmp)
         return qc_var_pairs
 
-    def apply_qc_flags(self, threshold = 0.5):
+    def apply_qc_flags(self, threshold=0.5):
         """
         Use provided QC flags for climate variables to exclude bad data 
         by forcing them to null values. 
