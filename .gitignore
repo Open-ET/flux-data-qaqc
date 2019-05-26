@@ -51,6 +51,11 @@ coverage.xml
 # Other testing for now
 test**
 *_output/
+**output/
+**my_output_folder/
+
+# tmp files
+*~
 
 # Translations
 *.mo

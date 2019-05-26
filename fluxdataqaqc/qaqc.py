@@ -19,7 +19,6 @@ from refet.calcs import _ra_daily, _rso_simple
 
 from .data import Data
 
-
 class QaQc(object):
     """
     Adjust latent energy and sensible heat flux to close the surface energy 
@@ -233,13 +232,14 @@ class QaQc(object):
 
         """
         qaqc = cls()
-        # use property setter, will load dataframe if needed
-        qaqc._df = df  
+        # use property setter, make sure it is a dataframe object
+        qaqc.df = df  
         qaqc.site_id = site_id
         qaqc.latitude = lat_dec_deg
         qaqc.elevation = elev_m
-        qaqc.out_dir = Path(site_id + '_output').absolute()
+        qaqc.out_dir = Path('output').absolute()
         qaqc.variables = var_dict
+        # TODO handle assigned units 
         qaqc.inv_map = {v: k for k, v in var_dict.items()}
         qaqc._df = qaqc._check_daily_freq()
         return qaqc
