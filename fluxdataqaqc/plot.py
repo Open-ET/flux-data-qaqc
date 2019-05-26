@@ -24,6 +24,7 @@ class Plot(object):
         if isinstance(qaqc, QaQc):
             self._monthly_df = qaqc.monthly_df
             self._df = qaqc.df
+            self.site_id = qaqc.site_id
             self.out_dir = qaqc.out_dir
             self.variables = qaqc.variables
             self.inv_map = qaqc.inv_map
@@ -743,7 +744,9 @@ class Plot(object):
         if not self.out_dir.is_dir():
             self.out_dir.mkdir(parents=True, exist_ok=True)
 
-        figure_path = self.out_dir.joinpath('plots.html')
+        figure_path = self.out_dir.joinpath(
+            '{}_plots.html'.format(self.site_id)
+        )
         output_file(figure_path)
 
         # next lines rename columns to fluxdataqaqc names

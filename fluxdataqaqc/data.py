@@ -399,12 +399,12 @@ class Data(object):
                             )
                     print('Here are the new weights:\n', msg)
 
-                # apply weights to calculate average 
+                # calculate average, use updated weights if calculated
+                vs = [d.get(e) for e in d if e.startswith(pref)]
                 tmp_df = df[[e.get('name') for e in vs]].copy()
                 for pair in vs:
-                    tmp_df[pair.get('name')] = tmp_df[pair.get('name')] * \
-                            float(pair.get('weight'))
-                df['{}mean'.format(pref)] = tmp_df.mean(axis=1)
+                    tmp_df[pair.get('name')] *= float(pair.get('weight'))
+                df['{}mean'.format(pref)] = tmp_df.sum(axis=1)
                 # if calculated update variables
                 self.variables['{}mean'.format(pref)] = '{}mean'.format(pref)
 
