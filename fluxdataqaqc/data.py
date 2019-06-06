@@ -66,9 +66,24 @@ class Data(object):
         self.soil_var_weight_pairs = self._get_soil_var_avg_weights()
         self.qc_var_pairs = self._get_qc_flags()
         self.site_id = self.config.get('METADATA', 'site_id')
-        # output dir will be in current working directory
+        # get optionally defined QC thresholds (numeric) or flags (string)
+        # for filtering bad data
+        if 'qc_threshold' in dict(self.config.items('METADATA')):
+            self.qc_threshold=float(self.config.get('METADATA','qc_threshold'))
+        else:
+            self.qc_threshold = None
+        # optional comma separated string of QC flags
+        if 'qc_flag' in dict(self.config.items('METADATA')):
+            self.qc_flag = [
+                el.strip() for el in self.config.get(
+                    'METADATA','qc_flag').split(',')
+            ]
+        else:
+            self.qc_flag = None
+        # output dir will be in directory of config file
         self.out_dir = self.config_file.parent / 'output'
         self._df = None
+
 
     def _load_config(self, config_file):
         if not config_file.is_file():
@@ -258,47 +273,119 @@ class Data(object):
     def _get_qc_flags(self):
         """
         Process any existing QC flags for variables in config, also add
-        key,val to variables attribute.
+        key,val to variables attribute if QC flags are not specified in config
+        and follow the naming convention [var_name]_QC in the header of the 
+        data file.
         """
         qc_var_pairs = {}
         tmp = {}
+
+        no_qc_vars = ('datestring_col', 'year_col', 'month_col', 'day_col')
+        # dictionary that maps config QC values to keys for main variables
+        # other variables like multiple g or theta (with unknown names) are
+        # search for in loop below
+        qc_config = {
+            v.replace('_col', '_qc'): k for k,v in 
+            self.variable_names_dict.items() if not v in no_qc_vars
+        }
+        # first look if specified in config
+        for k,v in self.config.items('DATA'):
+            if k in qc_config:
+                # internal name for the variable (e.g. LE or Rn)
+                var_name = qc_config[k]
+                user_var_name = self.variables.get(var_name)
+            # keys are internal names for multiple G and theta
+            elif k.startswith(('g_','theta_')) and k.endswith('_qc'):
+                var_name = k 
+            # key is not for a QC flag header name...
+            else:
+                continue
+            if not v in self.header:
+                print('WARNING: {} quality control name specified in the config'
+                    ' file for variable: {} does not exist in the input file, '
+                    'it will not be used.'.format(v, self.variables[var_name])
+                )
+                continue
+            internal_name = '{}_qc_flag'.format(var_name)
+            tmp[internal_name] = v
+            qc_var_pairs[user_var_name] = v
+
+
+        # also look in header, currently always gets these as well, may change 
+        # find vairable names that have a matching name with '_QC' suffix
+        # if found here but different name in config use the name in the config 
         for k,v in self.variables.items():
             qc_var = '{}_QC'.format(v)
             if qc_var in self.header:
                 internal_name = '{}_qc_flag'.format(k)
+                if internal_name in tmp:
+                    continue
                 tmp[internal_name] = qc_var
                 qc_var_pairs[v] = qc_var
                
         self.variables.update(tmp)
         return qc_var_pairs
 
-    def apply_qc_flags(self, threshold=0.5):
+    def apply_qc_flags(self, threshold=None, flag=None):
         """
-        Use provided QC flags for climate variables to exclude bad data 
-        by forcing them to null values. 
+        Use provided QC values or flags for climate variables to filter bad 
+        data by converting them to null values, updates the :attr:`Data.df`. 
         
-        Specifically If the QC flag is < `threshold` change the variables 
-        value for that day to null. For FLUXNET datasets the QC flag for 
+        Specifically where the QC value is < `threshold` change the variables 
+        value for that date-time to null. For FLUXNET datasets the QC value for 
         daily data is a fraction between 0 and 1 indicating the percentage 
-        of measured or good quality gap filled data used.
+        of measured or good quality gap filled data used. The other option
+        is to use a column of flags, e.g. 'x' for bad data. 
+
+        The threshold value or flag may be also specified in the config file.
 
         Keyword Arguments:
-            threshold (float): default 0.5. Threshold for QC flag, if flag
-            is below threshold replace that variables value with null.
+            threshold (float): default None. Threshold for QC values, if flag
+                is below threshold replace that variables value with null.
+            flag (str, list, or tuple): default None. Character flag signifying 
+                bad data to filter out. Can be list or tuple of multiple flags.
 
         Returns:
             None
 
         """
-
+        # if QC threshold or flags not passed use values from config if exist
+        if not threshold:
+            threshold = self.qc_threshold
+        if not flag:
+            flag = self.qc_flag
         # load dataframe if not yet accessed
         df = self.df
-        # loop over each variable that has a provided qc flag and set nulls
-        # where qc flag < threshold
-        for var, flag in self.qc_var_pairs.items():
-            df.loc[
-                (df[flag] < threshold) & (df[flag].notnull()) , var
-            ] = np.nan
+        # infer each columns datatype to avoid applying thresholds to strings
+        infer_type = lambda x: pd.api.types.infer_dtype(x, skipna=True)
+        df_types = pd.DataFrame(df.apply(
+            pd.api.types.infer_dtype, axis=0, skipna=True
+            )
+        ).rename(columns={'index': 'index', 0: 'type'})
+        # loop over each variable that has a provided qc value and set nulls
+        # where qc value < threshold, qc_var_pairs maps var names to qc names
+        if threshold:
+            for var, qc in self.qc_var_pairs.items():
+                if df_types.loc[qc,'type'] is not 'string':
+                    df.loc[
+                        (df[qc] < threshold) & (df[qc].notnull()) , var
+                    ] = np.nan
+        # set values to null where flag is a certain string
+        if flag:
+            if isinstance(flag, str):
+                for var, qc in self.qc_var_pairs.items():
+                    if df_types.loc[qc,'type'] is 'string':
+                        df.loc[
+                            (df[qc] == flag) & (df[qc].notnull()) , var
+                        ] = np.nan
+            # apply multiple character flags
+            elif isinstance(flag, (list,tuple)):
+                for f in flag:
+                    for var, qc in self.qc_var_pairs.items():
+                        if df_types.loc[qc,'type'] is 'string':
+                            df.loc[
+                                (df[qc] == f) & (df[qc].notnull()) , var
+                            ] = np.nan
 
         self._df = df
 
