@@ -161,11 +161,12 @@ class QaQc(object):
 
         # rename columns to internal names 
         df = self._df.rename(columns=self.inv_map).copy()
-
+        # avoid including string QC flags because of float forcing on resample
+        numeric_cols = [c for c in df.columns if not '_qc_flag' in c]
         sum_cols = [k for k,v in QaQc.agg_dict.items() if v == 'sum']
         # to avoid warning/error of missing columns 
         sum_cols = list(set(sum_cols).intersection(df.columns))
-        mean_cols = set(df.columns) - set(sum_cols)
+        mean_cols = set(numeric_cols) - set(sum_cols)
         # if data type has changed to 'obj' resample skips... 
         means = df.loc[:,mean_cols].astype(float).resample('M').mean()
         sums = df.loc[:,sum_cols].astype(float).resample('M').sum()
@@ -768,6 +769,7 @@ class QaQc(object):
         # replace undefined/infinity with nans in all EBR columns
         df.ebr = df.ebr.replace([np.inf, -np.inf], np.nan)
         df.ebr_corr = df.ebr_corr.replace([np.inf, -np.inf], np.nan)
+        df.drop('DOY', axis=1, inplace=True)
 
         # revert column names to user's
         self._df = df.rename(columns=self.variables)
