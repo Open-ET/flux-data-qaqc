@@ -61,6 +61,31 @@ class QaQc(object):
         'ebr',
         'br'
     )
+    
+    # all potentially calculated variables for ebergy balance corrections
+    _eb_calc_vars = (
+        'energy',
+        'flux',
+        'LE_corr',
+        'H_corr',
+        'flux_corr',
+        'flux_user_corr',
+        'ebr',
+        'ebr_corr',
+        'ebr_user_corr',
+        'ebc_cf',
+        'ebr_5day_clim',
+        'br',
+        'br_corr',
+        'br_user_corr',
+        'br_5day_clim'
+    )
+    # potentially calculated variables for ET
+    _et_calc_vars = (
+        'et',
+        'et_corr',
+        'et_user_corr'
+    )
 
     def __init__(self, data=None):
         
@@ -358,6 +383,8 @@ class QaQc(object):
             None
         """
 
+        # drop relavant calculated variables if they exist
+        self._df = _drop_cols(self._df, self._et_calc_vars)
         df = self._df.rename(columns=self.inv_map)
         
         # LH from L.P. Harrison (1963)
@@ -440,7 +467,8 @@ class QaQc(object):
         half_win_1 = window_1 // 2
         half_win_2 = window_2 // 2
         
-        # make sure names of variables are internal
+        # drop relavant calculated variables if they exist
+        self._df = _drop_cols(self._df, self._eb_calc_vars)
         df = self._df.rename(columns=self.inv_map)
         # make copy of original data for later
         orig_df = df[['LE','H','Rn','G']].copy()
@@ -590,7 +618,8 @@ class QaQc(object):
                 method.
         """
 
-        # rename columns to internal names 
+        # drop relavant calculated variables if they exist
+        self._df = _drop_cols(self._df, self._eb_calc_vars)
         df = self._df.rename(columns=self.inv_map)
         # get length of data set
         data_length = len(self.df.index)
@@ -775,3 +804,11 @@ class QaQc(object):
         self._df = df.rename(columns=self.variables)
         # update flag for other methods
         self.corrected = True
+
+def _drop_cols(df, cols):
+    """Drop columns from dataframe if they exist """
+    for c in cols:
+        if c in df.columns:
+            df.drop(c, axis=1, inplace=True)
+
+    return df
