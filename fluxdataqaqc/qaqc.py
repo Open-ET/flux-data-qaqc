@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Tools for correcting surface energy-balance components and calculating 
-relevant variables such as energy balance closure ratio, corrected latent
-energy and sensible heat fluxes, potential clear sky radiation, ET, and others. 
+Includes routines for 'correcting' turbulent surface energy-balance components 
+to improve energy balance closure. 
+
+The default routine follows the procedure documented by `FLUXNET <https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`_ (see section 3. Heat Processing, Daily data). Other tools include estimation of ASCE clear sky 
+radiation, evapotranspiration, and other statistical variables. Input data can be either a :obj:`fluxdataqaqc.Data` instance or a :obj:`pandas.DataFrame`. 
+
 TODO: 
  * reading in of data for comparing ETr:ETo (gridMET)
 """
@@ -17,25 +20,32 @@ from .data import Data
 
 class QaQc(object):
     """
-    Adjust daily latent energy and sensible heat fluxes to improve closure of 
-    the surface energy balance. Includes other qa/qc calculations for eddy 
-    covariance climate station time series. 
+    Numerical routines for adjusting or 'correcting' measured daily latent 
+    energy and sensible heat fluxes measured at an eddy covariance climate 
+    station which improve closure of the surface energy balance. 
     
+    The :obj:`QaQc` object has multiple options for loading of data, 
+    temporal frequency adjustments of data, estimation of climatic and 
+    statistical variables, and managing data and metadata with a file system.
     Input data is expected to be a :obj:`fluxdataqaqc.data.Data` instance or a
     :obj:`pandas.DataFrame` which can be used to create a :obj:`QaQc` object 
-    with the :meth:`QaQc.from_dataframe` method.
+    with the :meth:`QaQc.from_dataframe` method. Monthly and daily time series 
+    or raw or processed climatic data can be easily saved to disk.
+
     """
     # dictionary used for temporally aggregating variables
     agg_dict = {
         'energy': 'mean',
         'flux': 'mean',
         'flux_corr': 'mean',
-        'bowen_ratio': 'mean',
+        'br': 'mean',
+        'br_corr': 'mean',
         'et': 'sum',
         'et_corr': 'sum',
         'et_user_corr': 'sum',
         'ebr': 'mean',
         'ebr_corr': 'mean',
+        'ebr_user_corr': 'mean',
         't_avg': 'mean',
         'rso': 'mean',
         'sw_pot': 'mean',
@@ -134,15 +144,17 @@ class QaQc(object):
 
         freq = pd.infer_freq(df.index)
 
-        if freq > 'D':
+        # pd.infer_freq does not always work and may return None
+        if freq and freq > 'D':
             print('WARNING: it looks like the input data temporal frequency',
                 'is greater than daily, downsampling to daily, proceed with' ,
                 'caution!')
-        if freq < 'D':
+        if freq and freq < 'D':
             print('The input data temporal frequency appears to be less than',
                 'daily, it will be resampled to daily.')
 
         if not freq == 'D':
+            print('Data is being resampled to daily temporal frequency')
             sum_cols = [k for k,v in QaQc.agg_dict.items() if v == 'sum']
             sum_cols = list(set(sum_cols).intersection(df.columns))
             mean_cols = set(df.columns) - set(sum_cols)
@@ -169,10 +181,13 @@ class QaQc(object):
     @property
     def monthly_df(self):
         """
-        Return current state of df as monthly time series.
-
-        If energy balance data has not yet been corrected, correct using
-        the FLUXNET method. 
+        Temporally resample time series data to monthly frequency based on 
+        monthly means or sums based on :attr:`QaQc.agg_dict`. 
+        
+        If a :obj:`QaQc` instance has not yet run an energy balance correction 
+        i.e. :attr:`QaQc.corrected` = False before accessing :attr:`monthly_df`
+        then the default routine of data correction (energy balance ratio 
+        method) will be conducted.
 
         Arguements:
             None
@@ -216,21 +231,25 @@ class QaQc(object):
 
     def write(self, out_dir=None):
         """
-        Save a copy of the "corrected" energy balance time series
-        including raw input, save two CSVs one at daily and one at monthly
-        time frequencies. 
+        Save a copy of the "corrected" energy balance time series (default 
+        correction method) including raw input. Saves two CSVs one at daily 
+        and one at monthly time frequencies. 
 
         Arguments:
-            out_dir (str or None): default None. Directory to save CSVs
+            out_dir (str or None): default None. Directory to save CSVs, if 
+                None save to :attr:`out_dir` instance variable (typically 
+                "output" directory where config.ini file exists).
 
         Returns:
             None
 
         Note:
             If this method is used before correcting the data according to the
-            QA/QC routines in ``correct_data`` it will be done before saving. 
-            Similarly, if monthly time series data has not yet been calculated, 
-            it will be created here before saving. 
+            default routines in ``correct_data`` it will be done before saving. 
+            To save data created by multiple correction routines, be sure to 
+            run the correction and then save to different output directories 
+            otherwise output files will be overwritten with the most recently 
+            used correction option.
         """
 
         if out_dir is None:
@@ -259,12 +278,12 @@ class QaQc(object):
     @classmethod
     def from_dataframe(cls, df, site_id, elev_m, lat_dec_deg, var_dict):
         """
-        Create a ``QaQc`` object from a pandas.DataFrame object.
+        Create a :obj:`QaQc` object from a :obj:`pandas.DataFrame` object.
         
         Arguments:
-            df (pandas.DataFrame): DataFrame of climate variables with
+            df (:obj:`pandas.DataFrame`): DataFrame of climate variables with
                 datetime index named 'date'
-            site_id (str): site identifier
+            site_id (str): site identifier such as station name
             elev_m (int or float): elevation of site in meters
             lat_dec_deg (float): latitude of site in decimal degrees
             var_dict (dict): dictionary that maps `flux-data-qaqc` variable
@@ -429,7 +448,7 @@ class QaQc(object):
             climate variables.
         """
         # avoid recalculating 
-        if 'rso' in self.variables:
+        if 'rso' in self.df.columns:
             return
 
         doy = self.df.index.dayofyear
@@ -798,7 +817,8 @@ class QaQc(object):
         # replace undefined/infinity with nans in all EBR columns
         df.ebr = df.ebr.replace([np.inf, -np.inf], np.nan)
         df.ebr_corr = df.ebr_corr.replace([np.inf, -np.inf], np.nan)
-        df.drop('DOY', axis=1, inplace=True)
+        if smooth:
+            df.drop('DOY', axis=1, inplace=True)
 
         # revert column names to user's
         self._df = df.rename(columns=self.variables)

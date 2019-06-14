@@ -249,6 +249,10 @@ class Data(object):
         for k in units_config: 
             if k in config_dict:
                 units_config[k] = config_dict[k]
+            # user corrected versions of LE, H, etc. are in variables_name_dict
+            # but may not be included in the input config/data
+            elif '_corrected' in k:
+                continue
             else:
                 print(
                     'WARNING: units for var {} missing from the config file'\
