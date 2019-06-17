@@ -59,7 +59,12 @@ class Data(object):
         self.units = self.get_config_units()
         self.inv_map = {v: k for k, v in self.variables.items()}
         self.na_val = self.config.get('METADATA', 'missing_data_value')
-        self.elevation = int(self.config.get('METADATA', 'station_elevation'))
+        # try to parse na_val as numeric 
+        try:
+            self.na_val = float(self.na_val)
+        except:
+            pass
+        self.elevation = float(self.config.get('METADATA', 'station_elevation'))
         self.latitude = float(self.config.get('METADATA', 'station_latitude'))
         self.climate_file = self._get_climate_file()
         self.header = self._get_header(self.climate_file)
@@ -450,6 +455,8 @@ class Data(object):
                 usecols = cols,
                 na_values=['NaN', 'NAN', '#VALUE!', self.na_val]
             )
+        # force na_val because sometimes with read_excel it doesn't work...
+        df[df == self.na_val] = np.nan
 
         if missing_cols:
             df = df.reindex(columns=list(cols)+list(missing_cols))

@@ -161,9 +161,9 @@ class Plot(object):
         elif code == 8:  # ET Comparison
             var_one_name = 'ET_raw'
             var_one_color = 'black'
-            var_two_name = 'ET_adj'
+            var_two_name = 'ET_corr'
             var_two_color = 'blue'
-            var_three_name = 'ET_corr'
+            var_three_name = 'ET_user_corr'
             var_three_color = 'skyblue'
             var_four_name = 'null'
             var_four_color = 'black'
@@ -173,7 +173,7 @@ class Plot(object):
         elif code == 81:  # ET Comparison no CORR
             var_one_name = 'ET_raw'
             var_one_color = 'black'
-            var_two_name = 'ET_adj'
+            var_two_name = 'ET_corr'
             var_two_color = 'blue'
             var_three_name = 'null'
             var_three_color = 'skyblue'
@@ -185,9 +185,9 @@ class Plot(object):
         elif code == 9:  # LE comparison
             var_one_name = 'LE_raw'
             var_one_color = 'black'
-            var_two_name = 'LE_adj'
+            var_two_name = 'LE_corr'
             var_two_color = 'blue'
-            var_three_name = 'LE_corr'
+            var_three_name = 'LE_user_corr'
             var_three_color = 'skyblue'
             var_four_name = 'null'
             var_four_color = 'black'
@@ -197,7 +197,7 @@ class Plot(object):
         elif code == 91:  # LE comparison
             var_one_name = 'LE_raw'
             var_one_color = 'black'
-            var_two_name = 'LE_adj'
+            var_two_name = 'LE_corr'
             var_two_color = 'blue'
             var_three_name = 'null'
             var_three_color = 'skyblue'
@@ -209,9 +209,9 @@ class Plot(object):
         elif code == 10:  # energy balance ratio comparison
             var_one_name = 'ebr_raw'
             var_one_color = 'black'
-            var_two_name = 'ebr_adj'
+            var_two_name = 'ebr_corr'
             var_two_color = 'blue'
-            var_three_name = 'ebr_corr'
+            var_three_name = 'ebr_user_corr'
             var_three_color = 'skyblue'
             var_four_name = 'null'
             var_four_color = 'black'
@@ -221,7 +221,7 @@ class Plot(object):
         elif code == 101:  # energy balance ratio comparison
             var_one_name = 'ebr_raw'
             var_one_color = 'black'
-            var_two_name = 'ebr_adj'
+            var_two_name = 'ebr_corr'
             var_two_color = 'blue'
             var_three_name = 'null'
             var_three_color = 'skyblue'
@@ -240,19 +240,19 @@ class Plot(object):
             var_four_name = 'null'
             var_four_color = 'null'
             units = 'null'
-            title = usage + ' EBC, Raw vs. Corrected'
+            title = usage + ' EBC, Raw vs. User Corrected'
 
         elif code == 12:  # energy balance scatter plot, raw vs Bowen Corr
             var_one_name = 'Energy'
             var_one_color = 'null'
             var_two_name = 'Flux_raw'
             var_two_color = 'null'
-            var_three_name = 'Flux_adj'
+            var_three_name = 'Flux_corr'
             var_three_color = 'null'
             var_four_name = 'null'
             var_four_color = 'null'
             units = 'null'
-            title = usage + ' EBC, Raw vs. Bowen Adjusted'
+            title = usage + ' EBR, Raw vs. Corrected'
 
         else:
             raise ValueError('Unsupported code type {} passed to generate_plot_features.'.format(code))
@@ -551,21 +551,21 @@ class Plot(object):
             monthly_plot_precip = None
 
         # Plot ET
-        if 'et_reg' in provided_vars:
+        if 'et' in provided_vars:
             # still plot if user did not have their own corrected data
-            if not 'et_corr' in provided_vars:
+            if not 'et_user_corr' in provided_vars:
                 plot_et = self._generate_line_plot(
-                    x_size, y_size, df.index, 81, '', df.et_reg, df.et_adj,None)
+                    x_size, y_size, df.index, 81, '', df.et, df.et_corr,None)
                 monthly_plot_et = self._generate_line_plot(x_size, y_size, 
-                    monthly_df.index, 81, 'Monthly ', monthly_df.et_reg, 
-                    monthly_df.et_adj, None)
+                    monthly_df.index, 81, 'Monthly ', monthly_df.et, 
+                    monthly_df.et_corr, None)
             else:
                 plot_et = self._generate_line_plot(
-                        x_size, y_size, df.index, 8, '', df.et_reg, df.et_corr, 
-                        df.et_adj, None)
+                        x_size, y_size, df.index, 8, '', df.et, df.et_user_corr, 
+                        df.et_corr, None)
                 monthly_plot_et = self._generate_line_plot(x_size, y_size, 
-                        monthly_df.index, 8, 'Monthly ', monthly_df.et_reg, 
-                        monthly_df.et_adj, monthly_df.et_corr, None)
+                        monthly_df.index, 8, 'Monthly ', monthly_df.et, 
+                        monthly_df.et_corr, monthly_df.et_user_corr, None)
             plot_list.append(plot_et)
             monthly_plot_list.append(monthly_plot_et)
         else:
@@ -576,19 +576,19 @@ class Plot(object):
         # Plot LE
         if 'LE' in provided_vars:
             # still plot if no user corrected data
-            if not 'LE_corr' in provided_vars:
+            if not 'LE_user_corr' in provided_vars:
                 plot_le = self._generate_line_plot(
-                    x_size, y_size, df.index, 91, '', df.LE, df.LE_adj, None)
+                    x_size, y_size, df.index, 91, '', df.LE, df.LE_corr, None)
                 monthly_plot_le = self._generate_line_plot(
                     x_size, y_size, monthly_df.index, 91, 'Monthly ', 
-                    monthly_df.LE, monthly_df.LE_adj, None)
+                    monthly_df.LE, monthly_df.LE_corr, None)
             else:
                 plot_le = self._generate_line_plot(
-                    x_size, y_size, df.index, 9, '', df.LE, df.LE_corr, 
-                    df.LE_adj, None)
+                    x_size, y_size, df.index, 9, '', df.LE, df.LE_user_corr, 
+                    df.LE_corr, None)
                 monthly_plot_le = self._generate_line_plot(
                     x_size, y_size, monthly_df.index, 9, 'Monthly ', 
-                    monthly_df.LE, monthly_df.LE_adj, monthly_df.LE_corr, None)
+                    monthly_df.LE, monthly_df.LE_corr, monthly_df.LE_user_corr, None)
             plot_list.append(plot_le)
             monthly_plot_list.append(monthly_plot_le)
         else:
@@ -597,59 +597,26 @@ class Plot(object):
             monthly_plot_le = None
 
         # Plot energy balance ratios
-        if ('ebc_adj' in provided_vars) and ('ebc_reg' in provided_vars):
+        if ('ebr_corr' in provided_vars) and ('ebr' in provided_vars):
             # still plot if without user corrected data
-            if not 'ebc_corr' in provided_vars:
+            if not 'ebr_user_corr' in provided_vars:
                 plot_ebr = self._generate_line_plot(
-                    x_size, y_size, df.index, 101, '', df.ebc_reg, df.ebc_adj, 
+                    x_size, y_size, df.index, 101, '', df.ebr, df.ebr_corr, 
                     None)
                 monthly_plot_ebr = self._generate_line_plot(
                     x_size, y_size, monthly_df.index, 101, 'Monthly ', 
-                    monthly_df.ebc_reg, monthly_df.ebc_adj, None)
-
-                # Create label of overall averages between EBR approaches
-                avg_ebr_raw = (df.LE.mean() + df.H.mean()) / \
-                        (df.Rn.mean() - df.G.mean())
-                avg_ebr_adj = (df.LE_adj.mean() + df.H_adj.mean()) / \
-                        (df.Rn.mean() - df.G.mean())
-
-                ratio_averages_label = Label(x=70, y=225, x_units='screen', 
-                        y_units='screen', 
-                        text='EBR_raw:{:.3f}\nEBR_adj:{:.3f}'\
-                            .format(avg_ebr_raw, avg_ebr_adj), 
-                        render_mode='css', border_line_color='black', 
-                        border_line_alpha=0.25, background_fill_color='white', 
-                        background_fill_alpha=1.0) 
-                # create a copy of the label because bokeh doesnt want to assign 
-                # the same label twice
-                monthly_ratio_averages_label = Label(x=70, y=225, 
-                        x_units='screen', y_units='screen', 
-                        text='EBR_raw:{:.3f}\nEBR_adj:{:.3f}'\
-                            .format(avg_ebr_raw, avg_ebr_adj), 
-                        render_mode='css', border_line_color='black', 
-                        border_line_alpha=0.25, background_fill_color='white', 
-                        background_fill_alpha=1.0)
-            else:
-                plot_ebr = self._generate_line_plot(
-                    x_size, y_size, df.index, 10, '', df.ebc_reg, df.ebc_adj, 
-                    df.ebc_corr, None)
-                monthly_plot_ebr = self._generate_line_plot(
-                    x_size, y_size, monthly_df.index, 10, 'Monthly ', 
-                    monthly_df.ebc_reg, monthly_df.ebc_adj, 
-                    monthly_df.ebc_corr, None)
+                    monthly_df.ebr, monthly_df.ebr_corr, None)
 
                 # Create label of overall averages between EBR approaches
                 avg_ebr_raw = (df.LE.mean() + df.H.mean()) / \
                         (df.Rn.mean() - df.G.mean())
                 avg_ebr_corr = (df.LE_corr.mean() + df.H_corr.mean()) / \
                         (df.Rn.mean() - df.G.mean())
-                avg_ebr_adj = (df.LE_adj.mean() + df.H_adj.mean()) / \
-                        (df.Rn.mean() - df.G.mean())
 
                 ratio_averages_label = Label(x=70, y=225, x_units='screen', 
                         y_units='screen', 
-                        text='EBR_raw:{:.3f}\nEBR_corr:{:.3f} \nEBR_adj:{:.3f}'\
-                            .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_adj), 
+                        text='EBR_raw:{:.3f}\nEBR_corr:{:.3f}'\
+                            .format(avg_ebr_raw, avg_ebr_corr), 
                         render_mode='css', border_line_color='black', 
                         border_line_alpha=0.25, background_fill_color='white', 
                         background_fill_alpha=1.0) 
@@ -657,8 +624,42 @@ class Plot(object):
                 # the same label twice
                 monthly_ratio_averages_label = Label(x=70, y=225, 
                         x_units='screen', y_units='screen', 
-                        text='EBR_raw:{:.3f}\nEBR_corr:{:.3f}\nEBR_adj:{:.3f}'\
-                            .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_adj), 
+                        text='EBR_raw:{:.3f}\nEBR_corr:{:.3f}'\
+                            .format(avg_ebr_raw, avg_ebr_corr), 
+                        render_mode='css', border_line_color='black', 
+                        border_line_alpha=0.25, background_fill_color='white', 
+                        background_fill_alpha=1.0)
+            else:
+                plot_ebr = self._generate_line_plot(
+                    x_size, y_size, df.index, 10, '', df.ebr, df.ebr_user_corr, 
+                    df.ebr_corr, None)
+                monthly_plot_ebr = self._generate_line_plot(
+                    x_size, y_size, monthly_df.index, 10, 'Monthly ', 
+                    monthly_df.ebr, monthly_df.ebr_user_corr, 
+                    monthly_df.ebr_corr, None)
+
+                # Create label of overall averages between EBR approaches
+                avg_ebr_raw = (df.LE.mean() + df.H.mean()) / \
+                        (df.Rn.mean() - df.G.mean())
+                avg_ebr_user_corr =\
+                    (df.LE_user_corr.mean()+df.H_user_corr.mean()) / \
+                    (df.Rn.mean() - df.G.mean())
+                avg_ebr_corr = (df.LE_corr.mean() + df.H_corr.mean()) / \
+                        (df.Rn.mean() - df.G.mean())
+
+                ratio_averages_label = Label(x=70, y=225, x_units='screen', 
+                        y_units='screen', 
+                        text='EBR_raw:{:.3f}\nEBR_user_corr:{:.3f} \nEBR_corr:{:.3f}'\
+                            .format(avg_ebr_raw, avg_ebr_user_corr, avg_ebr_corr), 
+                        render_mode='css', border_line_color='black', 
+                        border_line_alpha=0.25, background_fill_color='white', 
+                        background_fill_alpha=1.0) 
+                # create a copy of the label because bokeh doesnt want to assign 
+                # the same label twice
+                monthly_ratio_averages_label = Label(x=70, y=225, 
+                        x_units='screen', y_units='screen', 
+                        text='EBR_raw:{:.3f}\nEBR_user_corr:{:.3f}\nEBR_corr{:.3f}'\
+                            .format(avg_ebr_raw, avg_ebr_user_corr, avg_ebr_corr), 
                         render_mode='css', border_line_color='black', 
                         border_line_alpha=0.25, background_fill_color='white', 
                         background_fill_alpha=1.0)
@@ -675,28 +676,28 @@ class Plot(object):
 
         if ('energy' in provided_vars) and ('flux' in provided_vars):
             # still plot if without user corrected data
-            if not 'flux_corr' in provided_vars:
+            if not 'flux_user_corr' in provided_vars:
                 plot_ebc_adj = self._generate_scatter_plot(
                     x_size, y_size, 12, '', var_one=df.energy, var_two=df.flux,
-                    var_three=df.flux_adj)
+                    var_three=df.flux_corr)
 
                 monthly_plot_ebc_adj = self._generate_scatter_plot(
                     x_size, y_size, 12, 'Monthly ', var_one=monthly_df.energy, 
-                    var_two=monthly_df.flux, var_three=monthly_df.flux_adj)
+                    var_two=monthly_df.flux, var_three=monthly_df.flux_corr)
             else:
                 plot_ebc_corr = self._generate_scatter_plot(
                     x_size, y_size, 11, '', var_one=df.energy, 
-                    var_two=df.flux, var_three=df.flux_corr)
+                    var_two=df.flux, var_three=df.flux_user_corr)
                 plot_ebc_adj = self._generate_scatter_plot(
                     x_size, y_size, 12, '', var_one=df.energy, 
-                    var_two=df.flux, var_three=df.flux_adj)
+                    var_two=df.flux, var_three=df.flux_corr)
 
                 monthly_plot_ebc_corr = self._generate_scatter_plot(
                     x_size, y_size, 11, 'Monthly ', var_one=monthly_df.energy, 
-                    var_two=monthly_df.flux, var_three=monthly_df.flux_corr)
+                    var_two=monthly_df.flux,var_three=monthly_df.flux_user_corr)
                 monthly_plot_ebc_adj = self._generate_scatter_plot(
                     x_size, y_size, 12, 'Monthly ', var_one=monthly_df.energy, 
-                    var_two=monthly_df.flux, var_three=monthly_df.flux_adj)
+                    var_two=monthly_df.flux, var_three=monthly_df.flux_corr)
 
                 plot_list.append(plot_ebc_corr)
                 monthly_plot_list.append(monthly_plot_ebc_corr)
@@ -714,17 +715,19 @@ class Plot(object):
         number_of_rows = ceil(number_of_plots / 3)
         grid_of_plots = [[None] * 3 for i in range(number_of_rows)]
 
-        for i in range(number_of_rows):
-            for j in range(3):
+        #for i in range(number_of_rows):
+        #    for j in range(3):
 
-                if len(plot_list) > 0:
-                    grid_of_plots[i][j] = plot_list.pop(0)
-                elif len(plot_list) == 0 and len(monthly_plot_list) > 0:
-                    grid_of_plots[i][j] = monthly_plot_list.pop(0)
-                else:
-                    pass
+        #        if len(plot_list) > 0:
+        #            grid_of_plots[i][j] = plot_list.pop(0)
+        #        elif len(plot_list) == 0 and len(monthly_plot_list) > 0:
+        #            grid_of_plots[i][j] = monthly_plot_list.pop(0)
+        #        else:
+        #            pass
 
-        fig = gridplot(grid_of_plots, toolbar_location='left')
+        #fig = gridplot(grid_of_plots, toolbar_location='left')
+        plots = plot_list + monthly_plot_list
+        fig = gridplot(plots, ncols=1, toolbar_location='left')
         # fig = gridplot([[plot_surface_bal, plot_net_rad, plot_sw_rad],
         #                 [plot_temp, plot_windspeed, plot_precip],
         #                 [plot_et, plot_le],

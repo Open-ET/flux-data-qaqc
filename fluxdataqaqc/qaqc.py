@@ -294,6 +294,10 @@ class QaQc(object):
         Returns:
             None
 
+        Note:
+            When using this method, any output files (CSVs, plots) will be 
+            saved to a directory named "output" in the current working 
+            directory. 
         """
         qaqc = cls()
         # use property setter, make sure it is a dataframe object
