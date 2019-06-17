@@ -5,16 +5,15 @@ Plot fluxnet data using bokeh packages
 
 from .qaqc import QaQc
 from bokeh.layouts import gridplot
-from bokeh.models import Label
+from bokeh.models import Label, ColumnDataSource, HoverTool
 from bokeh.plotting import figure, output_file, save
-from pathlib import Path
 import numpy as np
 from math import ceil
 
 
 class Plot(object):
     """
-    Takes a Data object from data.py, determines what variables are available, and makes bokeh plots for the different
+    Takes a QaQc object from qaqc.py, determines what variables are available, and makes bokeh plots for the different
     climate variables.
 
     """
@@ -29,6 +28,7 @@ class Plot(object):
             self.variables = qaqc.variables
             self.inv_map = qaqc.inv_map
             self.provided_vars = self._inventory_variables()
+
         elif qaqc is not None:
             raise TypeError("Must assign a fluxdataqaqc.qaqc.QaQc object")
         else:
@@ -39,10 +39,11 @@ class Plot(object):
 
     def _inventory_variables(self):
         """
-        Checks to see what variables are present from QaQc object
-        
+        Checks to see what variables are present from QaQc object by iterating through provided dictionary
+
         Returns:
-            provided_vars (list): list of variable names that are present 
+            provided_vars (list): list of variable names that are present
+
         """
 
         provided_vars = []
@@ -55,23 +56,24 @@ class Plot(object):
 
     def _generate_plot_features(self, code, usage=''):
         """
-            Generates plot features depending on what code is passed
+            Generates plot features depending on what code is passed, currently a 1 at the end (ex. code 91) indicates
+            that a variable is missing,
 
             Parameters:
-                code : integer code passed by main script that indicates what type of data has been passed
-                usage : string indicating why this plot is being created, it may be blank.
+                code (int): code passed by main script that indicates what type of data has been passed
+                usage (str): additional text indicating why this plot is being created, it may be blank.
 
             Returns:
-                units : string of units for passed variable
-                title : string for title of plot
-                var_one_name : string of first variable name
-                var_one_color : string of color code to use for plotting variable one
-                var_two_name : string of second variable name
-                var_two_color : string of color code to use for plotting variable two
-                var_three_name : string of third variable name
-                var_three_color : string of color code to use for plotting variable three
-                var_four_name : string of fourth variable name
-                var_four_color : string of color code to use for plotting variable four
+                units (str): units for plot of variable(s)
+                title (str): title of plot
+                var_one_name (str): first variable name
+                var_one_color (str): string of color code to use for plotting variable one
+                var_two_name (str): second variable name
+                var_two_color (str): string of color code to use for plotting variable two
+                var_three_name (str): third variable name
+                var_three_color :(str) string of color code to use for plotting variable three
+                var_four_name (str): ourth variable name
+                var_four_color (str): string of color code to use for plotting variable four
         """
 
         if code == 1:  # First graph, four variables
@@ -159,7 +161,7 @@ class Plot(object):
             title = usage + var_one_name
 
         elif code == 8:  # ET Comparison
-            var_one_name = 'ET_raw'
+            var_one_name = 'ET'
             var_one_color = 'black'
             var_two_name = 'ET_corr'
             var_two_color = 'blue'
@@ -168,10 +170,10 @@ class Plot(object):
             var_four_name = 'null'
             var_four_color = 'black'
             units = 'mm/day'
-            title = usage + ' Daily Evapotraspiration'
+            title = usage + ' Evapotraspiration'
 
-        elif code == 81:  # ET Comparison no CORR
-            var_one_name = 'ET_raw'
+        elif code == 81:  # ET Comparison no user_corr
+            var_one_name = 'ET'
             var_one_color = 'black'
             var_two_name = 'ET_corr'
             var_two_color = 'blue'
@@ -180,10 +182,10 @@ class Plot(object):
             var_four_name = 'null'
             var_four_color = 'black'
             units = 'mm/day'
-            title = usage + ' Daily Evapotraspiration'
+            title = usage + ' Evapotraspiration'
 
         elif code == 9:  # LE comparison
-            var_one_name = 'LE_raw'
+            var_one_name = 'LE'
             var_one_color = 'black'
             var_two_name = 'LE_corr'
             var_two_color = 'blue'
@@ -194,8 +196,8 @@ class Plot(object):
             units = 'w/m2'
             title = usage + ' Latent Heat Flux'
 
-        elif code == 91:  # LE comparison
-            var_one_name = 'LE_raw'
+        elif code == 91:  # LE comparison no user_corr
+            var_one_name = 'LE'
             var_one_color = 'black'
             var_two_name = 'LE_corr'
             var_two_color = 'blue'
@@ -207,7 +209,7 @@ class Plot(object):
             title = usage + ' Latent Heat Flux'
 
         elif code == 10:  # energy balance ratio comparison
-            var_one_name = 'ebr_raw'
+            var_one_name = 'ebr'
             var_one_color = 'black'
             var_two_name = 'ebr_corr'
             var_two_color = 'blue'
@@ -218,10 +220,10 @@ class Plot(object):
             units = 'Ratio of Flux/Energy'
             title = usage + ' Energy Balance Ratio'
 
-        elif code == 101:  # energy balance ratio comparison
+        elif code == 101:  # energy balance ratio comparison no user_corr
             var_one_name = 'ebr_raw'
             var_one_color = 'black'
-            var_two_name = 'ebr_corr'
+            var_two_name = 'ebr_adj'
             var_two_color = 'blue'
             var_three_name = 'null'
             var_three_color = 'skyblue'
@@ -230,7 +232,7 @@ class Plot(object):
             units = 'Ratio of Flux/Energy'
             title = usage + ' Energy Balance Ratio'
 
-        elif code == 11:  # energy balance scatter plot, raw vs user Corr
+        elif code == 11:  # energy balance scatter plot, raw vs corr
             var_one_name = 'Energy'
             var_one_color = 'null'
             var_two_name = 'Flux_raw'
@@ -240,22 +242,34 @@ class Plot(object):
             var_four_name = 'null'
             var_four_color = 'null'
             units = 'null'
-            title = usage + ' EBC, Raw vs. User Corrected'
+            title = usage + ' EBC, Raw vs. Corrected'
 
-        elif code == 12:  # energy balance scatter plot, raw vs Bowen Corr
-            var_one_name = 'Energy'
+        elif code == 12:  # LE scatter plot, raw vs corr
+            var_one_name = 'LE'
             var_one_color = 'null'
-            var_two_name = 'Flux_raw'
+            var_two_name = 'LE_corr'
             var_two_color = 'null'
-            var_three_name = 'Flux_corr'
+            var_three_name = 'null'
             var_three_color = 'null'
             var_four_name = 'null'
             var_four_color = 'null'
             units = 'null'
-            title = usage + ' EBR, Raw vs. Corrected'
+            title = usage + ' LE, Raw vs. Corrected'
+
+        elif code == 13:  # ET scatter plot, raw vs corr
+            var_one_name = 'ET'
+            var_one_color = 'null'
+            var_two_name = 'ET_corr'
+            var_two_color = 'null'
+            var_three_name = 'null'
+            var_three_color = 'null'
+            var_four_name = 'null'
+            var_four_color = 'null'
+            units = 'null'
+            title = usage + ' ET, Raw vs. Corrected'
 
         else:
-            raise ValueError('Unsupported code type {} passed to generate_plot_features.'.format(code))
+            raise ValueError('Unsupported code type {} passed to _generate_plot_features.'.format(code))
 
         if '%' in usage:
             units = '% difference'
@@ -271,20 +285,45 @@ class Plot(object):
             Creates a bokeh line plot for provided variables and links them if appropriate
 
             Parameters:
-                x_size : x-axis size for plot
-                y_size : y-axis size for plot
-                dt_array : values for x-axis to label timestep, either daily or mean monthly
-                code : integer indicating what variables were passed
-                usage : additional string indicating why plot is being created
-                var_one : 1D numpy array of first variable
-                var_two : 1D numpy array of second variable
-                var_three : 1D numpy array of third variable
-                var_four : 1D numpy array of fourth variable
-                link_plot : either nothing or the plot we want to link x-axis with
+                x_size (int): x-axis size for plot
+                y_size (int): y-axis size for plot
+                dt_array (pandas dataframe): values for x-axis to label timestep, either daily or mean monthly
+                code (int): code indicating what variables were passed
+                usage (str): additional text indicating why plot is being created
+                var_one (numpy array): 1D numpy array of first variable
+                var_two (numpy array): 1D numpy array of second variable (if provided)
+                var_three (numpy array): 1D numpy array of third variable (if provided)
+                var_four (numpy array): 1D numpy array of fourth variable (if provided)
+                link_plot (bokeh object): either nothing or the subplot we want to link x-axis with
 
             Returns:
-                subplot : constructed figure
+                subplot (bokeh object): constructed figure to be assembled in aggregate plot
         """
+
+        date_list = dt_array.tolist()
+        source = ColumnDataSource(data=dict(date=date_list, v_one=var_one))
+        empty_array = np.zeros(len(date_list))
+        empty_array[:] = np.nan
+
+        if var_two is None:
+            source.add(empty_array, name='v_two')
+        else:
+            source.add(var_two, name='v_two')
+        if var_three is None:
+            source.add(empty_array, name='v_three')
+        else:
+            source.add(var_three, name='v_three')
+        if var_four is None:
+            source.add(empty_array, name='v_four')
+        else:
+            source.add(var_four, name='v_four')
+
+        tooltips = [
+            ('Index', '$index'),
+            ('Date', '@date{%F}'),
+            ('Value', '$y')]
+        formatters = {'date': 'datetime'}
+
         (units, title, var_one_name, var_one_color, var_two_name, var_two_color,
          var_three_name, var_three_color, var_four_name, var_four_color) = self._generate_plot_features(code, usage)
 
@@ -299,56 +338,72 @@ class Plot(object):
             subplot = figure(
                 width=x_size, height=y_size, x_axis_type=x_axis_type,
                 x_axis_label=x_label, y_axis_label=units, title=title,
-                tools='pan, box_zoom, undo, reset, hover, save')
+                tools='pan, box_zoom, undo, reset, save')
         else:  # Plot is passed to link x-axis with
             subplot = figure(
                 x_range=link_plot.x_range,
                 width=x_size, height=y_size, x_axis_type=x_axis_type,
                 x_axis_label=x_label, y_axis_label=units, title=title,
-                tools='pan, box_zoom, undo, reset, hover, save')
+                tools='pan, box_zoom, undo, reset, save')
 
-        subplot.line(dt_array, var_one, line_color=var_one_color, legend=var_one_name)
+        subplot.line(x='date', y='v_one', line_color=var_one_color, legend=var_one_name, source=source)
 
         if var_two_name.lower() == 'null':
             pass
         else:
-            subplot.line(dt_array, var_two, line_color=var_two_color, legend=var_two_name)
+            subplot.line(x='date', y='v_two', line_color=var_two_color, legend=var_two_name, source=source)
 
         if var_three_name.lower() == 'null':
             pass
         else:
-            subplot.line(dt_array, var_three, line_color=var_three_color, legend=var_three_name)
+            subplot.line(x='date', y='v_three', line_color=var_three_color, legend=var_three_name, source=source)
 
         if var_four_name.lower() == 'null':
             pass
         else:
-            subplot.line(dt_array, var_four, line_color=var_four_color, legend=var_four_name)
+            subplot.line(x='date', y='v_four', line_color=var_four_color, legend=var_four_name, source=source)
 
         subplot.legend.location = 'bottom_left'
+        subplot.sizing_mode = 'stretch_both'
+        subplot.add_tools(HoverTool(tooltips=tooltips, formatters=formatters))
 
         return subplot
 
-    def _generate_scatter_plot(self, x_size, y_size, code, usage, var_one=None, var_two=None, var_three=None,
-                               link_plot=None):
+    def _generate_scatter_plot(self, x_size, y_size, x_label, y_label, code, usage,
+                               var_one=None, var_two=None, var_three=None, link_plot=None):
+        """
+            Creates a bokeh scatter plot for provided variables and links them if appropriate. Var_one is the x axis,
+            with var_two and var_three (if present) serving as y axis in comparison with one another
 
+            Parameters:
+                x_size (int): x-axis size for plot
+                y_size (int): y-axis size for plot
+                x_label (string): text to be displayed on bottom axis
+                y_label (string): text to be displayed on vertical axis
+                code (int): code indicating what variables were passed
+                usage (str): additional text indicating why plot is being created
+                var_one (numpy array): 1D numpy array of first variable
+                var_two (numpy array): 1D numpy array of second variable (if provided)
+                var_three (numpy array): 1D numpy array of third variable (if provided)
+                link_plot (bokeh object): either nothing or the subplot we want to link x-axis with
+
+            Returns:
+                subplot (bokeh object): constructed scatterplot figure to be assembled in aggregate plot
+        """
         data_length = len(var_one)
 
         (units, title, var_one_name, var_one_color, var_two_name, var_two_color,
          var_three_name, var_three_color, var_four_name, var_four_color) = self._generate_plot_features(code, usage)
 
-        # Comparison plots of EBC
-        x_label = 'Energy (Net Radiation - G)'
-        y_label = 'Flux (Latent Heat + Sensible Heat)'
-
         # 1:1 line
         x = np.array([-80, 280])
         y = np.array([-80, 280])
 
-        # have to loop elementwise to remove nans, TODO there is probably a better way to do this
+        # have to loop elementwise to remove nans
         var_one_lstsq = []
         var_two_lstsq = []
         var_three_lstsq = []
-   
+
         # TODO: better way to handle missing variable for user's corrected data
         if var_three is not None:
             for i in range(0, data_length):
@@ -368,9 +423,9 @@ class Plot(object):
             var_one_lstsq = var_one_lstsq[:, np.newaxis]
 
             slope_orig, _, _, _ = np.linalg.lstsq(
-                    var_one_lstsq, var_two_lstsq, rcond=None)
+                var_one_lstsq, var_two_lstsq, rcond=None)
             slope_corr, _, _, _ = np.linalg.lstsq(
-                    var_one_lstsq, var_three_lstsq, rcond=None)
+                var_one_lstsq, var_three_lstsq, rcond=None)
 
             if link_plot is None:  # No plot to link with
                 subplot = figure(
@@ -385,13 +440,13 @@ class Plot(object):
                     tools='pan, box_zoom, undo, reset, hover, save')
 
             subplot.line(x, y, line_color='black', legend='1:1 Line', line_dash='dashed')
-            subplot.line(var_one, var_one*slope_orig, line_color='skyblue', legend='LSL_raw, {:.3f}'
+            subplot.line(var_one, var_one * slope_orig, line_color='skyblue', legend='LSL_init, {:.3f}'
                          .format(float(slope_orig)))
-            subplot.line(var_one, var_one*slope_corr, line_color='navy', legend='LSL_corr, {:.3f}'
+            subplot.line(var_one, var_one * slope_corr, line_color='navy', legend='LSL_corr, {:.3f}'
                          .format(float(slope_corr)))
 
-            subplot.triangle(var_one, var_two, size=5, color="lightsalmon", alpha=0.5, legend=var_two_name)
-            subplot.circle(var_one, var_three, size=5, color="lightcoral", alpha=0.5, legend=var_three_name)
+            subplot.triangle(var_one, var_two, size=10, color="lightsalmon", alpha=0.5, legend=var_two_name)
+            subplot.circle(var_one, var_three, size=10, color="lightcoral", alpha=0.5, legend=var_three_name)
             subplot.legend.location = 'top_left'
 
         else:
@@ -410,7 +465,7 @@ class Plot(object):
             var_one_lstsq = var_one_lstsq[:, np.newaxis]
 
             slope_orig, _, _, _ = np.linalg.lstsq(
-                    var_one_lstsq, var_two_lstsq, rcond=None)
+                var_one_lstsq, var_two_lstsq, rcond=None)
 
             if link_plot is None:  # No plot to link with
                 subplot = figure(
@@ -425,26 +480,99 @@ class Plot(object):
                     tools='pan, box_zoom, undo, reset, hover, save')
 
             subplot.line(x, y, line_color='black', legend='1:1 Line', line_dash='dashed')
-            subplot.line(var_one, var_one*slope_orig, line_color='skyblue', legend='LSL_raw, {:.3f}'
+            subplot.line(var_one, var_one * slope_orig, line_color='skyblue', legend='LSL, {:.3f}'
                          .format(float(slope_orig)))
 
-            subplot.triangle(var_one, var_two, size=5, color="lightsalmon", alpha=0.5, legend=var_two_name)
+            subplot.triangle(var_one, var_two, size=10, color="lightsalmon", alpha=0.5, legend=var_two_name)
             subplot.legend.location = 'top_left'
+
+        subplot.sizing_mode = 'stretch_both'
         return subplot
 
-    def _generate_scalable_plot(self):
-        pass
+    def _generate_scalable_plot(self, x_size, y_size, dt_array, units, title, usage, df, inv_map, link_plot=None):
+        """
+            Creates a bokeh line plot for as many of a certain type of variable are provided, such as soil moisture
+            or ground heat flux sensors
+
+            Parameters:
+                x_size (int): x-axis size for plot
+                y_size (int): y-axis size for plot
+                dt_array (pandas dataframe): values for x-axis to label timestep, either daily or mean monthly
+                usage (str): additional text indicating why plot is being created
+                df (pandas dataframe): all of the variables that will be plotted on this graph
+                inv_map (dictionary): map of
+                link_plot (bokeh object): either nothing or the subplot we want to link x-axis with
+
+            Returns:
+                subplot (bokeh object): constructed figure to be assembled in aggregate plot
+        """
+        color_list = ['black', 'gray', 'darkslategray', 'lightsteelblue',
+                      'skyblue', 'dodgerblue', 'blue', 'navy',
+                      'sandybrown', 'goldenrod', 'chocolate', 'olive', 'green']
+
+        # Obtain original user names for display
+        vars_to_plot = [col for col in df.columns]
+
+        user_provided_names = []
+        internal_var_names = inv_map.items()
+        for var in vars_to_plot:
+            for item in internal_var_names:
+                if item[1] == var:
+                    user_provided_names.append(item[0])
+
+        if usage == 'Monthly ':
+            x_label = 'Monthly Timestep'
+            x_axis_type = 'datetime'
+            title = usage + title
+        else:  # Anything else
+            x_label = 'Daily Timestep'
+            x_axis_type = 'datetime'
+
+        if link_plot is None:  # No plot to link with
+            subplot = figure(
+                width=x_size, height=y_size, x_axis_type=x_axis_type,
+                x_axis_label=x_label, y_axis_label=units, title=title,
+                tools='pan, box_zoom, undo, reset, hover, save')
+        else:  # Plot is passed to link x-axis with
+            subplot = figure(
+                x_range=link_plot.x_range,
+                width=x_size, height=y_size, x_axis_type=x_axis_type,
+                x_axis_label=x_label, y_axis_label=units, title=title,
+                tools='pan, box_zoom, undo, reset, hover, save')
+
+        while len(vars_to_plot) > 0:
+            var_name = vars_to_plot.pop(0)
+            user_name = user_provided_names.pop(0)
+            line_color = color_list.pop(0)
+
+            subplot.line(dt_array, df[var_name], line_color=line_color, legend=user_name)
+        subplot.legend.location = 'bottom_left'
+        subplot.sizing_mode = 'stretch_both'
+        return subplot
 
     def create_and_aggregate_plots(self, provided_vars, df, monthly_df):
+        """
+            Creates subplots for all of the different variable groupings that have been provided by the input data,
+            determined by function _inventory_variables. Graphs will generate so long as one of the variables
+            used is present
 
+            Parameters:
+                provided_vars (list): python list of all variables that have been provided
+                df (pandas dataframe): dataframe of all variables, both provided and calculated
+                monthly_df (pandas dataframe): dataframe of all variables for the monthly timestep
+
+            Returns:
+                fig (bokeh object): a grid of all of the constructed subplots
+        """
+        user_requested_columns = 1  # TODO: import number of columns from user
         x_size = 500
         y_size = 350
         plot_list = []
         monthly_plot_list = []
 
         # Plot surface balance components
-        if ('Rn' in provided_vars) and ('G' in provided_vars) and \
-                ('LE' in provided_vars) and ('H' in provided_vars):
+        if ('Rn' in provided_vars) or ('G' in provided_vars) or \
+                ('LE' in provided_vars) or ('H' in provided_vars):
             plot_surface_bal = self._generate_line_plot(
                     x_size, y_size, df.index, 1, '', df.Rn, df.LE, df.H, df.G)
 
@@ -454,13 +582,13 @@ class Plot(object):
             plot_list.append(plot_surface_bal)
             monthly_plot_list.append(monthly_plot_surface_bal)
         else:
-            print('\nSurface balance components graph missing a variable.')
+            print('\nSurface balance components graph missing all variables.')
             plot_surface_bal = None
             monthly_plot_surface_bal = None
 
         # Plot net radiation components
-        if ('sw_in' in provided_vars) and ('sw_out' in provided_vars) and \
-                ('lw_in' in provided_vars) and ('lw_out' in provided_vars):
+        if ('sw_in' in provided_vars) or ('sw_out' in provided_vars) or \
+                ('lw_in' in provided_vars) or ('lw_out' in provided_vars):
 
             plot_net_rad = self._generate_line_plot(
                     x_size, y_size, df.index, 2, '', df.sw_in, df.lw_in, 
@@ -474,25 +602,9 @@ class Plot(object):
             plot_list.append(plot_net_rad)
             monthly_plot_list.append(monthly_plot_net_rad)
         else:
-            print('\nNet Radiation components graph missing a variable.')
+            print('\nNet Radiation components graph missing all variables.')
             plot_net_rad = None
             monthly_plot_net_rad = None
-
-        # Plot potential vs. measured inc_sw_rad
-        if 'sw_in' in provided_vars:
-            # TODO add rso to agg dict and include it here
-            plot_sw_rad = self._generate_line_plot(
-                    x_size, y_size, df.index, 3, '', df.sw_in, df.rso, None)
-
-            monthly_plot_sw_rad = self._generate_line_plot(
-                    x_size, y_size, monthly_df.index, 3, 'Monthly ',
-                    monthly_df.sw_pot, monthly_df.sw_in, monthly_df.rso, None)
-            plot_list.append(plot_sw_rad)
-            monthly_plot_list.append(monthly_plot_sw_rad)
-        else:
-            print('\nMeasured vs Potential SW graph missing a variable.')
-            plot_sw_rad = None
-            monthly_plot_sw_rad = None
 
         # Plot temperature
         if 't_avg' in provided_vars:
@@ -504,7 +616,7 @@ class Plot(object):
             plot_list.append(plot_temp)
             monthly_plot_list.append(monthly_plot_temp)
         else:
-            print('\nTemperature graph missing a variable.')
+            print('\nTemperature graph missing all variables.')
             plot_temp = None
             monthly_plot_temp = None
 
@@ -513,7 +625,7 @@ class Plot(object):
             plot_vapor_pres = self._generate_line_plot(
                     x_size, y_size, df.index, 5, '', df.vp, df.vpd, None, None)
             monthly_plot_vapor_pres = self._generate_line_plot(
-                    x_size, y_size, monthly_df.index, 5, 'Monthly ',                                monthly_df.vp, monthly_df.vpd, None, None)
+                    x_size, y_size, monthly_df.index, 5, 'Monthly ', monthly_df.vp, monthly_df.vpd, None, None)
             plot_list.append(plot_vapor_pres)
             monthly_plot_list.append(monthly_plot_vapor_pres)
 
@@ -532,7 +644,7 @@ class Plot(object):
             plot_list.append(plot_windspeed)
             monthly_plot_list.append(monthly_plot_windspeed)
         else:
-            print('\nWindspeed graph missing a variable.')
+            print('\nWindspeed graph missing all variables.')
             plot_windspeed = None
             monthly_plot_windspeed = None
 
@@ -546,7 +658,7 @@ class Plot(object):
             plot_list.append(plot_precip)
             monthly_plot_list.append(monthly_plot_precip)
         else:
-            print('\nPrecipitation graph missing a variable.')
+            print('\nPrecipitation graph missing all variables.')
             plot_precip = None
             monthly_plot_precip = None
 
@@ -555,16 +667,16 @@ class Plot(object):
             # still plot if user did not have their own corrected data
             if not 'et_user_corr' in provided_vars:
                 plot_et = self._generate_line_plot(
-                    x_size, y_size, df.index, 81, '', df.et, df.et_corr,None)
+                    x_size, y_size, df.index, 81, '', df.et, df.et_corr, None)
                 monthly_plot_et = self._generate_line_plot(x_size, y_size, 
-                    monthly_df.index, 81, 'Monthly ', monthly_df.et, 
+                    monthly_df.index, 81, 'Monthly ', monthly_df.et,
                     monthly_df.et_corr, None)
             else:
                 plot_et = self._generate_line_plot(
-                        x_size, y_size, df.index, 8, '', df.et, df.et_user_corr, 
-                        df.et_corr, None)
+                        x_size, y_size, df.index, 8, '', df.et, df.et_corr,
+                        df.et_user_corr, None)
                 monthly_plot_et = self._generate_line_plot(x_size, y_size, 
-                        monthly_df.index, 8, 'Monthly ', monthly_df.et, 
+                        monthly_df.index, 8, 'Monthly ', monthly_df.et,
                         monthly_df.et_corr, monthly_df.et_user_corr, None)
             plot_list.append(plot_et)
             monthly_plot_list.append(monthly_plot_et)
@@ -584,8 +696,8 @@ class Plot(object):
                     monthly_df.LE, monthly_df.LE_corr, None)
             else:
                 plot_le = self._generate_line_plot(
-                    x_size, y_size, df.index, 9, '', df.LE, df.LE_user_corr, 
-                    df.LE_corr, None)
+                    x_size, y_size, df.index, 9, '', df.LE, df.LE_corr, 
+                    df.LE_user_corr, None)
                 monthly_plot_le = self._generate_line_plot(
                     x_size, y_size, monthly_df.index, 9, 'Monthly ', 
                     monthly_df.LE, monthly_df.LE_corr, monthly_df.LE_user_corr, None)
@@ -597,11 +709,11 @@ class Plot(object):
             monthly_plot_le = None
 
         # Plot energy balance ratios
-        if ('ebr_corr' in provided_vars) and ('ebr' in provided_vars):
+        if ('ebr' in provided_vars) and ('ebr_corr' in provided_vars):
             # still plot if without user corrected data
             if not 'ebr_user_corr' in provided_vars:
                 plot_ebr = self._generate_line_plot(
-                    x_size, y_size, df.index, 101, '', df.ebr, df.ebr_corr, 
+                    x_size, y_size, df.index, 101, '', df.ebr, df.ebr_corr,
                     None)
                 monthly_plot_ebr = self._generate_line_plot(
                     x_size, y_size, monthly_df.index, 101, 'Monthly ', 
@@ -615,8 +727,8 @@ class Plot(object):
 
                 ratio_averages_label = Label(x=70, y=225, x_units='screen', 
                         y_units='screen', 
-                        text='EBR_raw:{:.3f}\nEBR_corr:{:.3f}'\
-                            .format(avg_ebr_raw, avg_ebr_corr), 
+                        text='EBR:{:.3f}\nEBR_corr:{:.3f}'\
+                            .format(avg_ebr_raw, avg_ebr_corr),
                         render_mode='css', border_line_color='black', 
                         border_line_alpha=0.25, background_fill_color='white', 
                         background_fill_alpha=1.0) 
@@ -624,33 +736,32 @@ class Plot(object):
                 # the same label twice
                 monthly_ratio_averages_label = Label(x=70, y=225, 
                         x_units='screen', y_units='screen', 
-                        text='EBR_raw:{:.3f}\nEBR_corr:{:.3f}'\
-                            .format(avg_ebr_raw, avg_ebr_corr), 
+                        text='EBR:{:.3f}\nEBR_corr:{:.3f}'\
+                            .format(avg_ebr_raw, avg_ebr_corr),
                         render_mode='css', border_line_color='black', 
                         border_line_alpha=0.25, background_fill_color='white', 
                         background_fill_alpha=1.0)
             else:
                 plot_ebr = self._generate_line_plot(
-                    x_size, y_size, df.index, 10, '', df.ebr, df.ebr_user_corr, 
-                    df.ebr_corr, None)
+                    x_size, y_size, df.index, 10, '', df.ebr, df.ebr_corr,
+                    df.ebr_user_corr, None)
                 monthly_plot_ebr = self._generate_line_plot(
                     x_size, y_size, monthly_df.index, 10, 'Monthly ', 
-                    monthly_df.ebr, monthly_df.ebr_user_corr, 
-                    monthly_df.ebr_corr, None)
+                    monthly_df.ebr, monthly_df.ebr_corr,
+                    monthly_df.ebr_user_corr, None)
 
                 # Create label of overall averages between EBR approaches
                 avg_ebr_raw = (df.LE.mean() + df.H.mean()) / \
                         (df.Rn.mean() - df.G.mean())
-                avg_ebr_user_corr =\
-                    (df.LE_user_corr.mean()+df.H_user_corr.mean()) / \
-                    (df.Rn.mean() - df.G.mean())
                 avg_ebr_corr = (df.LE_corr.mean() + df.H_corr.mean()) / \
+                        (df.Rn.mean() - df.G.mean())
+                avg_ebr_user_corr = (df.LE_user_corr.mean() + df.H_user_corr.mean()) / \
                         (df.Rn.mean() - df.G.mean())
 
                 ratio_averages_label = Label(x=70, y=225, x_units='screen', 
                         y_units='screen', 
-                        text='EBR_raw:{:.3f}\nEBR_user_corr:{:.3f} \nEBR_corr:{:.3f}'\
-                            .format(avg_ebr_raw, avg_ebr_user_corr, avg_ebr_corr), 
+                        text='EBR_raw:{:.3f}\nEBR_corr:{:.3f} \nEBR_user_corr:{:.3f}'\
+                            .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_user_corr),
                         render_mode='css', border_line_color='black', 
                         border_line_alpha=0.25, background_fill_color='white', 
                         background_fill_alpha=1.0) 
@@ -658,8 +769,8 @@ class Plot(object):
                 # the same label twice
                 monthly_ratio_averages_label = Label(x=70, y=225, 
                         x_units='screen', y_units='screen', 
-                        text='EBR_raw:{:.3f}\nEBR_user_corr:{:.3f}\nEBR_corr{:.3f}'\
-                            .format(avg_ebr_raw, avg_ebr_user_corr, avg_ebr_corr), 
+                        text='EBR_raw:{:.3f}\nEBR_corr:{:.3f}\nEBR_user_corr:{:.3f}'\
+                            .format(avg_ebr_raw, avg_ebr_corr, avg_ebr_user_corr),
                         render_mode='css', border_line_color='black', 
                         border_line_alpha=0.25, background_fill_color='white', 
                         background_fill_alpha=1.0)
@@ -674,74 +785,116 @@ class Plot(object):
             plot_ebr = None
             monthly_plot_ebr = None
 
+        # Comparison plots of EBC
         if ('energy' in provided_vars) and ('flux' in provided_vars):
-            # still plot if without user corrected data
-            if not 'flux_user_corr' in provided_vars:
-                plot_ebc_adj = self._generate_scatter_plot(
-                    x_size, y_size, 12, '', var_one=df.energy, var_two=df.flux,
-                    var_three=df.flux_corr)
+            plot_ebr_scatter = self._generate_scatter_plot(
+                x_size, y_size, 'Energy (Net Radiation - G)', 'Flux (Latent Heat + Sensible Heat)', 11,
+                '', var_one=df.energy, var_two=df.flux, var_three=df.flux_corr)
 
-                monthly_plot_ebc_adj = self._generate_scatter_plot(
-                    x_size, y_size, 12, 'Monthly ', var_one=monthly_df.energy, 
-                    var_two=monthly_df.flux, var_three=monthly_df.flux_corr)
-            else:
-                plot_ebc_corr = self._generate_scatter_plot(
-                    x_size, y_size, 11, '', var_one=df.energy, 
-                    var_two=df.flux, var_three=df.flux_user_corr)
-                plot_ebc_adj = self._generate_scatter_plot(
-                    x_size, y_size, 12, '', var_one=df.energy, 
-                    var_two=df.flux, var_three=df.flux_corr)
+            monthly_plot_ebr_scatter = self._generate_scatter_plot(
+                x_size, y_size, 'Energy (Net Radiation - G)', 'Flux (Latent Heat + Sensible Heat)', 11,
+                'Monthly ', var_one=monthly_df.energy,
+                var_two=monthly_df.flux, var_three=monthly_df.flux_corr)
 
-                monthly_plot_ebc_corr = self._generate_scatter_plot(
-                    x_size, y_size, 11, 'Monthly ', var_one=monthly_df.energy, 
-                    var_two=monthly_df.flux,var_three=monthly_df.flux_user_corr)
-                monthly_plot_ebc_adj = self._generate_scatter_plot(
-                    x_size, y_size, 12, 'Monthly ', var_one=monthly_df.energy, 
-                    var_two=monthly_df.flux, var_three=monthly_df.flux_corr)
-
-                plot_list.append(plot_ebc_corr)
-                monthly_plot_list.append(monthly_plot_ebc_corr)
-
-            plot_list.append(plot_ebc_adj)
-            monthly_plot_list.append(monthly_plot_ebc_adj)
+            plot_list.append(plot_ebr_scatter)
+            monthly_plot_list.append(monthly_plot_ebr_scatter)
         else:
             print('\nEnergy balance correlation graphs missing a variable.')
-            plot_ebc_corr = None
-            plot_ebc_adj = None
-            monthly_plot_ebc_corr = None
-            monthly_plot_ebc_adj = None
+            plot_ebr_scatter = None
+            monthly_plot_ebr_scatter = None
+
+        # Correlation plots of LE vs LE_corr
+        if ('LE' in provided_vars) and ('LE_corr' in provided_vars):
+            plot_le_scatter = self._generate_scatter_plot(
+                x_size, y_size, 'LE (w/m2)', 'LE_corr (w/m2)', 12,
+                '', var_one=df.LE, var_two=df.LE_corr, var_three=None)
+
+            monthly_plot_le_scatter = self._generate_scatter_plot(
+                x_size, y_size, 'LE (w/m2)', 'LE_corr (w/m2)', 12,
+                'Monthly ', var_one=monthly_df.LE, var_two=monthly_df.LE_corr, var_three=None)
+
+            plot_list.append(plot_le_scatter)
+            monthly_plot_list.append(monthly_plot_le_scatter)
+        else:
+            print('\n Latent Heat scatter plot missing a variable.')
+            plot_le_scatter = None
+            monthly_plot_le_scatter = None
+
+        # Correlation plots of ET and ET_corr
+        if ('et' in provided_vars) and ('et_corr' in provided_vars):
+            plot_et_scatter = self._generate_scatter_plot(
+                x_size, y_size, 'ET (mm)', 'ET_corr (mm)', 13,
+                '', var_one=df.et, var_two=df.et_corr, var_three=None)
+
+            monthly_plot_et_scatter = self._generate_scatter_plot(
+                x_size, y_size, 'ET (mm)', 'ET_corr (mm)', 13,
+                'Monthly ', var_one=monthly_df.et, var_two=monthly_df.et_corr, var_three=None)
+
+            plot_list.append(plot_et_scatter)
+            monthly_plot_list.append(monthly_plot_et_scatter)
+        else:
+            print('\n Latent Heat scatter plot missing a variable.')
+            plot_et_scatter = None
+            monthly_plot_et_scatter = None
+
+        if 'theta_mean' in provided_vars:
+
+            theta_cols = [col for col in df.columns if 'theta_' in col]
+            theta_df = df[theta_cols].copy()
+            monthly_theta_df = monthly_df[theta_cols].copy()
+            multi_theta = self._generate_scalable_plot(
+                x_size, y_size, df.index, 'cm', 'Soil Moisture', '', theta_df, self.inv_map, None)
+            monthly_multi_theta = self._generate_scalable_plot(
+                x_size, y_size, df.index, 'cm', 'Soil Moisture', 'Monthly ', monthly_theta_df, self.inv_map, None)
+
+            plot_list.append(multi_theta)
+            monthly_plot_list.append(monthly_multi_theta)
+        else:
+            print('\nSoil Moisture scalable plot missing a variable.')
+            multi_theta = None
+            monthly_multi_theta = None
+
+        if 'g_mean' in provided_vars:
+
+            g_cols = [col for col in df.columns if ((('g_' in col) or ('G' in col)) and not ('qc' in col))]
+            g_df = df[g_cols].copy()
+            monthly_g_df = monthly_df[g_cols].copy()
+            multi_g = self._generate_scalable_plot(
+                x_size, y_size, df.index,  'w/m_2', 'Soil Heat Flux', '', g_df, self.inv_map, None)
+            monthly_multi_g = self._generate_scalable_plot(
+                x_size, y_size, df.index, 'w/m_2', 'Soil Heat Flux', 'Monthly ', monthly_g_df, self.inv_map, None)
+
+            plot_list.append(multi_g)
+            monthly_plot_list.append(monthly_multi_g)
+        else:
+            print('\nSoil heat flux scalable plot missing a variable.')
+            multi_g = None
+            monthly_multi_g = None
 
         number_of_plots = len(plot_list)*2
-        number_of_rows = ceil(number_of_plots / 3)
-        grid_of_plots = [[None] * 3 for i in range(number_of_rows)]
+        number_of_rows = ceil(number_of_plots / user_requested_columns)
+        grid_of_plots = [[None] * user_requested_columns for i in range(number_of_rows)]
 
-        #for i in range(number_of_rows):
-        #    for j in range(3):
+        for i in range(number_of_rows):
+            for j in range(user_requested_columns):
 
-        #        if len(plot_list) > 0:
-        #            grid_of_plots[i][j] = plot_list.pop(0)
-        #        elif len(plot_list) == 0 and len(monthly_plot_list) > 0:
-        #            grid_of_plots[i][j] = monthly_plot_list.pop(0)
-        #        else:
-        #            pass
+                if len(plot_list) > 0:
+                    grid_of_plots[i][j] = plot_list.pop(0)
+                elif len(plot_list) == 0 and len(monthly_plot_list) > 0:
+                    grid_of_plots[i][j] = monthly_plot_list.pop(0)
+                else:
+                    pass
 
-        #fig = gridplot(grid_of_plots, toolbar_location='left')
-        plots = plot_list + monthly_plot_list
-        fig = gridplot(plots, ncols=1, toolbar_location='left')
-        # fig = gridplot([[plot_surface_bal, plot_net_rad, plot_sw_rad],
-        #                 [plot_temp, plot_windspeed, plot_precip],
-        #                 [plot_et, plot_le],
-        #                 [plot_ebr, plot_ebc_corr, plot_ebc_adj],
-        #                 [monthly_plot_surface_bal, monthly_plot_net_rad, monthly_plot_sw_rad],
-        #                 [monthly_plot_temp, monthly_plot_windspeed, monthly_plot_precip],
-        #                 [monthly_plot_et, monthly_plot_le],
-        #                 [monthly_plot_ebr, monthly_plot_ebc_corr, monthly_plot_ebc_adj]], toolbar_location="left")
+        fig = gridplot(grid_of_plots, toolbar_location='left')
+
 
         return fig
 
     def generate_plots(self):
         """
-        Create all of the graphs for provided variables,
+        Create all of the graphs for provided variables, this is the function that actually runs all the code
+
+
 
         """
         if not self.out_dir.is_dir():
