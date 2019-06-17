@@ -440,9 +440,9 @@ class Plot(object):
                     tools='pan, box_zoom, undo, reset, hover, save')
 
             subplot.line(x, y, line_color='black', legend='1:1 Line', line_dash='dashed')
-            subplot.line(var_one, var_one * slope_orig, line_color='skyblue', legend='LSL_corr, {:.3f}'
+            subplot.line(var_one, var_one * slope_orig, line_color='skyblue', legend='LSL_init, {:.3f}'
                          .format(float(slope_orig)))
-            subplot.line(var_one, var_one * slope_corr, line_color='navy', legend='LSL_user_corr, {:.3f}'
+            subplot.line(var_one, var_one * slope_corr, line_color='navy', legend='LSL_corr, {:.3f}'
                          .format(float(slope_corr)))
 
             subplot.triangle(var_one, var_two, size=10, color="lightsalmon", alpha=0.5, legend=var_two_name)
@@ -489,7 +489,7 @@ class Plot(object):
         subplot.sizing_mode = 'stretch_both'
         return subplot
 
-    def _generate_scalable_plot(self, x_size, y_size, dt_array, units, title, usage, df, link_plot=None):
+    def _generate_scalable_plot(self, x_size, y_size, dt_array, units, title, usage, df, inv_map, link_plot=None):
         """
             Creates a bokeh line plot for as many of a certain type of variable are provided, such as soil moisture
             or ground heat flux sensors
@@ -500,6 +500,7 @@ class Plot(object):
                 dt_array (pandas dataframe): values for x-axis to label timestep, either daily or mean monthly
                 usage (str): additional text indicating why plot is being created
                 df (pandas dataframe): all of the variables that will be plotted on this graph
+                inv_map (dictionary): map of
                 link_plot (bokeh object): either nothing or the subplot we want to link x-axis with
 
             Returns:
@@ -509,7 +510,15 @@ class Plot(object):
                       'skyblue', 'dodgerblue', 'blue', 'navy',
                       'sandybrown', 'goldenrod', 'chocolate', 'olive', 'green']
 
+        # Obtain original user names for display
         vars_to_plot = [col for col in df.columns]
+
+        user_provided_names = []
+        internal_var_names = inv_map.items()
+        for var in vars_to_plot:
+            for item in internal_var_names:
+                if item[1] == var:
+                    user_provided_names.append(item[0])
 
         if usage == 'Monthly ':
             x_label = 'Monthly Timestep'
@@ -533,10 +542,10 @@ class Plot(object):
 
         while len(vars_to_plot) > 0:
             var_name = vars_to_plot.pop(0)
+            user_name = user_provided_names.pop(0)
             line_color = color_list.pop(0)
 
-            subplot.line(dt_array, df[var_name], line_color=line_color, legend=var_name)
-
+            subplot.line(dt_array, df[var_name], line_color=line_color, legend=user_name)
         subplot.legend.location = 'bottom_left'
         subplot.sizing_mode = 'stretch_both'
         return subplot
@@ -544,7 +553,8 @@ class Plot(object):
     def create_and_aggregate_plots(self, provided_vars, df, monthly_df):
         """
             Creates subplots for all of the different variable groupings that have been provided by the input data,
-            determined by function _inventory_variables. Graphs will generate so long as one of the variables used is present
+            determined by function _inventory_variables. Graphs will generate so long as one of the variables
+            used is present
 
             Parameters:
                 provided_vars (list): python list of all variables that have been provided
@@ -779,8 +789,7 @@ class Plot(object):
         if ('energy' in provided_vars) and ('flux' in provided_vars):
             plot_ebr_scatter = self._generate_scatter_plot(
                 x_size, y_size, 'Energy (Net Radiation - G)', 'Flux (Latent Heat + Sensible Heat)', 11,
-                '', var_one=df.energy, var_two=df.flux,
-                var_three=df.flux_corr)
+                '', var_one=df.energy, var_two=df.flux, var_three=df.flux_corr)
 
             monthly_plot_ebr_scatter = self._generate_scatter_plot(
                 x_size, y_size, 'Energy (Net Radiation - G)', 'Flux (Latent Heat + Sensible Heat)', 11,
@@ -834,26 +843,26 @@ class Plot(object):
             theta_df = df[theta_cols].copy()
             monthly_theta_df = monthly_df[theta_cols].copy()
             multi_theta = self._generate_scalable_plot(
-                x_size, y_size, df.index,  'cm', 'Soil Moisture', '', theta_df, None)
+                x_size, y_size, df.index, 'cm', 'Soil Moisture', '', theta_df, self.inv_map, None)
             monthly_multi_theta = self._generate_scalable_plot(
-                x_size, y_size, df.index, 'cm', 'Soil Moisture', 'Monthly ', monthly_theta_df, None)
+                x_size, y_size, df.index, 'cm', 'Soil Moisture', 'Monthly ', monthly_theta_df, self.inv_map, None)
 
             plot_list.append(multi_theta)
             monthly_plot_list.append(monthly_multi_theta)
         else:
-            print('\nSoil heat flux scalable plot missing a variable.')
+            print('\nSoil Moisture scalable plot missing a variable.')
             multi_theta = None
             monthly_multi_theta = None
 
         if 'g_mean' in provided_vars:
 
-            g_cols = [col for col in df.columns if ('g_' in col) or ('G' in col)]
+            g_cols = [col for col in df.columns if ((('g_' in col) or ('G' in col)) and not ('qc' in col))]
             g_df = df[g_cols].copy()
             monthly_g_df = monthly_df[g_cols].copy()
             multi_g = self._generate_scalable_plot(
-                x_size, y_size, df.index,  'w/m_2', 'Soil Heat Flux', '', g_df, None)
+                x_size, y_size, df.index,  'w/m_2', 'Soil Heat Flux', '', g_df, self.inv_map, None)
             monthly_multi_g = self._generate_scalable_plot(
-                x_size, y_size, df.index, 'w/m_2', 'Soil Heat Flux', 'Monthly ', monthly_g_df, None)
+                x_size, y_size, df.index, 'w/m_2', 'Soil Heat Flux', 'Monthly ', monthly_g_df, self.inv_map, None)
 
             plot_list.append(multi_g)
             monthly_plot_list.append(monthly_multi_g)

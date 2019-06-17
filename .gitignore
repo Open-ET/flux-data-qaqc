@@ -96,3 +96,5 @@ env.bak/
 venv.bak/
 
 
+*.xlsx
+*.ini
