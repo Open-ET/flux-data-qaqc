@@ -395,16 +395,37 @@ class Plot(object):
         (units, title, var_one_name, var_one_color, var_two_name, var_two_color,
          var_three_name, var_three_color, var_four_name, var_four_color) = self._generate_plot_features(code, usage)
 
-        # 1:1 line
-        x = np.array([-80, 280])
-        y = np.array([-80, 280])
+        # Get max/mins from variables for the 1:1 line
+        if var_one is not None:
+            v1_max = np.nanmax(var_one)
+            v1_min = np.nanmin(var_one)
+        else:
+            v1_max = np.nan
+            v1_min = np.nan
+        if var_two is not None:
+            v2_max = np.nanmax(var_one)
+            v2_min = np.nanmin(var_two)
+        else:
+            v2_max = np.nan
+            v2_min = np.nan
+        if var_three is not None:
+            v3_max = np.nanmax(var_one)
+            v3_min = np.nanmin(var_two)
+        else:
+            v3_max = np.nan
+            v3_min = np.nan
+
+        graph_max = np.nanmax([v1_max, v2_max, v3_max])
+        graph_min = np.nanmin([v1_min, v2_min, v3_min])
+
+        x = np.array([graph_min - 1, graph_max + 1])
+        y = np.array([graph_min - 1, graph_max + 1])
 
         # have to loop elementwise to remove nans
         var_one_lstsq = []
         var_two_lstsq = []
         var_three_lstsq = []
 
-        # TODO: better way to handle missing variable for user's corrected data
         if var_three is not None:
             for i in range(0, data_length):
                 if np.isnan(var_one[i]) or np.isnan(var_two[i]) or np.isnan(var_three[i]):
