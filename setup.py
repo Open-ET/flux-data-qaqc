@@ -28,7 +28,7 @@ classifiers = [
 
 setup(
     name='fluxdataqaqc',
-    description='Tools for QA/QC of near surface climate data',
+    description='Tools for QA/QC of eddy covariance station data',
     long_description=readme,
     author='John Volk and Christian Dunkerly',
     author_email='jmvolk@unr.edu',

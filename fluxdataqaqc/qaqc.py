@@ -39,7 +39,6 @@ class QaQc(object):
         'flux': 'mean',
         'flux_corr': 'mean',
         'br': 'mean',
-        'br_corr': 'mean',
         'et': 'sum',
         'et_corr': 'sum',
         'et_user_corr': 'sum',
@@ -86,9 +85,7 @@ class QaQc(object):
         'ebc_cf',
         'ebr_5day_clim',
         'br',
-        'br_corr',
-        'br_user_corr',
-        'br_5day_clim'
+        'br_user_corr'
     )
     # potentially calculated variables for ET
     _et_calc_vars = (
@@ -152,6 +149,9 @@ class QaQc(object):
         if freq and freq < 'D':
             print('The input data temporal frequency appears to be less than',
                 'daily, it will be resampled to daily.')
+
+        if freq is None:
+            print('The input data temporal frequency was not detected.')
 
         if not freq == 'D':
             print('Data is being resampled to daily temporal frequency')
@@ -315,7 +315,7 @@ class QaQc(object):
 
         return qaqc
 
-    def correct_data(self, meth='ebr', smooth=True):
+    def correct_data(self, meth='ebr'):
         """
         Correct turblent fluxes to close energy balance using different
         methods, default 'ebr'. 
@@ -339,10 +339,6 @@ class QaQc(object):
 
         Arguments:
             meth (str): default 'ebr'. Method to correct energy balance.
-            smooth (bool): default True. If true filter and smooth the Bowen
-                Ratio before using it to correct LE, H, ET, and EBR following 
-                the same smoothing methods used by the Energy Balance Correction
-                method. Note, this only applies when using `meth='br'`.
         
         Returns
             None
@@ -372,11 +368,7 @@ class QaQc(object):
         if meth == 'ebr':
             self._ebr_correction()
         if meth == 'br':
-            self._bowen_ratio_correction(smooth=smooth)
-            if smooth:
-                meth += '_smoothed'
-            else:
-                meth += '_not_smoothed'
+            self._bowen_ratio_correction()
 
         self.corr_meth = meth
         # calculate raw, corrected ET 
@@ -402,7 +394,7 @@ class QaQc(object):
         Arguments:
             None
 
-        Returns
+        Returns:
             None
         """
 
@@ -619,7 +611,7 @@ class QaQc(object):
         # update flag for other methods
         self.corrected = True
     
-    def _bowen_ratio_correction(self, smooth=True):
+    def _bowen_ratio_correction(self):
         """
         Create corrected/adjusted latent energy and sensible heat flux to 
         close surface energy balance. 
@@ -635,10 +627,10 @@ class QaQc(object):
         variables used for closing energy balance.
         
         Arguments:
-            smooth (bool): default True. If true filter and smooth the Bowen
-                Ratio before using it to correct LE, H, ET, and EBR following 
-                the same smoothing methods used by the Energy Balance Correction
-                method.
+            None
+
+        Returns:
+            None
         """
 
         # drop relavant calculated variables if they exist
@@ -648,142 +640,23 @@ class QaQc(object):
         data_length = len(self.df.index)
 
         df['br'] = df.H / df.LE
-        # optionally smooth/filter BR following EBR method
-        if smooth:
-            # make copy of original data for later
-            orig_df = df[['LE','H','Rn','G']].copy()
-            orig_df['ebr'] = (orig_df.H + orig_df.LE) / (orig_df.Rn - orig_df.G)
-            orig_df['br'] = df.br.copy()
-            # compute IQR to filter out extreme EBR 
-            Q1 = df['br'].quantile(0.25)
-            Q3 = df['br'].quantile(0.75)
-            IQR = Q3 - Q1
-            # filter, get values between Q1-1.5IQR and Q3+1.5IQR
-            filtered=df.query('(@Q1 - 1.5 * @IQR) <= br <= (@Q3 + 1.5 * @IQR)')
-            # apply filter using datetime index
-            filtered_mask = filtered.index
-            removed_mask = set(df.index) - set(filtered_mask)
-            removed_mask = pd.to_datetime(list(removed_mask))
-            df.loc[removed_mask] = np.nan
-            # moving windows FLUXNET methods 1, 2 and 3
-            window_1 = 15
-            window_2 = 11
-            half_win_1 = window_1 // 2
-            half_win_2 = window_2 // 2
 
-            # methods 1 and 2
-            br = df.br.values
-            df['br_corr'] = np.nan
-            # gap filling EBC_CF following FLUXNET methods 1 and 2
-            for i in range(len(br)):
-                win_arr1 = br[i-half_win_1:i+half_win_1+1]
-                win_arr2 = br[i-half_win_2:i+half_win_2+1]
-                count = np.count_nonzero(~np.isnan(win_arr1))
-                # get median of daily window1 if half window2 or more days exist
-                if count >= half_win_2:
-                    val = np.nanpercentile(win_arr1, 50, axis=None)
-                # if at least one day exists in window2 take mean
-                elif np.count_nonzero(~np.isnan(win_arr2)) > 0:
-                    val = np.nanmean(win_arr2)
-                else:
-                    # assign nan for now, update with 5 day climatology
-                    val = np.nan
-                # assign values if they were found in methods 1 or 2
-                df.iloc[i, df.columns.get_loc('br_corr')] = val
-
-            # make 5 day climatology of BR 
-            doy_br_mean=df['br_corr'].groupby(df.index.dayofyear).mean().copy()
-            # the cenetered window skips first and last 5 DOYs
-            # so prepend and append first and last 5 days and loop...
-            l5days = pd.Series(
-                index=np.arange(-4,1), data=doy_br_mean[-5:].values)
-            f5days = pd.Series(
-                index=np.arange(367,372), data=doy_br_mean[:5].values)
-            doy_br_mean = doy_br_mean.append(f5days)
-            doy_br_mean = pd.concat([l5days, doy_br_mean])
-            br_5day_clim = pd.DataFrame(
-                index=np.arange(1,367), columns=['br_5day_clim'])
-            doy_br_mean = doy_br_mean.values
-            for i in range(len(doy_br_mean)):
-                # i = 0 which starts at prepended 5 days, shift window up
-                win = doy_br_mean[i:i+2*half_win_2+1]
-                count = np.count_nonzero(~np.isnan(win))
-                # get 11 day moving window mean
-                if i in br_5day_clim.index and count > 0:
-                    br_5day_clim.iloc[
-                        i-1, br_5day_clim.columns.get_loc('br_5day_clim')
-                    ] = np.nanmean(win)
-            br_5day_clim['DOY'] = br_5day_clim.index
-            br_5day_clim.index.name = 'date'
-
-            # fill remaining gaps in BR
-            df['DOY'] = df.index.dayofyear
-            # datetime indices of all remaining null elements
-            null_dates = df.loc[df.br_corr.isnull(), 'br_corr'].index
-            merged = pd.merge(
-                df, br_5day_clim, on='DOY', how='left', right_index=True
-            )
-            # assign 5 day climatology of BR 
-            merged.loc[null_dates,'br_corr'] =\
-                merged.loc[null_dates,'br_5day_clim']
-            # replace raw variables with unfiltered dataframe copy
-            merged.LE = orig_df.LE
-            merged.H = orig_df.H
-            merged.Rn = orig_df.Rn
-            merged.G = orig_df.G
-            merged.br = orig_df.br
-            merged['ebr'] = orig_df.ebr
-
-            df = self._df.rename(columns=self.inv_map)
-            # grab select columns to merge into main dataframe
-            cols = list(set(merged.columns).difference(df.columns))
-            # join calculated data in
-            df = df.join(merged[cols], how='outer')
-            # numpy arrays of dataframe vars
-            Rn = df.Rn.values
-            g = df.G.values
-            le = df.LE.values
-            h = df.H.values
-            bowen = df.br_corr.values
-            self.variables.update(br_corr = 'br_corr')
-
-        else: # unfiltered BR
-            # numpy arrays of dataframe vars
-            Rn = df.Rn.values
-            g = df.G.values
-            le = df.LE.values
-            h = df.H.values
-            bowen = df.br.values
+        # numpy arrays of dataframe vars
+        Rn = df.Rn.values
+        g = df.G.values
+        le = df.LE.values
+        h = df.H.values
+        bowen = df.br.values
 
         # apply correction using raw or filtered BR
         # numpy arrays of new vars
         le_corr = np.full(data_length, np.NaN)
         h_corr = np.full(data_length, np.NaN)
 
-        # compute adjusted turbulent fluxes for when Rn > 0
         # correcting LE and H, method may be faster as function and vectorized
         for i in range(0, data_length):
-            if Rn[i] > 0:
-                le_corr[i] = (Rn[i] - g[i]) / (1 + bowen[i])
-                h_corr[i] = (bowen[i] / (1 + bowen[i])) * (Rn[i] - g[i])
-
-            else:
-                le_corr[i] = le[i]
-                h_corr[i] = h[i]
-
-        for i in range(0, data_length):
-            if Rn[i] > 0 and bowen[i] < 0.05:
-                le_corr[i] = ((le[i - 1]) + (le[i + 1]))/2
-                h_corr[i] = ((h[i - 1]) + (h[i + 1]))/2
-
-
-           # # If adjusted fluxes are less than original fluxes, keep originals
-           # no physical reason to include this
-           # if le_corr[i] < le[i]:
-           #     le_corr[i] = le[i]
-
-           # if h_corr[i] < h[i]:
-           #     h_corr[i] = h[i]
+            le_corr[i] = (Rn[i] - g[i]) / (1 + bowen[i])
+            h_corr[i] = (bowen[i] / (1 + bowen[i])) * (Rn[i] - g[i])
 
         # add le_corr, h_corr, and flux_corr to dataframe
         df['LE_corr'] = le_corr
@@ -821,8 +694,6 @@ class QaQc(object):
         # replace undefined/infinity with nans in all EBR columns
         df.ebr = df.ebr.replace([np.inf, -np.inf], np.nan)
         df.ebr_corr = df.ebr_corr.replace([np.inf, -np.inf], np.nan)
-        if smooth:
-            df.drop('DOY', axis=1, inplace=True)
 
         # revert column names to user's
         self._df = df.rename(columns=self.variables)
