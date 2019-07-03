@@ -6,7 +6,7 @@ A Python package for correcting/validating the surface energy balance for `FLUXN
 Documentation
 -------------
 
-Online documentation is in development, until then it is recommended to view the `FLUXNET_2015_example <https://github.com/Open-ET/flux-data-qaqc/blob/master/examples/FLUXNET_2015_example.ipynb>`_ Jupyter notebook. The example includes explanations of multiple functionalities of ``flux-data-qaqc`` and utilizes a provided `FLUXNET 2015 daily climate file <https://github.com/Open-ET/flux-data-qaqc/blob/master/examples/FLX_US-AR1_FLUXNET2015_SUBSET_DD_2009-2012_1-3.xlsx>`_.
+Online documentation is in development, until then it is recommended to view the `FLUXNET_2015_example <https://github.com/Open-ET/flux-data-qaqc/blob/master/examples/Basic_usage/FLUXNET_2015_example.ipynb>`_ Jupyter notebook. The example includes explanations of multiple functionalities of ``flux-data-qaqc`` and utilizes a provided `FLUXNET 2015 daily climate file <https://github.com/Open-ET/flux-data-qaqc/blob/master/examples/Basic_usage/FLX_US-AR1_FLUXNET2015_SUBSET_DD_2009-2012_1-3.xlsx>`_.
 
 Installation
 ------------
@@ -28,7 +28,7 @@ To activate the environment before using the ``flux-data-qaqc`` package run,
 
 .. code-block:: bash
 
-    $ activate fluxdataqaqc
+    $ conda activate fluxdataqaqc
 
 Run the following to install ``flux-data-qaqc`` in developer mode, soon the package will be uploaded and available on `PYPI <https://pypi.org>`_,
 
@@ -37,4 +37,17 @@ Run the following to install ``flux-data-qaqc`` in developer mode, soon the pack
     $ cd flux-data-qaqc
     $ pip install -e .
 
-Now all package modules and tools should be available in your Python environment PATH and able to be imported. Note if you did not install the Conda virtual environment above, PIP should install dependencies automatically but be sure to be using a version of Python above or equal to 3.4. 
+Now all package modules and tools should be available in your Python environment PATH and able to be imported. Note if you did not install the Conda virtual environment above, PIP should install dependencies automatically but be sure to be using a version of Python above or equal to 3.4. To test that everything has installed correctly by opening a Python interpretor or IDE and run the following:
+
+.. code-block:: python
+
+    import fluxdataqaqc
+
+and 
+
+.. code-block:: python
+
+    from fluxdataqaqc import Data, QaQc, Plot
+
+If everything has been installed correctly you should get no errors. 
+

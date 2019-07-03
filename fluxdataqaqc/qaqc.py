@@ -127,7 +127,9 @@ class QaQc(object):
         Check temporal frequency of input Data, resample to daily if not already
 
         Note:
-            If user QC values for filtering data are present they will be 
+            If one or more sub-dauly values are missing for a day the entire
+            day will be replaced with a null (:obj:`numpy.nan`).
+            If user QC values for filtering data are present they will also be 
             resampled to daily means, however this should not be an issue as 
             the filtering step occurs in a :obj:`fluxdataqaqc.Data` object.
         
@@ -145,21 +147,27 @@ class QaQc(object):
         if freq and freq > 'D':
             print('WARNING: it looks like the input data temporal frequency',
                 'is greater than daily, downsampling to daily, proceed with' ,
-                'caution!')
+                'caution!\n')
         if freq and freq < 'D':
             print('The input data temporal frequency appears to be less than',
-                'daily, it will be resampled to daily.')
+                'daily.\n')
 
         if freq is None:
             print('The input data temporal frequency was not detected.')
+            freq = 'na'
 
         if not freq == 'D':
-            print('Data is being resampled to daily temporal frequency')
+            print('Data is being resampled to daily temporal frequency.')
             sum_cols = [k for k,v in QaQc.agg_dict.items() if v == 'sum']
             sum_cols = list(set(sum_cols).intersection(df.columns))
             mean_cols = set(df.columns) - set(sum_cols)
-            means = df.loc[:,mean_cols].resample('D').mean()
-            sums = df.loc[:,sum_cols].resample('D').sum()
+            # using numpy forces nans if 1 or more sub-daily value missing
+            means = df.loc[:,mean_cols].resample('D').apply(
+                lambda x: x.values.mean()
+            )
+            sums = df.loc[:,sum_cols].resample('D').apply(
+                lambda x: x.values.sum()
+            )
             df = means.join(sums)
 
         # rename columns back to user's
