@@ -1,7 +1,7 @@
 flux-data-qaqc
 ================
 
-A Python package for correcting/validating the surface energy balance for `FLUXNET climate station data <https://fluxnet.fluxdata.org>`_ (or other climate station data) using techniques that adjust latent energy and sensible heat fluxes. Major functionality includes parsing of climate time series, performing QA/QC routines, and generating visualizations of corrected energy balance components and radiative-turbulent flux ratios at daily and monthly frequencies. The software is currently in early development. 
+A Python package for correcting/validating the surface energy balance for `FLUXNET <https://fluxnet.fluxdata.org>`_ (or other eddy covariance station data) using techniques that adjust latent energy and sensible heat fluxes. Other major functionalities includes parsing of climate time series, performing QA/QC routines, and generating visualizations of corrected energy balance components and radiative-turbulent flux ratios at daily and monthly frequencies. The software is currently in early development. 
 
 Documentation
 -------------

@@ -429,7 +429,19 @@ class Data(object):
         vars_notnull = dict((k, v) for k, v in variables.items() if v != 'na')
         cols = list(vars_notnull.values())
 
+        # if multiple columns were assign to a variable parse them now to
+        # make sure they all exist, below calculate mean and rename to _mean
+        cols = [x.split(',') if ',' in x else x for x in cols]
+        cols_flat = []
+        for el in cols:
+            if isinstance(el,list):
+                cols_flat += el
+            else:
+                cols_flat.append(el)
+
+        cols = cols_flat
         missing_cols = None
+
         if not set(cols).issubset(self.header):
             missing_cols = set(cols) - set(self.header)
             err_msg = ('WARNING: the following config variables are missing '
@@ -461,10 +473,26 @@ class Data(object):
         if missing_cols:
             df = df.reindex(columns=list(cols)+list(missing_cols))
         
+        # currently calc non weighted means for vars other than G and theta
+        # later may change so all vars are handled the same way, this is for
+        # multiple listed (comma sep) variables for a single var in the config 
+        for k,v in variables.items():
+            if ',' in v:
+                tmp_cols = v.split(',') 
+                print('Calculating mean for var: {}\n'.format(k),
+                    'from columns: {}\n'.format(tmp_cols)
+                )
+                # calc mean and update variables dict names 
+                var_name = k+'_mean'
+                df[var_name] = df[tmp_cols].mean(axis=1)
+                self.variables[k] = var_name
+
+
         def calc_weight_avg(d, pref, df):
             """
             Helper function to reduce redundant code for calculating weighted
-            average currently for multiple soil heat flux and moisture variables
+            average currently only for multiple soil heat flux and moisture 
+            variables.
 
             d is soil_var_weight_pairs dict
             pref is variable prefix str, i.e. g_ or theta_

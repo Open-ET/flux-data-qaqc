@@ -17,6 +17,7 @@ import pandas as pd
 from refet.calcs import _ra_daily, _rso_simple
 
 from .data import Data
+from .util import monthly_resample
 
 class QaQc(object):
     """
@@ -192,12 +193,16 @@ class QaQc(object):
         Temporally resample time series data to monthly frequency based on 
         monthly means or sums based on :attr:`QaQc.agg_dict`. 
         
+        Also replaces monthly means or sums with null values if less than
+        75 percent of a months days are missing in the daily data 
+        (:attr:`QaQc.df`).
+
         If a :obj:`QaQc` instance has not yet run an energy balance correction 
         i.e. :attr:`QaQc.corrected` = False before accessing :attr:`monthly_df`
         then the default routine of data correction (energy balance ratio 
         method) will be conducted.
 
-        Arguements:
+        Arguments:
             None
 
         Returns:
@@ -216,8 +221,8 @@ class QaQc(object):
         sum_cols = list(set(sum_cols).intersection(df.columns))
         mean_cols = set(numeric_cols) - set(sum_cols)
         # if data type has changed to 'obj' resample skips... 
-        means = df.loc[:,mean_cols].astype(float).resample('M').mean()
-        sums = df.loc[:,sum_cols].astype(float).resample('M').sum()
+        means = monthly_resample(df[mean_cols].astype(float), mean_cols, 'mean')
+        sums = monthly_resample(df[sum_cols].astype(float), sum_cols, 'sum')
         df = means.join(sums)
         # use monthly sums for ebr columns not means of ratio
         df.ebr = (df.H + df.LE) / (df.Rn - df.G)
@@ -232,7 +237,6 @@ class QaQc(object):
         #    err_msg='Invalid "how" option, use "time_series" or "aggregate"'
         #    raise ValueError(err_msg)
 
-        df.index.name = 'month'
         df.replace([np.inf, -np.inf], np.nan, inplace=True)
 
         return df.rename(columns=self.variables)
