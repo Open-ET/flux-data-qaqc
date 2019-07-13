@@ -26,8 +26,9 @@ def monthly_resample(df, cols, agg_str, thresh=0.75):
         ret (:obj:`pandas.DataFrame`): datetime indexed DataFrame that
             has been resampled to monthly time frequency
     """
-    mdf = df.loc[:,cols].astype(float).resample('M').agg(
-                [agg_str, 'count'])
+    mdf = df.loc[:,cols].apply(pd.to_numeric).resample('M').agg(
+        [agg_str, 'count']
+    )
 
     ret = pd.DataFrame()
     for c in cols:

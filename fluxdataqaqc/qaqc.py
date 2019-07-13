@@ -98,18 +98,22 @@ class QaQc(object):
     def __init__(self, data=None):
         
         if isinstance(data, Data):
-            self.variables = data.variables
             self._df = data.df
+            self.variables = data.variables
             self.elevation = data.elevation
             self.latitude = data.latitude
             self.out_dir = data.out_dir
             self.site_id = data.site_id
             # flip variable naming dict for internal use
-            self.inv_map = {v: k for k, v in self.variables.items()}
+            self.inv_map = {
+                v: k for k, v in self.variables.items() if (
+                    not v.replace('_mean','') == k or not k in self._df.columns)
+            }
             # using 'G' in multiple g plot may overwrite G name internally
             if not 'G' in self.inv_map.values():
                 user_G_name = self.variables.get('G') 
-                self.inv_map[user_G_name] = 'G'
+                if user_G_name:
+                    self.inv_map[user_G_name] = 'G'
 
             self.temporal_freq = self._check_daily_freq()
             
@@ -162,23 +166,35 @@ class QaQc(object):
             sum_cols = [k for k,v in QaQc.agg_dict.items() if v == 'sum']
             sum_cols = list(set(sum_cols).intersection(df.columns))
             mean_cols = set(df.columns) - set(sum_cols)
+            means = df.loc[:,mean_cols].resample('D').mean()
+            sums = df.loc[:,sum_cols].resample('D').sum()
             # using numpy forces nans if 1 or more sub-daily value missing
-            means = df.loc[:,mean_cols].resample('D').apply(
-                lambda x: x.values.mean()
-            )
-            sums = df.loc[:,sum_cols].resample('D').apply(
-                lambda x: x.values.sum()
-            )
+            # having issues however creating more than expected null days
+            #means = df.loc[:,mean_cols].resample('D').apply(
+            #    lambda x: x.values.mean()
+            #)
+            #sums = df.loc[:,sum_cols].resample('D').apply(
+            #    lambda x: x.values.sum()
+            #)
             df = means.join(sums)
 
         # rename columns back to user's
-        self._df = df.rename(columns=self.variables)
+        #rename_dict = {
+        #    k:v for k,v in self.variables.items() if not k == v.replace(
+        #        '_mean','')
+        #}
+        #self.df = df.rename(columns=rename_dict)
+        self._df = df
         return freq
-
+    
     @property     
     def df(self):
         # avoid overwriting pre-assigned data
         if isinstance(self._df, pd.DataFrame):
+           # rename_dict = {
+           #     k:v for k,v in self.variables.items() if (
+           #         not k == v.replace('_mean', '') or not k in self._df.columns)
+           # }
             return self._df.rename(columns=self.variables)
 
     @df.setter
@@ -221,13 +237,27 @@ class QaQc(object):
         sum_cols = list(set(sum_cols).intersection(df.columns))
         mean_cols = set(numeric_cols) - set(sum_cols)
         # if data type has changed to 'obj' resample skips... 
-        means = monthly_resample(df[mean_cols].astype(float), mean_cols, 'mean')
-        sums = monthly_resample(df[sum_cols].astype(float), sum_cols, 'sum')
-        df = means.join(sums)
+        # make sure data exists
+        if len(mean_cols) >= 1:
+            means = monthly_resample(df[mean_cols], mean_cols, 'mean')
+        else:
+            means = None
+        if len(sum_cols) >= 1:
+            sums = monthly_resample(df[sum_cols], sum_cols, 'sum')
+        else:
+            sums = None
+        if isinstance(means, pd.DataFrame) and isinstance(sums, pd.DataFrame):
+            df = means.join(sums)
+        elif isinstance(means, pd.DataFrame):
+            df = means
+        elif isinstance(sums, pd.DataFrame):
+            df = sums
         # use monthly sums for ebr columns not means of ratio
-        df.ebr = (df.H + df.LE) / (df.Rn - df.G)
-        df.ebr_corr = (df.H_corr + df.LE_corr) / (df.Rn - df.G)
-        if set(['LE_user_corr','H_user_corr']).issubset(df.columns):
+        if set(['LE','H','Rn','G']).issubset(df.columns):
+            df.ebr = (df.H + df.LE) / (df.Rn - df.G)
+        if set(['LE_corr','H_corr','Rn','G']).issubset(df.columns):
+            df.ebr_corr = (df.H_corr + df.LE_corr) / (df.Rn - df.G)
+        if set(['LE_user_corr','H_user_corr','Rn','G']).issubset(df.columns):
             df['ebr_user_corr']=(df.H_user_corr+df.LE_user_corr) / (df.Rn-df.G)
         
         #elif how == 'aggregate':
@@ -377,6 +407,12 @@ class QaQc(object):
         # calculate clear sky radiation if not already computed
         self._calc_rso()
         # energy balance corrections
+        if not set(['Rn','LE','H','G']).issubset(self.variables.keys()):
+            print(
+                'Missing one or more energy balance variables, cannot perform '
+                'energy balance correction.'
+            )
+            return
         if meth == 'ebr':
             self._ebr_correction()
         if meth == 'br':
@@ -387,7 +423,10 @@ class QaQc(object):
         self._calc_et()
 
         # update inv map for naming
-        self.inv_map = {v: k for k, v in self.variables.items()}
+        self.inv_map = {
+            v: k for k, v in self.variables.items() if (
+                not v.replace('_mean', '') == k or not k in self.df.columns)
+        }
         # using 'G' in multiple g plot may overwrite G name internally
         if not 'G' in self.inv_map.values():
             user_G_name = self.variables.get('G')
@@ -436,7 +475,7 @@ class QaQc(object):
             self.variables[el] = el
 
         # join data back into df attr
-        self._df = df.rename(columns=self.variables)
+        self.df = df.rename(columns=self.variables)
 
     def _calc_rso(self):
         """
@@ -495,7 +534,7 @@ class QaQc(object):
         half_win_2 = window_2 // 2
         
         # drop relavant calculated variables if they exist
-        self._df = _drop_cols(self._df, self._eb_calc_vars)
+        self._df = _drop_cols(self.df, self._eb_calc_vars)
         df = self._df.rename(columns=self.inv_map)
         # make copy of original data for later
         orig_df = df[['LE','H','Rn','G']].copy()
@@ -506,9 +545,7 @@ class QaQc(object):
         Q3 = df['ebr'].quantile(0.75)
         IQR = Q3 - Q1
         # filter values between Q1-1.5IQR and Q3+1.5IQR
-        filtered = df.query(
-            '(@Q1 - 1.5 * @IQR) <= ebr <= (@Q3 + 1.5 * @IQR)'
-        )
+        filtered = df.query('(@Q1 - 1.5 * @IQR) <= ebr <= (@Q3 + 1.5 * @IQR)')
         # apply filter
         filtered_mask = filtered.index
         removed_mask = set(df.index) - set(filtered_mask)
@@ -575,6 +612,8 @@ class QaQc(object):
         merged.Rn = orig_df.Rn
         merged.G = orig_df.G
         merged.ebr = orig_df.ebr
+        # have had rare issue of corrected EBR being 0 (incorrect mean of nans)
+        merged.loc[merged.ebr_corr == 0, 'ebr_corr'] = np.nan
         # apply corrections to LE and H multiply by 1/EBR
         merged['LE_corr'] = merged.LE * (1/merged.ebr_corr)
         merged['H_corr'] = merged.H * (1/merged.ebr_corr)
@@ -602,8 +641,6 @@ class QaQc(object):
         # calculated corrected EBR to assign to ebr_corr (not EBC_CF), 
         # save CFs as defined by fluxnet method, i.e. inverse of EBR
         merged['ebc_cf'] = 1/merged.ebr_corr
-        merged['ebr_corr'] =\
-            (merged.H_corr + merged.LE_corr) / (merged.Rn - merged.G)
         merged.drop('DOY', axis=1, inplace=True)
 
         self.variables.update(

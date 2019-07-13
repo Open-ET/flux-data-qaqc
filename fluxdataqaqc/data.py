@@ -57,7 +57,6 @@ class Data(object):
         self.config = self._load_config(self.config_file)
         self.variables = self.get_config_vars()
         self.units = self.get_config_units()
-        self.inv_map = {v: k for k, v in self.variables.items()}
         self.na_val = self.config.get('METADATA', 'missing_data_value')
         # try to parse na_val as numeric 
         try:
@@ -93,7 +92,7 @@ class Data(object):
     def _load_config(self, config_file):
         if not config_file.is_file():
             raise FileNotFoundError('ERROR: config file not found')
-        config = cp.ConfigParser()
+        config = cp.ConfigParser(interpolation=None)
         config.read(config_file)
         return config
 
@@ -426,7 +425,9 @@ class Data(object):
         #        print('WARNING: {} is missing from input data'.format(k))
 
         variables = self.variables
+        # remove variable entries that were given as 'na' in config
         vars_notnull = dict((k, v) for k, v in variables.items() if v != 'na')
+        self.variables = vars_notnull
         cols = list(vars_notnull.values())
 
         # if multiple columns were assign to a variable parse them now to
@@ -450,6 +451,9 @@ class Data(object):
             print(err_msg)
             cols = set(cols).intersection(self.header)
 
+        kwargs = {}
+        if 'skiprows' in dict(self.config.items('METADATA')):
+            kwargs['skiprows'] = int(self.config.get('METADATA','skiprows'))
         # load data file depending on file format
         if self.climate_file.suffix in ('.xlsx', '.xls'):
             # find indices of headers we want, only read those, excel needs ints
@@ -458,14 +462,16 @@ class Data(object):
                 self.climate_file,
                 parse_dates = [variables.get('date')],
                 usecols = ix,
-                na_values=['NaN', 'NAN', '#VALUE!', self.na_val]
+                na_values=['NaN', 'NAN', '#VALUE!', self.na_val],
+                **kwargs
             )
         else:
             df = pd.read_csv(
                 self.climate_file,
                 parse_dates = [variables.get('date')],
                 usecols = cols,
-                na_values=['NaN', 'NAN', '#VALUE!', self.na_val]
+                na_values=['NaN', 'NAN', '#VALUE!', self.na_val],
+                **kwargs
             )
         # force na_val because sometimes with read_excel it doesn't work...
         df[df == self.na_val] = np.nan
@@ -473,21 +479,6 @@ class Data(object):
         if missing_cols:
             df = df.reindex(columns=list(cols)+list(missing_cols))
         
-        # currently calc non weighted means for vars other than G and theta
-        # later may change so all vars are handled the same way, this is for
-        # multiple listed (comma sep) variables for a single var in the config 
-        for k,v in variables.items():
-            if ',' in v:
-                tmp_cols = v.split(',') 
-                print('Calculating mean for var: {}\n'.format(k),
-                    'from columns: {}\n'.format(tmp_cols)
-                )
-                # calc mean and update variables dict names 
-                var_name = k+'_mean'
-                df[var_name] = df[tmp_cols].mean(axis=1)
-                self.variables[k] = var_name
-
-
         def calc_weight_avg(d, pref, df):
             """
             Helper function to reduce redundant code for calculating weighted
@@ -505,11 +496,19 @@ class Data(object):
                 vs = []
             # soil heat flux weighted average
             if len(vs) > 1: # if 1 or less no average
-                total_weights = np.sum([float(e.get('weight')) for e in vs])
+                weights = [float(e.get('weight')) for e in vs]
+                total_weights = np.sum(weights)
+                # if multiple Gs specified and same num multiple Gs specifed
+                # as the main G var and no weights assigned do not duplicate
+                # mean that is calculated below from comma separated list
+                if pref == 'g_' and ',' in self.variables.get('G'):
+                    n_Gs = len(self.variables.get('G').split(','))
+                    if len(weights) == total_weights and len(weights) == n_Gs: 
+                        return
                 # if weights are not normalized update them
-                if not np.isclose(total_weights, 1.0):
+                elif not np.isclose(total_weights, 1.0):
                     print(
-                        '{} weights do not sum to one, normalizing'\
+                        "{} weights not given or don't sum to one, normalizing"\
                             .format(pref.replace('_',''))
                     )
                     for k,v in d.items():
@@ -538,6 +537,45 @@ class Data(object):
         d = self.soil_var_weight_pairs
         calc_weight_avg(d, 'g_', df)
         calc_weight_avg(d, 'theta_', df)
+
+        # currently calc non weighted means for vars other than G and theta
+        # later may change so all vars are handled the same way, this is for
+        # multiple listed (comma sep) variables for a single var in the config 
+        for k,v in variables.items():
+            if ',' in v:
+                tmp_cols = v.split(',') 
+                print('Calculating mean for var: {}\n'.format(k),
+                    'from columns: {}\n'.format(tmp_cols)
+                )
+                # calc mean and update variables dict names 
+                var_name = k+'_mean'
+                df[var_name] = df[tmp_cols].mean(axis=1)
+                self.variables[k] = var_name
+
+        # check each variable, if any are fully null values remove from var dict
+        del_keys = []
+        for k,v in self.variables.items():
+            if v not in df.columns:
+                del_keys.append(k)
+            # the all zero issue is a weird bug with pandas mean or nans that
+            # may depend on a dependency of pandas called bottleneck
+            elif df[v].isnull().all() or (df[v] == 0).all():
+                print(
+                    'WARNING: {} variable in column {} is missing all data '
+                    'it will be removed'.format(k, v)
+                )
+                df.drop(v, axis=1, inplace=True)
+                del_keys.append(k)
+
+        # also remove entry from var dict to avoid issues later
+        for k in del_keys:
+            self.variables.pop(k, None)
+
+        # update renaming dict with any newly created mean variables/removed
+        self.inv_map = {
+            v: k for k, v in self.variables.items() if (
+                not v.replace('_mean', '') == k or not k +'_mean' in df.columns)
+        }
 
         # the only column that is always renamed is the datestring_col
         df.rename(columns={variables['date']: 'date'}, inplace=True)

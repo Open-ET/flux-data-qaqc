@@ -4,6 +4,7 @@ Plot fluxnet data using bokeh packages
 """
 
 from .qaqc import QaQc
+from bokeh.palettes import Viridis256
 from bokeh.layouts import gridplot
 from bokeh.models import Label, ColumnDataSource, HoverTool
 from bokeh.plotting import figure, output_file, save
@@ -48,9 +49,11 @@ class Plot(object):
 
         provided_vars = []
 
-        for variable in self.variables:
-            if self.variables.get(variable) != 'na':
-                provided_vars.append(variable) 
+        for k,v in self.variables.items():
+            if v != 'na':
+                provided_vars.append(k) 
+            if k == 'G' and v == 'G_mean':
+                provided_vars.append('G_mean')
 
         return provided_vars
 
@@ -527,12 +530,10 @@ class Plot(object):
             Returns:
                 subplot (bokeh object): constructed figure to be assembled in aggregate plot
         """
-        color_list = ['black', 'gray', 'darkslategray', 'lightsteelblue',
-                      'skyblue', 'dodgerblue', 'blue', 'navy',
-                      'sandybrown', 'goldenrod', 'chocolate', 'olive', 'green']
-
         # Obtain original user names for display
         vars_to_plot = [col for col in df.columns]
+        num_lines = len(vars_to_plot)
+        color_list = Viridis256[0:-1:int(256/num_lines)]
 
         user_provided_names = []
         internal_var_names = inv_map.items()
@@ -592,8 +593,8 @@ class Plot(object):
         monthly_plot_list = []
 
         # Plot surface balance components
-        if ('Rn' in provided_vars) or ('G' in provided_vars) or \
-                ('LE' in provided_vars) or ('H' in provided_vars):
+        if ('Rn' in provided_vars) and ('G' in provided_vars) and \
+                ('LE' in provided_vars) and ('H' in provided_vars):
             plot_surface_bal = self._generate_line_plot(
                     x_size, y_size, df.index, 1, '', df.Rn, df.LE, df.H, df.G)
 
@@ -608,8 +609,8 @@ class Plot(object):
             monthly_plot_surface_bal = None
 
         # Plot net radiation components
-        if ('sw_in' in provided_vars) or ('sw_out' in provided_vars) or \
-                ('lw_in' in provided_vars) or ('lw_out' in provided_vars):
+        if ('sw_in' in provided_vars) and ('sw_out' in provided_vars) and \
+                ('lw_in' in provided_vars) and ('lw_out' in provided_vars):
 
             plot_net_rad = self._generate_line_plot(
                     x_size, y_size, df.index, 2, '', df.sw_in, df.lw_in, 
@@ -707,7 +708,7 @@ class Plot(object):
             monthly_plot_et = None
 
         # Plot LE
-        if 'LE' in provided_vars:
+        if 'LE' in provided_vars and 'LE_corr' in provided_vars:
             # still plot if no user corrected data
             if not 'LE_user_corr' in provided_vars:
                 plot_le = self._generate_line_plot(
@@ -748,8 +749,10 @@ class Plot(object):
 
                 ratio_averages_label = Label(x=70, y=225, x_units='screen', 
                         y_units='screen', 
-                        text='EBR:{:.3f}\nEBR_corr:{:.3f}'\
-                            .format(avg_ebr_raw, avg_ebr_corr),
+                        text='EBR:{}\nEBR_corr:{}'\
+                            .format(
+                                str(round(avg_ebr_raw,3)), 
+                                str(round(avg_ebr_corr,3))),
                         render_mode='css', border_line_color='black', 
                         border_line_alpha=0.25, background_fill_color='white', 
                         background_fill_alpha=1.0) 
@@ -757,8 +760,10 @@ class Plot(object):
                 # the same label twice
                 monthly_ratio_averages_label = Label(x=70, y=225, 
                         x_units='screen', y_units='screen', 
-                        text='EBR:{:.3f}\nEBR_corr:{:.3f}'\
-                            .format(avg_ebr_raw, avg_ebr_corr),
+                        text='EBR:{}\nEBR_corr:{}'\
+                            .format(
+                                str(round(avg_ebr_raw,3)), 
+                                str(round(avg_ebr_corr,3))),
                         render_mode='css', border_line_color='black', 
                         border_line_alpha=0.25, background_fill_color='white', 
                         background_fill_alpha=1.0)
@@ -875,7 +880,7 @@ class Plot(object):
             multi_theta = None
             monthly_multi_theta = None
 
-        if 'g_mean' in provided_vars:
+        if 'g_mean' in provided_vars or 'G_mean' in provided_vars:
 
             g_cols = [col for col in df.columns if ((('g_' in col) or ('G' in col)) and not ('qc' in col))]
             g_df = df[g_cols].copy()
