@@ -180,8 +180,6 @@ class Data(object):
         for k, v in Data.variable_names_dict.items():
             if self.config.has_option('DATA', v):
                 variables[k] = self.config.get('DATA', v)
-            else:
-                variables[k] = None
 
         # get multiple G flux/soil moisture variables 
         all_keys = dict(self.config.items('DATA')).keys()
@@ -235,10 +233,13 @@ class Data(object):
             units will remain unknown and not be able to be later converted.
         """
         no_unit_vars = ('datestring_col', 'year_col', 'month_col', 'day_col')
+        config_dict = dict(self.config.items('DATA'))
         # dictionary that maps config unit keys to units
         units_config = {
             v.replace('_col', '_units'): None for k,v in 
-            self.variable_names_dict.items() if not v in no_unit_vars
+            self.variable_names_dict.items() if (
+                not v in no_unit_vars and k in self.variables
+                )
         }
         # add user multiple g or soil moisture var units config names
         for k,v in self.variables.items():
@@ -249,7 +250,6 @@ class Data(object):
             if k.startswith('theta_'):
                 units_config['{}_units'.format(k)] = None
 
-        config_dict = dict(self.config.items('DATA'))
         for k in units_config: 
             if k in config_dict:
                 units_config[k] = config_dict[k]
@@ -454,6 +454,11 @@ class Data(object):
         kwargs = {}
         if 'skiprows' in dict(self.config.items('METADATA')):
             kwargs['skiprows'] = int(self.config.get('METADATA','skiprows'))
+        if 'date_parser' in dict(self.config.items('METADATA')):
+            date_parse_str = self.config.get('METADATA','date_parser')
+            date_parser = lambda x: pd.datetime.strptime(x, date_parse_str)
+            kwargs['date_parser'] = date_parser
+
         # load data file depending on file format
         if self.climate_file.suffix in ('.xlsx', '.xls'):
             # find indices of headers we want, only read those, excel needs ints
