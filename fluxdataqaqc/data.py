@@ -432,15 +432,18 @@ class Data(object):
 
         # if multiple columns were assign to a variable parse them now to
         # make sure they all exist, below calculate mean and rename to _mean
-        cols = [x.split(',') if ',' in x else x for x in cols]
-        cols_flat = []
-        for el in cols:
-            if isinstance(el,list):
-                cols_flat += el
-            else:
-                cols_flat.append(el)
+        # if no var_name_delim in metadata then assume one column per var
+        if 'var_name_delim' in dict(self.config.items('METADATA')):
+            delim = self.config.get('METADATA','var_name_delim')
+            cols = [x.split(delim) if ',' in x else x for x in cols]
+            cols_flat = []
+            for el in cols:
+                if isinstance(el,list):
+                    cols_flat += el
+                else:
+                    cols_flat.append(el)
+            cols = cols_flat
 
-        cols = cols_flat
         missing_cols = None
 
         if not set(cols).issubset(self.header):

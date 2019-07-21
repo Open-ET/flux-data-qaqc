@@ -235,7 +235,7 @@ class QaQc(object):
         sum_cols = [k for k,v in QaQc.agg_dict.items() if v == 'sum']
         # to avoid warning/error of missing columns 
         sum_cols = list(set(sum_cols).intersection(df.columns))
-        mean_cols = set(numeric_cols) - set(sum_cols)
+        mean_cols = list(set(numeric_cols) - set(sum_cols))
         # if data type has changed to 'obj' resample skips... 
         # make sure data exists
         if len(mean_cols) >= 1:
@@ -535,9 +535,9 @@ class QaQc(object):
         
         # drop relavant calculated variables if they exist
         self._df = _drop_cols(self.df, self._eb_calc_vars)
-        df = self._df.rename(columns=self.inv_map)
+        df = self._df.rename(columns=self.inv_map).astype(float)
         # make copy of original data for later
-        orig_df = df[['LE','H','Rn','G']].copy()
+        orig_df = df[['LE','H','Rn','G']].astype(float).copy()
         orig_df['ebr'] =  (orig_df.H + orig_df.LE) / (orig_df.Rn - orig_df.G)
         # compute IQR to filter out extreme ebrs, 
         df['ebr'] = (df.H + df.LE) / (df.Rn - df.G)
@@ -570,7 +570,6 @@ class QaQc(object):
                 val = np.nan
             # assign values if they were found in methods 1 or 2
             df.iloc[i, df.columns.get_loc('ebr_corr')] = val
-            
         # make 5 day climatology of ebr for method 3
         # the cenetered window skips first and last 5 DOYs
         # so prepend and append first and last 5 days and loop...
@@ -613,7 +612,11 @@ class QaQc(object):
         merged.G = orig_df.G
         merged.ebr = orig_df.ebr
         # have had rare issue of corrected EBR being 0 (incorrect mean of nans)
-        merged.loc[merged.ebr_corr == 0, 'ebr_corr'] = np.nan
+        merged.loc[
+            np.isclose(
+                0, merged.ebr_corr.astype(float), rtol=0, atol=1e-3
+            ), 'ebr_corr'
+        ] = np.nan
         # apply corrections to LE and H multiply by 1/EBR
         merged['LE_corr'] = merged.LE * (1/merged.ebr_corr)
         merged['H_corr'] = merged.H * (1/merged.ebr_corr)
