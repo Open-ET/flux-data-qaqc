@@ -25,15 +25,30 @@ def monthly_resample(df, cols, agg_str, thresh=0.75):
     Returns:
         ret (:obj:`pandas.DataFrame`): datetime indexed DataFrame that
             has been resampled to monthly time frequency
-    """
-    mdf = df.loc[:,cols].apply(pd.to_numeric).resample('M').agg(
-        [agg_str, 'count']
-    )
 
+    Note:
+        If taking monthly totals (`agg_str` = 'sum') missing days will be filled
+        with the months daily mean before summation.
+    """
+    if agg_str == 'sum':
+        mdf = df.loc[:,cols].apply(pd.to_numeric).resample('M').agg(
+            [agg_str, 'count', 'mean']
+        )
+    else:
+        mdf = df.loc[:,cols].apply(pd.to_numeric).resample('M').agg(
+            [agg_str, 'count']
+        )
+        
     ret = pd.DataFrame()
     for c in cols:
         bad_months = mdf.loc[:,(c,'count')] <= thresh * mdf.index.days_in_month
-        ret[c] = mdf.loc[:,(c, agg_str)]
+        if agg_str == 'sum':
+            mdf.loc[:,(c,'days_missing')] =\
+                mdf.index.days_in_month - mdf.loc[:,(c,'count')]
+            ret[c] = mdf.loc[:,(c,agg_str)] +\
+                (mdf.loc[:,(c,'days_missing')] * mdf.loc[:,(c,'mean')])
+        else:
+            ret[c] = mdf.loc[:,(c, agg_str)]
         ret.loc[bad_months, c] = np.nan
 
     return ret
