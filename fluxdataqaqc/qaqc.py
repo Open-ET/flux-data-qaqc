@@ -107,7 +107,8 @@ class QaQc(object):
             # flip variable naming dict for internal use
             self.inv_map = {
                 v: k for k, v in self.variables.items() if (
-                    not v.replace('_mean','') == k or not k in self._df.columns)
+                    not k in self._df.columns
+                )
             }
             # using 'G' in multiple g plot may overwrite G name internally
             if not 'G' in self.inv_map.values():
@@ -116,7 +117,8 @@ class QaQc(object):
                     self.inv_map[user_G_name] = 'G'
 
             self.temporal_freq = self._check_daily_freq()
-            
+            # assume energy balance vars exist, will be validated upon corr
+            self._has_eb_vars = True
 
         elif data is not None:
             print('{} is not a valid input type'.format(type(data)))
@@ -178,23 +180,13 @@ class QaQc(object):
             #)
             df = means.join(sums)
 
-        # rename columns back to user's
-        #rename_dict = {
-        #    k:v for k,v in self.variables.items() if not k == v.replace(
-        #        '_mean','')
-        #}
-        #self.df = df.rename(columns=rename_dict)
-        self._df = df
+        self._df = df.rename(self.variables)
         return freq
     
     @property     
     def df(self):
         # avoid overwriting pre-assigned data
         if isinstance(self._df, pd.DataFrame):
-           # rename_dict = {
-           #     k:v for k,v in self.variables.items() if (
-           #         not k == v.replace('_mean', '') or not k in self._df.columns)
-           # }
             return self._df.rename(columns=self.variables)
 
     @df.setter
@@ -225,7 +217,7 @@ class QaQc(object):
             None
 
         """
-        if not self.corrected:
+        if not self.corrected and self._has_eb_vars:
             self.correct_data()
 
         # rename columns to internal names 
@@ -308,7 +300,7 @@ class QaQc(object):
             )
             out_dir.mkdir(parents=True, exist_ok=True)
 
-        if not self.corrected:
+        if not self.corrected and self._has_eb_vars:
             self.correct_data()
 
         daily_outf = out_dir / '{}_daily_data.csv'.format(self.site_id)
@@ -354,6 +346,7 @@ class QaQc(object):
         qaqc.temporal_freq = qaqc._check_daily_freq()
         qaqc.corrected = False 
         qaqc.corr_meth = None
+        qaqc._has_eb_vars = True
 
         return qaqc
 
@@ -412,6 +405,7 @@ class QaQc(object):
                 'Missing one or more energy balance variables, cannot perform '
                 'energy balance correction.'
             )
+            self._has_eb_vars = False
             return
         if meth == 'ebr':
             self._ebr_correction()
@@ -535,7 +529,14 @@ class QaQc(object):
         
         # drop relavant calculated variables if they exist
         self._df = _drop_cols(self.df, self._eb_calc_vars)
-        df = self._df.rename(columns=self.inv_map).astype(float)
+        df = self._df.rename(columns=self.inv_map)
+        # check if mean G, or heat storage measurements exist
+        vars_to_use = ['LE','H','Rn','G']
+        for el in ['SH', 'SLE', 'SG']:
+            if el in df.columns:
+                vars_to_use.append(el)
+        df = df[vars_to_use].astype(float).copy()
+
         # make copy of original data for later
         orig_df = df[['LE','H','Rn','G']].astype(float).copy()
         orig_df['ebr'] =  (orig_df.H + orig_df.LE) / (orig_df.Rn - orig_df.G)
@@ -562,9 +563,14 @@ class QaQc(object):
             # get median of daily window1 if half window2 or more days exist
             if count >= half_win_2:
                 val = np.nanpercentile(win_arr1, 50, axis=None)
+                if abs(1/val) >= 2:
+                    val = np.nan
             # if at least one day exists in window2 take mean
             elif np.count_nonzero(~np.isnan(win_arr2)) > 0:
-                val = np.nanmean(win_arr2)
+                #val = np.nanmean(win_arr2)
+                val = np.nanmedian(win_arr2)
+                if abs(1/val) >= 2:
+                    val = np.nan
             else:
                 # assign nan for now, update with 5 day climatology
                 val = np.nan
@@ -611,15 +617,21 @@ class QaQc(object):
         merged.Rn = orig_df.Rn
         merged.G = orig_df.G
         merged.ebr = orig_df.ebr
-        # have had rare issue of corrected EBR being 0 (incorrect mean of nans)
-        merged.loc[
-            np.isclose(
-                0, merged.ebr_corr.astype(float), rtol=0, atol=1e-3
-            ), 'ebr_corr'
-        ] = np.nan
+        # calculated corrected EBR to assign to ebr_corr (not EBC_CF), 
+        # save CFs as defined by fluxnet method, i.e. inverse of EBR
+        merged['ebc_cf'] = 1/merged.ebr_corr
+        # filter out CF that are 2 or higher (absolute), from 5 day climo ebr_c
+        merged.loc[abs(merged.ebc_cf) >= 2, 'ebc_cf'] = np.nan
         # apply corrections to LE and H multiply by 1/EBR
-        merged['LE_corr'] = merged.LE * (1/merged.ebr_corr)
-        merged['H_corr'] = merged.H * (1/merged.ebr_corr)
+        merged['LE_corr'] = merged.LE * merged.ebc_cf
+        merged['H_corr'] = merged.H * merged.ebc_cf
+        # filter out any corrected LE that <= -100 or >= 850 w/m2
+        # also removing corrected H, EBR, and EBC_CF
+        merged.loc[
+            (merged.LE_corr >= 850) | (merged.LE_corr <= -100), (
+                'LE_corr', 'H_corr', 'ebr_corr', 'ebc_cf'
+            )
+        ] = np.nan
         # compute EBR total turb flux
         merged['flux_corr'] = merged['LE_corr'] + merged['H_corr']
 
@@ -641,9 +653,6 @@ class QaQc(object):
         cols = list(set(merged.columns).difference(df.columns))
         # join calculated data in
         merged = df.join(merged[cols], how='outer')
-        # calculated corrected EBR to assign to ebr_corr (not EBC_CF), 
-        # save CFs as defined by fluxnet method, i.e. inverse of EBR
-        merged['ebc_cf'] = 1/merged.ebr_corr
         merged.drop('DOY', axis=1, inplace=True)
 
         self.variables.update(
@@ -684,35 +693,14 @@ class QaQc(object):
         Returns:
             None
         """
-
         # drop relavant calculated variables if they exist
-        self._df = _drop_cols(self._df, self._eb_calc_vars)
+        self._df = _drop_cols(self.df, self._eb_calc_vars)
         df = self._df.rename(columns=self.inv_map)
-        # get length of data set
-        data_length = len(self.df.index)
 
+        # apply correction 
         df['br'] = df.H / df.LE
-
-        # numpy arrays of dataframe vars
-        Rn = df.Rn.values
-        g = df.G.values
-        le = df.LE.values
-        h = df.H.values
-        bowen = df.br.values
-
-        # apply correction using raw or filtered BR
-        # numpy arrays of new vars
-        le_corr = np.full(data_length, np.NaN)
-        h_corr = np.full(data_length, np.NaN)
-
-        # correcting LE and H, method may be faster as function and vectorized
-        for i in range(0, data_length):
-            le_corr[i] = (Rn[i] - g[i]) / (1 + bowen[i])
-            h_corr[i] = (bowen[i] / (1 + bowen[i])) * (Rn[i] - g[i])
-
-        # add le_corr, h_corr, and flux_corr to dataframe
-        df['LE_corr'] = le_corr
-        df['H_corr'] = h_corr
+        df['LE_corr'] = (df.Rn - df.G) / (1 + df.br)
+        df['H_corr'] = df.LE_corr * df.br
         df['flux_corr'] = df.LE_corr + df.H_corr
 
         # add EBR, other vars to dataframe using LE and H from raw, corr 

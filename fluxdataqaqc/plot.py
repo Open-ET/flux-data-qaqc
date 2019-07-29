@@ -536,11 +536,8 @@ class Plot(object):
         color_list = Viridis256[0:-1:int(256/num_lines)]
 
         user_provided_names = []
-        internal_var_names = inv_map.items()
-        for var in vars_to_plot:
-            for item in internal_var_names:
-                if item[1] == var:
-                    user_provided_names.append(item[0])
+        for el in vars_to_plot:
+            user_provided_names.append(self.variables.get(el))
 
         if usage == 'Monthly ':
             x_label = 'Monthly Timestep'

@@ -318,7 +318,6 @@ class Data(object):
             tmp[internal_name] = v
             qc_var_pairs[user_var_name] = v
 
-
         # also look in header, currently always gets these as well, may change 
         # find vairable names that have a matching name with '_QC' suffix
         # if found here but different name in config use the name in the config 
@@ -416,7 +415,7 @@ class Data(object):
 
         # avoid overwriting pre-assigned data
         if isinstance(self._df, pd.DataFrame):
-            return self._df
+            return self._df.rename(columns=self.variables)
 
         # handle missing 'na' data
         # loop for debugging only
@@ -433,9 +432,10 @@ class Data(object):
         # if multiple columns were assign to a variable parse them now to
         # make sure they all exist, below calculate mean and rename to _mean
         # if no var_name_delim in metadata then assume one column per var
+        delim = None
         if 'var_name_delim' in dict(self.config.items('METADATA')):
             delim = self.config.get('METADATA','var_name_delim')
-            cols = [x.split(delim) if ',' in x else x for x in cols]
+            cols = [x.split(delim) if delim in x else x for x in cols]
             cols_flat = []
             for el in cols:
                 if isinstance(el,list):
@@ -509,8 +509,8 @@ class Data(object):
                 # if multiple Gs specified and same num multiple Gs specifed
                 # as the main G var and no weights assigned do not duplicate
                 # mean that is calculated below from comma separated list
-                if pref == 'g_' and ',' in self.variables.get('G'):
-                    n_Gs = len(self.variables.get('G').split(','))
+                if delim and pref == 'g_' and delim in self.variables.get('G'):
+                    n_Gs = len(self.variables.get('G').split(delim))
                     if len(weights) == total_weights and len(weights) == n_Gs: 
                         return
                 # if weights are not normalized update them
@@ -537,9 +537,14 @@ class Data(object):
                 tmp_df = df[[e.get('name') for e in vs]].copy()
                 for pair in vs:
                     tmp_df[pair.get('name')] *= float(pair.get('weight'))
-                df['{}mean'.format(pref)] = tmp_df.sum(axis=1)
-                # if calculated update variables
-                self.variables['{}mean'.format(pref)] = '{}mean'.format(pref)
+                # update variables
+                key = '{}mean'.format(pref)
+                val = '{}mean'.format(pref)
+                if key == 'g_mean':
+                    key = 'G'
+                    val = 'G_mean'
+                df[val] = tmp_df.sum(axis=1)
+                self.variables[key] = val
 
         # calculate weighted average soil vars if they exist
         d = self.soil_var_weight_pairs
@@ -548,10 +553,10 @@ class Data(object):
 
         # currently calc non weighted means for vars other than G and theta
         # later may change so all vars are handled the same way, this is for
-        # multiple listed (comma sep) variables for a single var in the config 
+        # multiple listed (delim sep) variables for a single var in the config 
         for k,v in variables.items():
-            if ',' in v:
-                tmp_cols = v.split(',') 
+            if delim and delim in v:
+                tmp_cols = v.split(delim) 
                 print('Calculating mean for var: {}\n'.format(k),
                     'from columns: {}\n'.format(tmp_cols)
                 )
@@ -560,7 +565,7 @@ class Data(object):
                 df[var_name] = df[tmp_cols].mean(axis=1)
                 self.variables[k] = var_name
 
-        # check each variable, if any are fully null values remove from var dict
+        # check each variable for multiple criteria, all null, naming, etc.
         del_keys = []
         for k,v in self.variables.items():
             if v not in df.columns:
@@ -574,6 +579,17 @@ class Data(object):
                 )
                 df.drop(v, axis=1, inplace=True)
                 del_keys.append(k)
+            # also rename input columns that may cause naming issue
+            elif k in df.columns and k in Data.variable_names_dict.keys() and \
+                    not k == 'date':
+                new_name = 'input_{}'.format(k)
+                print('WARNING: renaming column {} to {}'.format(k, new_name))
+                df.rename(columns={k:new_name}, inplace=True)
+                if not v == k+'_mean':
+                    self.variables[k] = new_name
+                if k in self.qc_var_pairs:
+                    self.qc_var_pairs[new_name] = self.qc_var_pairs[k] 
+                    self.qc_var_pairs.pop(k, None)
 
         # also remove entry from var dict to avoid issues later
         for k in del_keys:
@@ -581,8 +597,7 @@ class Data(object):
 
         # update renaming dict with any newly created mean variables/removed
         self.inv_map = {
-            v: k for k, v in self.variables.items() if (
-                not v.replace('_mean', '') == k or not k +'_mean' in df.columns)
+            v: k for k, v in self.variables.items() if not k == v
         }
 
         # the only column that is always renamed is the datestring_col
