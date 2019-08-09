@@ -102,6 +102,7 @@ class QaQc(object):
             self.variables = data.variables
             self.elevation = data.elevation
             self.latitude = data.latitude
+            self.longitude = data.longitude
             self.out_dir = data.out_dir
             self.site_id = data.site_id
             # flip variable naming dict for internal use
@@ -168,8 +169,10 @@ class QaQc(object):
             sum_cols = [k for k,v in QaQc.agg_dict.items() if v == 'sum']
             sum_cols = list(set(sum_cols).intersection(df.columns))
             mean_cols = set(df.columns) - set(sum_cols)
-            means = df.loc[:,mean_cols].resample('D').mean()
-            sums = df.loc[:,sum_cols].resample('D').sum()
+            means = df.loc[:,mean_cols].apply(
+                pd.to_numeric, errors='coerce').resample('D').mean()
+            sums = df.loc[:,sum_cols].apply(
+                pd.to_numeric, errors='coerce').resample('D').sum()
             # using numpy forces nans if 1 or more sub-daily value missing
             # having issues however creating more than expected null days
             #means = df.loc[:,mean_cols].resample('D').apply(
@@ -400,10 +403,12 @@ class QaQc(object):
         # calculate clear sky radiation if not already computed
         self._calc_rso()
         # energy balance corrections
-        if not set(['Rn','LE','H','G']).issubset(self.variables.keys()):
+        if not set(['Rn','LE','H','G']).issubset(self.variables.keys()) or\
+                not set(['Rn','LE','H','G']).issubset(
+                    self.df.rename(columns=self.inv_map).columns):
             print(
-                'Missing one or more energy balance variables, cannot perform '
-                'energy balance correction.'
+                '\nMissing one or more energy balance variables, cannot perform'
+                ' energy balance correction.'
             )
             self._has_eb_vars = False
             return

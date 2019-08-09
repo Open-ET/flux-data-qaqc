@@ -65,6 +65,7 @@ class Data(object):
             pass
         self.elevation = float(self.config.get('METADATA', 'station_elevation'))
         self.latitude = float(self.config.get('METADATA', 'station_latitude'))
+        self.longitude = float(self.config.get('METADATA', 'station_longitude'))
         self.climate_file = self._get_climate_file()
         self.header = self._get_header(self.climate_file)
         self.soil_var_weight_pairs = self._get_soil_var_avg_weights()
