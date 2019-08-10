@@ -12,6 +12,8 @@ TODO:
 
 
 from pathlib import Path
+
+import xarray
 import numpy as np
 import pandas as pd
 from refet.calcs import _ra_daily, _rso_simple
@@ -71,6 +73,50 @@ class QaQc(object):
         'ebr',
         'br'
     )
+
+    # gridMET dict, keys are names which can be passed to download_gridMET
+    gridMET_meta = {
+        'etr': {
+            'nc_suffix': 'agg_met_etr_1979_CurrentYear_CONUS.nc#fillmismatch',
+            'name': 'daily_mean_reference_evapotranspiration_alfalfa',
+            'rename': 'gridMET_etr_mm'
+        },
+        'pr': {
+            'nc_suffix': 'agg_met_pr_1979_CurrentYear_CONUS.nc#fillmismatch',
+            'name': 'precipitation_amount',
+            'rename': 'gridMET_prcp_mm'
+        },    
+        'pet': {
+            'nc_suffix': 'agg_met_pet_1979_CurrentYear_CONUS',
+            'name': 'daily_mean_reference_evapotranspiration_grass',
+            'rename': 'gridMET_eto_mm'
+        },
+        'sph': {
+            'nc_suffix': 'agg_met_sph_1979_CurrentYear_CONUS',
+            'name': 'daily_mean_specific_humidity',
+            'rename': 'gridMET_q_kgkg'
+        },
+        'srad': {
+            'nc_suffix': 'agg_met_srad_1979_CurrentYear_CONUS',
+            'name': 'daily_mean_shortwave_radiation_at_surface',
+            'rename': 'gridMET_srad_wm2'
+        },
+        'vs': {
+            'nc_suffix': 'agg_met_vs_1979_CurrentYear_CONUS',
+            'name': 'daily_mean_wind_speed',
+            'rename': 'gridMET_u10_ms'
+        },
+        'tmmx': {
+            'nc_suffix': 'agg_met_tmmx_1979_CurrentYear_CONUS',
+            'name': 'daily_maximum_temperature',
+            'rename': 'gridMET_tmax_k'
+        },
+        'tmmn': {
+            'nc_suffix': 'agg_met_tmmn_1979_CurrentYear_CONUS',
+            'name': 'daily_minimum_temperature',
+            'rename': 'gridMET_tmin_k'
+        },
+    }
     
     # all potentially calculated variables for ebergy balance corrections
     _eb_calc_vars = (
@@ -98,6 +144,8 @@ class QaQc(object):
     def __init__(self, data=None):
         
         if isinstance(data, Data):
+            self.config_file = data.config_file
+            self.config = data.config
             self._df = data.df
             self.variables = data.variables
             self.elevation = data.elevation
@@ -118,6 +166,7 @@ class QaQc(object):
                     self.inv_map[user_G_name] = 'G'
 
             self.temporal_freq = self._check_daily_freq()
+            self._check_gridMET()
             # assume energy balance vars exist, will be validated upon corr
             self._has_eb_vars = True
 
@@ -130,6 +179,152 @@ class QaQc(object):
         self.corrected = False 
         self.corr_meth = None
             
+    def _check_gridMET(self):
+        """
+        Check if gridMET has been downloaded (file path in config), if so
+        also check if dates fully intersect those of station data. If both
+        conditions are not met then update :attr:`gridMET_exists` to False 
+        otherwise assign True.
+
+        Arguments:
+            None
+
+        Returns:
+            None
+        """
+        gridfile = self.config.get('METADATA','gridMET_file_path',fallback=None)
+        if gridfile is None:
+            self.gridMET_exists = False
+        else:
+            try:
+                grid_df = pd.read_csv(
+                    gridfile, parse_dates=True, index_col='date'
+                )
+                gridMET_dates = grid_df.index
+                station_dates = self.df.index
+                if station_dates.isin(gridMET_dates).all():
+                    self.gridMET_exists = True
+                # some gridMET exists but needs to be updated for coverage
+                else:
+                    self.gridMET_exists = False
+            except:
+                print('WARNING: unable to find/read gridMET file\n {}'.format(
+                    gridfile)
+                )
+                self.gridMET_exists = False
+
+    def download_gridMET(self, variables=None):
+        """
+        Download reference ET (alfalfa) and precipitation from gridMET for
+        days in flux station time series. Also has ability to download other
+        or specific gridMET variables by passing a list of gridMET variable
+        names. Possible names and their long form can be found in 
+        :attr:`QaQc.gridMET_meta`. 
+
+        Upon download gridMET time series for the nearest gridMET cell will be
+        merged into the instances dataframe attibute :attr:`QaQc.df` and all
+        gridMET variable names will have the prefix "gridMET_" for 
+        identification. 
+        
+        The gridMET time series file will be saved to a subdirectory called
+        "gridMET_data" within the directory that contains the config file
+        for the current :ob:`QaQc` instance and named with the site ID and 
+        gridMET cell centroid lat and long coordinates in decimal degrees.
+        
+        Any previously downloaded gridMET time series will be overwritten.
+        
+        Arguments:
+            variables (list): default None. List of gridMET variable names to
+                download, if None download ETr and precipitation. See the keys
+                of the :attr:`QaQc.gridMET_meta` dictionary for a list of all 
+                variable that can be downloaded by this method.
+
+        Returns:
+            None
+
+        
+        """
+        # opendap thredds server
+        server_prefix =\
+            'http://thredds.northwestknowledge.net:8080/thredds/dodsC/'
+
+        #if self.gridMET_exists:
+        #    print(
+        #        '\ngridMET time series already exists for location '
+        #        'not redownloading.'
+        #    )
+        #    return
+
+        if variables is None:
+            variables = ['etr', 'pr']
+
+        elif not isinstance(variables, (str,list,tuple)):
+            print(
+                'ERROR: {} is not a valid gridMET variable '
+                'or list of variable names, valid options:'
+                '\n{}'.format(
+                    variables, ', '.join([v for v in QaQc.gridMET_meta])
+                )
+            )
+            return
+            
+        if isinstance(variables, str):
+            variables = list(variables)
+            
+        station_dates = self.df.index
+        grid_dfs = []
+        for i,v in enumerate(variables):
+            if not v in QaQc.gridMET_meta:
+                print(
+                    'ERROR: {} is not a valid gridMET variable, '
+                    'valid options: {}'.format(
+                        v, ', '.join([v for v in QaQc.gridMET_meta])
+                    )
+                )
+                continue
+            meta = QaQc.gridMET_meta[v]
+            self.variables[meta['rename']] = meta['rename']
+            print('Downloading gridMET var: {}\n'.format(meta['name'])) 
+            netcdf = '{}{}'.format(server_prefix, meta['nc_suffix'])
+            ds = xarray.open_dataset(netcdf).sel(
+                lon=self.longitude, lat=self.latitude, method='nearest'
+            ).drop('crs')
+            df = ds.to_dataframe().loc[station_dates].rename(
+                columns={meta['name']:meta['rename']}
+            )
+            df.index.name = 'date' # ensure date col name is 'date'
+            # on first variable (if multiple) grab gridcell centroid coords
+            if i == 0:
+                lat_centroid = df.lat[0]
+                lon_centroid = df.lon[0]
+
+            df.drop(['lat', 'lon'], axis=1, inplace=True)
+
+            grid_dfs.append(df)
+        
+        # combine data
+        df = pd.concat(grid_dfs, axis=1)
+        # save gridMET time series to CSV in subdirectory where config file is
+        gridMET_file = self.config_file.parent.joinpath(
+            'gridMET_data'
+            ).joinpath('{}_{:.4f}N_{:.4f}W.csv'.format(
+                self.site_id, lat_centroid, lon_centroid
+            )       
+        )
+        gridMET_file.parent.mkdir(parents=True, exist_ok=True)
+        self.config.set(
+            'METADATA', 'gridMET_file_path', value=str(gridMET_file)
+        )
+        df.to_csv(gridMET_file)
+        # rewrite config with updated gridMET file path
+        with open(str(self.config_file), 'w') as outf:
+            self.config.write(outf)
+        # keep in memory to merge with df during correction
+        #self._gridMET_df = df
+        self._df = self._df.join(df)
+        self.gridMET_exists = True
+    
+        
     def _check_daily_freq(self):
         """
         Check temporal frequency of input Data, resample to daily if not already
@@ -420,6 +615,8 @@ class QaQc(object):
         self.corr_meth = meth
         # calculate raw, corrected ET 
         self._calc_et()
+        # fill gaps of corr ET with ET from smoothed and gap filled Kc*ETr
+        self._ETr_gap_fill()
 
         # update inv map for naming
         self.inv_map = {
@@ -430,6 +627,33 @@ class QaQc(object):
         if not 'G' in self.inv_map.values():
             user_G_name = self.variables.get('G')
             self.inv_map[user_G_name] = 'G'
+
+    def _ETr_gap_fill(self):
+        """
+        User gridMET reference ET to calculate ET from Kc, smooth and gap fill
+        calced ET and then use to fill gaps in corrected ET. Keeps tabs on 
+        number of days in corrected ET that were filled in each month.
+        """
+        if not self.gridMET_exists:
+            self.download_gridMET()
+
+        else:
+            # gridMET file has been verified and has all needed dates, just load
+            gridfile = self.config.get(
+                'METADATA','gridMET_file_path',fallback=None
+            )
+            print(
+                'gridMET reference ET already downloaded for station at:\n'
+                '{}\nnot redownloading.'.format(gridfile)
+            )
+
+            grid_df = pd.read_csv(
+                gridfile, parse_dates=True, index_col='date'
+            )
+            self._df = self._df.join(grid_df)
+            for c in grid_df.columns:
+                self.variables[c] = c
+
 
     def _calc_et(self):
         """
