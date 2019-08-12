@@ -44,15 +44,18 @@ class QaQc(object):
         'br': 'mean',
         'et': 'sum',
         'et_corr': 'sum',
+        'et_gap': 'sum',
+        'et_fill': 'sum',
         'et_user_corr': 'sum',
         'ebr': 'mean',
         'ebr_corr': 'mean',
         'ebr_user_corr': 'mean',
+        'gridMET_etr_mm': 'sum',
+        'lw_in': 'mean',
         't_avg': 'mean',
         'rso': 'mean',
         'sw_pot': 'mean',
         'sw_in': 'mean',
-        'lw_in': 'mean',
         'vpd': 'mean',
         'ppt': 'sum',
         'ws': 'mean',
@@ -87,52 +90,56 @@ class QaQc(object):
             'rename': 'gridMET_prcp_mm'
         },    
         'pet': {
-            'nc_suffix': 'agg_met_pet_1979_CurrentYear_CONUS',
+            'nc_suffix': 'agg_met_pet_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_reference_evapotranspiration_grass',
             'rename': 'gridMET_eto_mm'
         },
         'sph': {
-            'nc_suffix': 'agg_met_sph_1979_CurrentYear_CONUS',
+            'nc_suffix': 'agg_met_sph_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_specific_humidity',
             'rename': 'gridMET_q_kgkg'
         },
         'srad': {
-            'nc_suffix': 'agg_met_srad_1979_CurrentYear_CONUS',
+            'nc_suffix': 'agg_met_srad_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_shortwave_radiation_at_surface',
             'rename': 'gridMET_srad_wm2'
         },
         'vs': {
-            'nc_suffix': 'agg_met_vs_1979_CurrentYear_CONUS',
+            'nc_suffix': 'agg_met_vs_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_wind_speed',
             'rename': 'gridMET_u10_ms'
         },
         'tmmx': {
-            'nc_suffix': 'agg_met_tmmx_1979_CurrentYear_CONUS',
+            'nc_suffix': 'agg_met_tmmx_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_maximum_temperature',
             'rename': 'gridMET_tmax_k'
         },
         'tmmn': {
-            'nc_suffix': 'agg_met_tmmn_1979_CurrentYear_CONUS',
+            'nc_suffix': 'agg_met_tmmn_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_minimum_temperature',
             'rename': 'gridMET_tmin_k'
         },
     }
     
-    # all potentially calculated variables for ebergy balance corrections
+    # all potentially calculated variables for energy balance corrections
     _eb_calc_vars = (
+        'br',
+        'br_user_corr',
         'energy',
-        'flux',
-        'LE_corr',
-        'H_corr',
-        'flux_corr',
-        'flux_user_corr',
         'ebr',
         'ebr_corr',
         'ebr_user_corr',
         'ebc_cf',
         'ebr_5day_clim',
-        'br',
-        'br_user_corr'
+        'et_gap',
+        'et_fill',
+        'flux',
+        'flux_corr',
+        'flux_user_corr',
+        'Kc',
+        'Kc_7day_mean',
+        'LE_corr',
+        'H_corr'
     )
     # potentially calculated variables for ET
     _et_calc_vars = (
@@ -202,7 +209,10 @@ class QaQc(object):
                 )
                 gridMET_dates = grid_df.index
                 station_dates = self.df.index
-                if station_dates.isin(gridMET_dates).all():
+                # flag False if ETr was not downloaded for our purposes
+                if not 'gridMET_etr_mm' in grid_df.columns:
+                    self.gridMET_exists = False
+                elif station_dates.isin(gridMET_dates).all():
                     self.gridMET_exists = True
                 # some gridMET exists but needs to be updated for coverage
                 else:
@@ -234,10 +244,11 @@ class QaQc(object):
         Any previously downloaded gridMET time series will be overwritten.
         
         Arguments:
-            variables (list): default None. List of gridMET variable names to
-                download, if None download ETr and precipitation. See the keys
-                of the :attr:`QaQc.gridMET_meta` dictionary for a list of all 
-                variable that can be downloaded by this method.
+            variables (None, str, list, or tuple): default None. List of gridMET
+                variable names to download, if None download ETr and 
+                precipitation. See the keys of the :attr:`QaQc.gridMET_meta` 
+                dictionary for a list of all variables that can be downloaded 
+                by this method.
 
         Returns:
             None
@@ -247,13 +258,6 @@ class QaQc(object):
         # opendap thredds server
         server_prefix =\
             'http://thredds.northwestknowledge.net:8080/thredds/dodsC/'
-
-        #if self.gridMET_exists:
-        #    print(
-        #        '\ngridMET time series already exists for location '
-        #        'not redownloading.'
-        #    )
-        #    return
 
         if variables is None:
             variables = ['etr', 'pr']
@@ -321,6 +325,8 @@ class QaQc(object):
             self.config.write(outf)
         # keep in memory to merge with df during correction
         #self._gridMET_df = df
+        # drop previously calced vars for replacement, no join duplicates
+        self._df = _drop_cols(self._df, variables)
         self._df = self._df.join(df)
         self.gridMET_exists = True
     
@@ -628,12 +634,21 @@ class QaQc(object):
             user_G_name = self.variables.get('G')
             self.inv_map[user_G_name] = 'G'
 
-    def _ETr_gap_fill(self):
+    def _ETr_gap_fill(self, et_name='et_corr'):
         """
-        User gridMET reference ET to calculate ET from Kc, smooth and gap fill
+        Use gridMET reference ET to calculate ET from Kc, smooth and gap fill
         calced ET and then use to fill gaps in corrected ET. Keeps tabs on 
-        number of days in corrected ET that were filled in each month.
+        number of days in ET that were filled in each month.
+        
+        Keyword Arguments:
+            et_name (str): default "et_corr". Name of ET variable to use when 
+                calculating the crop coefficient.
+
+        Returns:
+            None
+
         """
+        # get ETr if not on disk
         if not self.gridMET_exists:
             self.download_gridMET()
 
@@ -650,9 +665,30 @@ class QaQc(object):
             grid_df = pd.read_csv(
                 gridfile, parse_dates=True, index_col='date'
             )
+            # drop previously calced vars for replacement, no join duplicates
+            self._df = _drop_cols(self._df, list(grid_df.columns))
             self._df = self._df.join(grid_df)
             for c in grid_df.columns:
                 self.variables[c] = c
+
+        # calc Kc 7 day moving average, min vals in window = 2, linear interp
+        df = self.df.rename(columns=self.inv_map)
+        df['Kc'] = df[et_name] / df.gridMET_etr_mm
+        df['Kc_7day_mean'] = df.Kc.rolling(7, min_periods=2, center=True).mean()
+        df.Kc_7day_mean = df.Kc_7day_mean.interpolate(method='linear')
+        # calc ET from Kc and ETr
+        df['et_fill'] = df.gridMET_etr_mm * df.Kc_7day_mean
+        # flag days in corrected ET that are missing and sum for each month
+        df['et_gap'] = False
+        df.loc[(df[et_name].isna() & df.et_fill.notna()), 'et_gap'] = True
+        df.loc[df.et_gap, et_name] = df.et_fill
+
+        # update variables attribute with new variables (may vary)
+        new_cols = set(df.columns) - set(self.variables)
+        for el in new_cols:
+            self.variables[el] = el
+
+        self._df = df
 
 
     def _calc_et(self):
@@ -674,7 +710,7 @@ class QaQc(object):
 
         # drop relavant calculated variables if they exist
         self._df = _drop_cols(self._df, self._et_calc_vars)
-        df = self._df.rename(columns=self.inv_map)
+        df = self.df.rename(columns=self.inv_map)
         
         # LH from L.P. Harrison (1963)
         if 't_avg' in df.columns:
@@ -698,7 +734,7 @@ class QaQc(object):
             self.variables[el] = el
 
         # join data back into df attr
-        self.df = df.rename(columns=self.variables)
+        self._df = df.rename(columns=self.variables)
 
     def _calc_rso(self):
         """
