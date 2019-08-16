@@ -19,9 +19,10 @@ import pandas as pd
 from refet.calcs import _ra_daily, _rso_simple
 
 from .data import Data
+from .plot import Plot
 from .util import monthly_resample
 
-class QaQc(object):
+class QaQc(Plot):
     """
     Numerical routines for adjusting or 'correcting' measured daily latent 
     energy and sensible heat fluxes measured at an eddy covariance climate 
@@ -51,6 +52,7 @@ class QaQc(object):
         'ebr_corr': 'mean',
         'ebr_user_corr': 'mean',
         'gridMET_etr_mm': 'sum',
+        'gridMET_prcp_mm': 'sum',
         'lw_in': 'mean',
         't_avg': 'mean',
         'rso': 'mean',
@@ -82,42 +84,50 @@ class QaQc(object):
         'etr': {
             'nc_suffix': 'agg_met_etr_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_reference_evapotranspiration_alfalfa',
-            'rename': 'gridMET_etr_mm'
+            'rename': 'gridMET_etr_mm',
+            'units': 'mm'
         },
         'pr': {
             'nc_suffix': 'agg_met_pr_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'precipitation_amount',
-            'rename': 'gridMET_prcp_mm'
+            'rename': 'gridMET_prcp_mm',
+            'units': 'mm'
         },    
         'pet': {
             'nc_suffix': 'agg_met_pet_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_reference_evapotranspiration_grass',
-            'rename': 'gridMET_eto_mm'
+            'rename': 'gridMET_eto_mm',
+            'units': 'mm'
         },
         'sph': {
             'nc_suffix': 'agg_met_sph_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_specific_humidity',
-            'rename': 'gridMET_q_kgkg'
+            'rename': 'gridMET_q_kgkg',
+            'units': 'kg/kg'
         },
         'srad': {
             'nc_suffix': 'agg_met_srad_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_shortwave_radiation_at_surface',
-            'rename': 'gridMET_srad_wm2'
+            'rename': 'gridMET_srad_wm2',
+            'units': 'w/m2'
         },
         'vs': {
             'nc_suffix': 'agg_met_vs_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_wind_speed',
-            'rename': 'gridMET_u10_ms'
+            'rename': 'gridMET_u10_ms',
+            'units': 'm/s'
         },
         'tmmx': {
             'nc_suffix': 'agg_met_tmmx_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_maximum_temperature',
-            'rename': 'gridMET_tmax_k'
+            'rename': 'gridMET_tmax_k',
+            'units': 'K'
         },
         'tmmn': {
             'nc_suffix': 'agg_met_tmmn_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_minimum_temperature',
-            'rename': 'gridMET_tmin_k'
+            'rename': 'gridMET_tmin_k',
+            'units': 'K'
         },
     }
     
@@ -155,6 +165,7 @@ class QaQc(object):
             self.config = data.config
             self._df = data.df
             self.variables = data.variables
+            self.units = data.units
             self.elevation = data.elevation
             self.latitude = data.latitude
             self.longitude = data.longitude
@@ -209,6 +220,14 @@ class QaQc(object):
                 )
                 gridMET_dates = grid_df.index
                 station_dates = self.df.index
+                # add var names and units to attributes
+                for val in grid_df.columns:
+                    meta = [
+                        v for k,v in QaQc.gridMET_meta.items() if \
+                            v['rename'] == val
+                    ][0]
+                    self.variables[meta['rename']] = meta['rename']
+                    self.units[meta['rename']] = meta['units']
                 # flag False if ETr was not downloaded for our purposes
                 if not 'gridMET_etr_mm' in grid_df.columns:
                     self.gridMET_exists = False
@@ -288,6 +307,7 @@ class QaQc(object):
                 continue
             meta = QaQc.gridMET_meta[v]
             self.variables[meta['rename']] = meta['rename']
+            self.units[meta['rename']] = meta['units']
             print('Downloading gridMET var: {}\n'.format(meta['name'])) 
             netcdf = '{}{}'.format(server_prefix, meta['nc_suffix'])
             ds = xarray.open_dataset(netcdf).sel(
@@ -642,7 +662,8 @@ class QaQc(object):
         
         Keyword Arguments:
             et_name (str): default "et_corr". Name of ET variable to use when 
-                calculating the crop coefficient.
+                calculating the crop coefficient and to fill gaps with 
+                calculated ET.
 
         Returns:
             None
@@ -661,10 +682,7 @@ class QaQc(object):
                 'gridMET reference ET already downloaded for station at:\n'
                 '{}\nnot redownloading.'.format(gridfile)
             )
-
-            grid_df = pd.read_csv(
-                gridfile, parse_dates=True, index_col='date'
-            )
+            grid_df = pd.read_csv(gridfile, parse_dates=True, index_col='date')
             # drop previously calced vars for replacement, no join duplicates
             self._df = _drop_cols(self._df, list(grid_df.columns))
             self._df = self._df.join(grid_df)
@@ -682,11 +700,19 @@ class QaQc(object):
         df['et_gap'] = False
         df.loc[(df[et_name].isna() & df.et_fill.notna()), 'et_gap'] = True
         df.loc[df.et_gap, et_name] = df.et_fill
+        # et fill values only where they were used to gap fill, for plotting
+        df['et_fill_val'] = np.nan
+        df.loc[df.et_gap , 'et_fill_val'] = df.et_fill
 
         # update variables attribute with new variables (may vary)
         new_cols = set(df.columns) - set(self.variables)
         for el in new_cols:
             self.variables[el] = el
+        self.units['Kc'] = 'unitless'
+        self.units['Kc_7day_mean'] = 'unitless'
+        self.units['et_fill'] = 'mm'
+        self.units['et_fill_val'] = 'mm'
+        self.units['et_gap'] = 'unitless'
 
         self._df = df
 
@@ -732,6 +758,7 @@ class QaQc(object):
         new_cols = set(df.columns) - set(self.variables)
         for el in new_cols:
             self.variables[el] = el
+            self.units[el] = 'mm'
 
         # join data back into df attr
         self._df = df.rename(columns=self.variables)
@@ -768,6 +795,7 @@ class QaQc(object):
         self.variables.update(
             rso = 'rso'
         )
+        self.units['rso'] = 'w/m2'
 
     def _ebr_correction(self):
         """
@@ -1004,6 +1032,14 @@ class QaQc(object):
         self._df = df.rename(columns=self.variables)
         # update flag for other methods
         self.corrected = True
+
+    def plot(self, ncols=1, group='all', output_type='save', out_file=None):
+        """
+        """
+        # create aggregrated plot structure from fluxdataqaqc.Plot._plot() 
+        self._plot(
+            self, ncols=ncols, output_type=output_type, out_file=out_file
+        )
 
 def _drop_cols(df, cols):
     """Drop columns from dataframe if they exist """
