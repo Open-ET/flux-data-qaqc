@@ -81,7 +81,8 @@ class Data(object):
         if 'qc_flag' in dict(self.config.items('METADATA')):
             self.qc_flag = [
                 el.strip() for el in self.config.get(
-                    'METADATA','qc_flag').split(',')
+                    'METADATA','qc_flag'
+                ).split(',')
             ]
         else:
             self.qc_flag = None
@@ -151,7 +152,7 @@ class Data(object):
                 #print(k,v, var_name, weight)
             # update dict with weights if not specified in config, normalized
             # later in df
-            elif (k.startswith('g_') or k.startswith('theta')) and not \
+            elif (k.startswith('g_') or k.startswith('theta_')) and not \
                     weight_name in all_keys and not k.endswith('_units') and \
                     not k.endswith('_weight'):
                 tmp = {'name': var_name, 'weight' : 1}
@@ -240,7 +241,7 @@ class Data(object):
             v.replace('_col', '_units'): None for k,v in 
             self.variable_names_dict.items() if (
                 not v in no_unit_vars and k in self.variables
-                )
+            )
         }
         # add user multiple g or soil moisture var units config names
         for k,v in self.variables.items():
@@ -500,12 +501,12 @@ class Data(object):
             """
             # list of multiple variables with prefix
             if d:
-                vs = [d.get(e) for e in d if e.startswith(pref)]
+                vs = [d.get(el) for el in d if el.startswith(pref)]
             else:
                 vs = []
             # soil heat flux weighted average
             if len(vs) > 1: # if 1 or less no average
-                weights = [float(e.get('weight')) for e in vs]
+                weights = [float(el.get('weight')) for el in vs]
                 total_weights = np.sum(weights)
                 # if multiple Gs specified and same num multiple Gs specifed
                 # as the main G var and no weights assigned do not duplicate
@@ -514,6 +515,19 @@ class Data(object):
                     n_Gs = len(self.variables.get('G').split(delim))
                     if len(weights) == total_weights and len(weights) == n_Gs: 
                         return
+                # same for multiple theta, this also avoids issue with multiple
+                # null columns and weighting the remaining columns less...
+                if pref == 'theta_' and len(weights) == total_weights:
+                    # update variables
+                    var_name = 'theta_mean'
+                    theta_names = [el.get('name') for el in vs]
+                    print('Calculating mean for var: THETA from '
+                        'columns: {}'.format(theta_names)
+                    )
+                    tmp_df = df[theta_names].copy()
+                    df[var_name] = tmp_df.mean(axis=1)
+                    self.variables[var_name] = var_name
+                    return
                 # if weights are not normalized update them
                 elif not np.isclose(total_weights, 1.0):
                     print(
@@ -534,18 +548,35 @@ class Data(object):
                     print('Here are the new weights:\n', msg)
 
                 # calculate average, use updated weights if calculated
-                vs = [d.get(e) for e in d if e.startswith(pref)]
-                tmp_df = df[[e.get('name') for e in vs]].copy()
+                vs = [d.get(el) for el in d if el.startswith(pref)]
+                tmp_df = df[[el.get('name') for el in vs]].copy()
                 for pair in vs:
                     tmp_df[pair.get('name')] *= float(pair.get('weight'))
+
                 # update variables
                 key = '{}mean'.format(pref)
                 val = '{}mean'.format(pref)
                 if key == 'g_mean':
                     key = 'G'
-                    val = 'G_mean'
+                # calculate mean (sum weighted values)
                 df[val] = tmp_df.sum(axis=1)
+                df.loc[df[tmp_df.columns].isnull().all(1), val] = np.nan
+
                 self.variables[key] = val
+            else:
+                print(
+                    'WARNING: Insufficient data to calculate mean for multiple '
+                    '{} measurements'.format(pref.replace('_','').upper())
+                )
+
+        # check if any of multiple soil vars time series are all null and remove
+        del_keys = []
+        for k, v in self.soil_var_weight_pairs.items():
+            var_name = v.get('name')
+            if df[var_name].isna().all():
+                del_keys.append(k)
+        for k in del_keys:
+            self.soil_var_weight_pairs.pop(k)
 
         # calculate weighted average soil vars if they exist
         d = self.soil_var_weight_pairs
