@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import re
 import numpy as np
 from bokeh import models
 from bokeh.palettes import Viridis256
@@ -543,8 +544,8 @@ class Plot(object):
         #### 
         title = 'Daily Latent Energy, Initial versus Corrected'
         unit = _get_units(['LE', 'LE_corr', 'LE_user_corr'], units)
-        y_label = 'initial ({})'.format(unit)
-        x_label = 'corrected ({})'.format(unit)
+        y_label = 'corrected ({})'.format(unit)
+        x_label = 'initial ({})'.format(unit)
         fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
         y_vars = ['LE_corr', 'LE_user_corr']
         colors = ['red', 'darkred']
@@ -594,8 +595,8 @@ class Plot(object):
         #### 
         title = 'Daily Evapotranspiration, Initial versus Corrected'
         unit = _get_units(['et', 'et_corr', 'et_user_corr'], units)
-        y_label = 'initial ({})'.format(unit)
-        x_label = 'corrected ({})'.format(unit)
+        y_label = 'corrected ({})'.format(unit)
+        x_label = 'initial ({})'.format(unit)
         fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
         y_vars = ['et_corr', 'et_user_corr']
         colors = ['red', 'darkred']
@@ -645,7 +646,80 @@ class Plot(object):
         # multiple soil heat flux sensor time series plots
         #### 
         # keep user names for these in hover 
+        g_re = re.compile('g_\d+|G')
+        g_vars = [
+            v for v in variables if g_re.match(v) and v in df.columns
+        ]
+        num_lines = len(g_vars)
+        if num_lines > 0:
+            rename_dict = {k:variables[k] for k in g_vars}
+            tmp_df = df[g_vars].rename(columns=rename_dict)
+            tmp_source = ColumnDataSource(tmp_df)
+            plt_vars = list(rename_dict.values())
+            colors = Viridis256[0:-1:int(256/num_lines)]
+            title = 'Daily Soil Moisture (Multiple Sensors)'
+            x_label = 'date'
+            y_label = _get_units(g_vars, units)
+            fig = figure(x_axis_label=x_label,y_axis_label=y_label,title=title)
+            fig = Plot.add_lines(
+                fig, tmp_df, plt_vars, colors, x_label, tmp_source, 
+                labels=plt_vars
+            )
+            if fig is not None:
+                daily_figs.append(fig)
+                # same for monthly fig
+                tmp_df = monthly_df[g_vars].rename(columns=rename_dict)
+                tmp_source = ColumnDataSource(tmp_df)
+                title = 'Monthly Soil Moisture (Multiple Sensors)'
+                fig = figure(
+                    x_axis_label=x_label, y_axis_label=y_label,title=title
+                )
+                fig = Plot.add_lines(
+                    fig, tmp_df, plt_vars, colors, x_label, tmp_source,
+                    labels=plt_vars
+                )
+                monthly_figs.append(fig)
+            # do not print warning if missing multiple soil moisture recordings
 
+
+        #### 
+        # multiple soil moisture time series plots
+        #### 
+        # keep user names for these in hover 
+        theta_re = re.compile('theta_[\d+|mean]')
+        theta_vars = [
+            v for v in variables if theta_re.match(v) and v in df.columns
+        ]
+        num_lines = len(theta_vars)
+        if num_lines > 0:
+            rename_dict = {k:variables[k] for k in theta_vars}
+            tmp_df = df[theta_vars].rename(columns=rename_dict)
+            tmp_source = ColumnDataSource(tmp_df)
+            plt_vars = list(rename_dict.values())
+            colors = Viridis256[0:-1:int(256/num_lines)]
+            title = 'Daily Soil Moisture (Multiple Sensors)'
+            x_label = 'date'
+            y_label = _get_units(theta_vars, units)
+            fig = figure(x_axis_label=x_label,y_axis_label=y_label,title=title)
+            fig = Plot.add_lines(
+                fig, tmp_df, plt_vars, colors, x_label, tmp_source, 
+                labels=plt_vars
+            )
+            if fig is not None:
+                daily_figs.append(fig)
+                # same for monthly fig
+                tmp_df = monthly_df[theta_vars].rename(columns=rename_dict)
+                tmp_source = ColumnDataSource(tmp_df)
+                title = 'Monthly Soil Moisture (Multiple Sensors)'
+                fig = figure(
+                    x_axis_label=x_label, y_axis_label=y_label,title=title
+                )
+                fig = Plot.add_lines(
+                    fig, tmp_df, plt_vars, colors, x_label, tmp_source,
+                    labels=plt_vars
+                )
+                monthly_figs.append(fig)
+            # do not print warning if missing multiple soil moisture recordings
 
 
 

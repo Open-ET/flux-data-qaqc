@@ -574,14 +574,14 @@ class QaQc(Plot):
 
         return qaqc
 
-    def correct_data(self, meth='ebr'):
+    def correct_data(self, meth='ebr', etr_gap_fill=True):
         """
         Correct turblent fluxes to close energy balance using different
         methods, default 'ebr'. 
 
         Currently two options are available: 'ebr' (Energy Balance Ratio) and 
         'br' (Bowen Ratio). If you use one method followed by another corrected
-        versions of LE, H, ET, and EBR will be overwritten with the most 
+        versions of LE, H, et, and ebr will be overwritten with the most 
         recently used approach. Also computes potential clear sky radiation 
         (saved as *rso*) using the ASCE approach based on station elevation and 
         latitude. ET is calculated from raw and corrected LE using daily air
@@ -596,8 +596,14 @@ class QaQc(Plot):
           _corr uses adjusted LE, H, etc. from the correction method used 
           _user_corr uses corrected LE, H, etc. found in data file (if provided)
 
-        Arguments:
+        Keyword Arguments:
             meth (str): default 'ebr'. Method to correct energy balance.
+            etr_gap_fill (bool): default True. If true fill any remaining gaps
+                in corrected ET with ETr * Kc, where ETr is reference ET from
+                gridMET and Kc is the smoothed (7 day moving avg. min 2 days) 
+                and linearly interpolated crop coefficient. The number of days
+                in each month that corrected ET are filled will is provided in
+                :attr:`QaQc.monthly_df` as the column "et_gap".
         
         Returns
             None
@@ -642,7 +648,8 @@ class QaQc(Plot):
         # calculate raw, corrected ET 
         self._calc_et()
         # fill gaps of corr ET with ET from smoothed and gap filled Kc*ETr
-        self._ETr_gap_fill()
+        if etr_gap_fill:
+            self._ETr_gap_fill()
 
         # update inv map for naming
         self.inv_map = {
@@ -691,7 +698,7 @@ class QaQc(Plot):
 
         # calc Kc 7 day moving average, min vals in window = 2, linear interp
         df = self.df.rename(columns=self.inv_map)
-        df['Kc'] = df[et_name] / df.gridMET_etr_mm
+        df['Kc'] = df[et_name].astype(float) / df.gridMET_etr_mm.astype(float)
         df['Kc_7day_mean'] = df.Kc.rolling(7, min_periods=2, center=True).mean()
         df.Kc_7day_mean = df.Kc_7day_mean.interpolate(method='linear')
         # calc ET from Kc and ETr
@@ -700,6 +707,11 @@ class QaQc(Plot):
         df['et_gap'] = False
         df.loc[(df[et_name].isna() & df.et_fill.notna()), 'et_gap'] = True
         df.loc[df.et_gap, et_name] = df.et_fill
+        # TODO: in order to see difference between gap filled and not need
+        # to backcalculate LE_corr and flux_corr from gap filled et_corr
+        # same for LE_user_corr if et_name is et_user_corr... here
+        # e.g. if et_name' == 'et_corr' and 'LE_corr' in self.variables: ...
+
         # et fill values only where they were used to gap fill, for plotting
         df['et_fill_val'] = np.nan
         df.loc[df.et_gap , 'et_fill_val'] = df.et_fill
