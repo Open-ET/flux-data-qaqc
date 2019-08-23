@@ -3,9 +3,9 @@ import re
 import numpy as np
 from bokeh import models
 from bokeh.palettes import Viridis256
-from bokeh.layouts import gridplot
+from bokeh.layouts import gridplot, column
 from bokeh.plotting import figure, ColumnDataSource, output_file, show, save
-from bokeh.models import HoverTool, Label
+from bokeh.models import HoverTool, Div
 from bokeh.models.formatters import DatetimeTickFormatter
 from pathlib import Path
 
@@ -59,6 +59,9 @@ class Plot(object):
         xd = source.data[x].astype(float)
         yd = source.data[y].astype(float)
         mask = (~np.isnan(xd) & ~np.isnan(yd))
+        if not mask.any():
+            print('WARNING: cannot plot {} because no paired data'.format(name))
+            return
         xd = xd[mask]
         yd = yd[mask]
         # ordinary least squares linear regression slope through zero
@@ -93,8 +96,9 @@ class Plot(object):
                     fig.hover[0].tooltips.append(t)
         fig.hover[0].names.append(name)
         fig.legend.location = "top_left"
-
-        return xd.min(), xd.max()
+        
+        if xd.size > 0:
+            return xd.min(), xd.max()
 
     @staticmethod
     def add_lines(fig, df, plt_vars, colors, x_name, source, 
@@ -120,7 +124,9 @@ class Plot(object):
 
         return ret
 
-    def _plot(self, QaQc, ncols=1, output_type='save', out_file=None): 
+    def _plot(self, QaQc, ncols=1, output_type='save', out_file=None, 
+            suptitle=None, plot_width=1000, plot_height=450, 
+            sizing_mode='scale_both', merge_tools=False, **kwargs): 
         """ 
         Private routine for aggregated validation plots which are called by
         default using the :meth:`fluxdataqaqc.QaQc.plot` method. Full API
@@ -149,7 +155,6 @@ class Plot(object):
         daily_figs = []
         monthly_figs = []
 
-        # run through each plot, daily then monthly versions
         def _get_units(plt_vars, units):
             """
             Helper function to figure out units for multivariate plots.
@@ -177,6 +182,7 @@ class Plot(object):
             return ret
 
 
+        # run through each plot, daily then monthly versions
         #### 
         # energy balance time series plots
         #### 
@@ -185,7 +191,10 @@ class Plot(object):
         title = 'Daily Surface Energy Balance Components'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height
+        )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
         )
@@ -193,7 +202,9 @@ class Plot(object):
             daily_figs.append(fig)
             # same for monthly fig
             title = 'Monthly Surface Energy Balance Components'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title,
+                width=plot_width, height=plot_height
+            )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=plt_vars
@@ -214,7 +225,9 @@ class Plot(object):
         title = 'Daily Incoming Shortwave and ASCE Potential Radiation'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height
+        )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=labels
         )
@@ -222,7 +235,9 @@ class Plot(object):
             daily_figs.append(fig)
             # same for monthly fig
             title = 'Monthly Incoming Shortwave and ASCE Potential Radiation'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title,
+                width=plot_width, height=plot_height
+            )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=labels
@@ -242,7 +257,10 @@ class Plot(object):
         title = 'Daily Radiation Components'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height
+        )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
         )
@@ -250,7 +268,10 @@ class Plot(object):
             daily_figs.append(fig)
             # same for monthly fig
             title = 'Monthly Radiation Components'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_height
+            )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=plt_vars
@@ -269,13 +290,19 @@ class Plot(object):
         title = 'Daily Average Air Temperature'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height
+        )
         fig = Plot.add_lines(fig, df, plt_vars, colors, x_label, daily_source)
         if fig is not None:
             daily_figs.append(fig)
             # same for monthly fig
             title = 'Monthly Average Air Temperature'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label,title=title,
+                width=plot_width, height=plot_height
+            )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source
             )
@@ -294,7 +321,10 @@ class Plot(object):
         title = 'Daily Average Vapor Pressure and Deficit'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height
+        )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
         )
@@ -302,7 +332,10 @@ class Plot(object):
             daily_figs.append(fig)
             # same for monthly fig
             title = 'Monthly Average Vapor Pressure'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_height
+            )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=plt_vars
@@ -319,13 +352,19 @@ class Plot(object):
         title = 'Daily Average Windspeed'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height
+        )
         fig = Plot.add_lines(fig, df, plt_vars, colors, x_label, daily_source)
         if fig is not None:
             daily_figs.append(fig)
             # same for monthly fig
             title = 'Monthly Average Windspeed'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_height
+            )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source
             )
@@ -342,7 +381,10 @@ class Plot(object):
         title = 'Daily Station and gridMET Precipitation'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height
+        )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=labels
         )
@@ -350,7 +392,10 @@ class Plot(object):
             daily_figs.append(fig)
             # same for monthly fig
             title = 'Monthly Station and gridMET precipitation'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_height
+            )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=labels
@@ -367,7 +412,10 @@ class Plot(object):
         title = 'Daily Average Latent Energy Flux'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height
+        )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
         )
@@ -375,7 +423,10 @@ class Plot(object):
             daily_figs.append(fig)
             # same for monthly fig
             title = 'Monthly Average Vapor Pressure'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_height
+            )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=plt_vars
@@ -392,7 +443,10 @@ class Plot(object):
         title = 'Daily Evapotranspiration'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height
+        )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
         )
@@ -400,7 +454,10 @@ class Plot(object):
             daily_figs.append(fig)
             # same for monthly fig
             title = 'Monthly Evapotranspiration'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_height
+            )
             # do not sum et_fill_val (gap filled with etr*kc) instead ndays fill
             plt_vars[3] = 'et_gap'
             labels = plt_vars[0:3] + ['days_filled']
@@ -422,7 +479,10 @@ class Plot(object):
         title = 'Daily Crop Coefficient (Kc)'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height
+        )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
         )
@@ -430,7 +490,10 @@ class Plot(object):
             daily_figs.append(fig)
             # same for monthly fig
             title = 'Monthly Crop Coefficient (Kc)'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_height
+            )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=plt_vars
@@ -455,7 +518,10 @@ class Plot(object):
                 labels.append(plt_vars[i] + added_text)
             else:
                 labels.append(None)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height
+        )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=labels
         )
@@ -473,7 +539,10 @@ class Plot(object):
                     labels.append(plt_vars[i] + added_text)
                 else:
                     labels.append(None)
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_height
+            )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=labels
@@ -488,12 +557,15 @@ class Plot(object):
         #### 
         # energy balance closure scatter plots
         #### 
-        title = 'Daily Energy Balance Closure, Energy versus Flux with Slope '\
-            'Through Zero'
+        title = 'Daily Energy Balance Closure, Energy Versus Flux with Slope '\
+            'Through Origin'
         unit = _get_units(['LE', 'H', 'Rn', 'G'], units)
         y_label = 'LE + H ({})'.format(unit)
         x_label = 'Rn - G ({})'.format(unit)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_width
+        )
         y_vars = ['flux', 'flux_corr', 'flux_user_corr']
         colors = ['black', 'red', 'darkred']
         labels = ['init', 'corr', 'user_corr']
@@ -506,7 +578,8 @@ class Plot(object):
                 min_max = Plot.scatter_plot(
                     fig, 'energy', v, daily_source, colors[i], label=labels[i]
                 )
-                mins_maxs.append(min_max)
+                if min_max is not None:
+                    mins_maxs.append(min_max)
         if n_vars_fnd > 0:
             # add scaled one to one line
             mins_maxs = np.array(mins_maxs)
@@ -517,9 +590,12 @@ class Plot(object):
             )
             daily_figs.append(fig)
             # same for monthly fig
-            title = 'Monthly Energy Balance Closure, Energy versus Flux '\
-                'with Slope Through Zero'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            title = 'Monthly Energy Balance Closure, Energy Versus Flux '\
+                'with Slope Through Origin'
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_width
+            )
             mins_maxs = []
             for i, v in enumerate(y_vars):
                 if v in monthly_df.columns:
@@ -527,7 +603,8 @@ class Plot(object):
                         fig, 'energy', v, monthly_source, colors[i], 
                         label=labels[i]
                     )
-                    mins_maxs.append(min_max)
+                    if min_max is not None:
+                        mins_maxs.append(min_max)
             mins_maxs = np.array(mins_maxs)
             one2one_vals = np.arange(min(mins_maxs[:,0]), max(mins_maxs[:,1]),1)
             fig.line(
@@ -542,11 +619,14 @@ class Plot(object):
         #### 
         # latent energy scatter plots
         #### 
-        title = 'Daily Latent Energy, Initial versus Corrected'
+        title = 'Daily Latent Energy, Initial Versus Corrected'
         unit = _get_units(['LE', 'LE_corr', 'LE_user_corr'], units)
         y_label = 'corrected ({})'.format(unit)
         x_label = 'initial ({})'.format(unit)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_width
+        )
         y_vars = ['LE_corr', 'LE_user_corr']
         colors = ['red', 'darkred']
         labels = ['corr', 'user_corr']
@@ -570,8 +650,11 @@ class Plot(object):
             )
             daily_figs.append(fig)
             # same for monthly fig
-            title = 'Monthly Latent Energy, Initial versus Corrected'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            title = 'Monthly Latent Energy, Initial Versus Corrected'
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_width
+            )
             mins_maxs = []
             for i, v in enumerate(y_vars):
                 if v in monthly_df.columns:
@@ -593,11 +676,14 @@ class Plot(object):
         #### 
         # ET scatter plots
         #### 
-        title = 'Daily Evapotranspiration, Initial versus Corrected'
+        title = 'Daily Evapotranspiration, Initial Versus Corrected'
         unit = _get_units(['et', 'et_corr', 'et_user_corr'], units)
         y_label = 'corrected ({})'.format(unit)
         x_label = 'initial ({})'.format(unit)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_width
+        )
         y_vars = ['et_corr', 'et_user_corr']
         colors = ['red', 'darkred']
         labels = ['corr', 'user_corr']
@@ -621,8 +707,11 @@ class Plot(object):
             )
             daily_figs.append(fig)
             # same for monthly fig
-            title = 'Monthly Evapotranspiration, Initial versus Corrected'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title)
+            title = 'Monthly Evapotranspiration, Initial Versus Corrected'
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_width
+            )
             mins_maxs = []
             for i, v in enumerate(y_vars):
                 if v in monthly_df.columns:
@@ -660,7 +749,10 @@ class Plot(object):
             title = 'Daily Soil Moisture (Multiple Sensors)'
             x_label = 'date'
             y_label = _get_units(g_vars, units)
-            fig = figure(x_axis_label=x_label,y_axis_label=y_label,title=title)
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                plot_width=plot_width, plot_height=plot_height
+            )
             fig = Plot.add_lines(
                 fig, tmp_df, plt_vars, colors, x_label, tmp_source, 
                 labels=plt_vars
@@ -672,7 +764,8 @@ class Plot(object):
                 tmp_source = ColumnDataSource(tmp_df)
                 title = 'Monthly Soil Moisture (Multiple Sensors)'
                 fig = figure(
-                    x_axis_label=x_label, y_axis_label=y_label,title=title
+                    x_axis_label=x_label, y_axis_label=y_label,title=title,
+                    plot_width=plot_width, plot_height=plot_height
                 )
                 fig = Plot.add_lines(
                     fig, tmp_df, plt_vars, colors, x_label, tmp_source,
@@ -700,7 +793,10 @@ class Plot(object):
             title = 'Daily Soil Moisture (Multiple Sensors)'
             x_label = 'date'
             y_label = _get_units(theta_vars, units)
-            fig = figure(x_axis_label=x_label,y_axis_label=y_label,title=title)
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                plot_width=plot_width, plot_height=plot_height
+            )
             fig = Plot.add_lines(
                 fig, tmp_df, plt_vars, colors, x_label, tmp_source, 
                 labels=plt_vars
@@ -712,7 +808,8 @@ class Plot(object):
                 tmp_source = ColumnDataSource(tmp_df)
                 title = 'Monthly Soil Moisture (Multiple Sensors)'
                 fig = figure(
-                    x_axis_label=x_label, y_axis_label=y_label,title=title
+                    x_axis_label=x_label, y_axis_label=y_label, title=title,
+                    plot_width=plot_width, plot_height=plot_height
                 )
                 fig = Plot.add_lines(
                     fig, tmp_df, plt_vars, colors, x_label, tmp_source,
@@ -722,20 +819,16 @@ class Plot(object):
             # do not print warning if missing multiple soil moisture recordings
 
 
-
-
-        ####
         # Aggregate plots and output depending on options
-        ####
         figs = daily_figs + monthly_figs
         # remove None values in list 
         figs = list(filter(None, figs))
         grid = gridplot(
-            figs, ncols=ncols, plot_width=450, plot_height=450, 
-            sizing_mode='scale_width'
+            figs, ncols=ncols, plot_width=None, plot_height=None, 
+            sizing_mode=sizing_mode, merge_tools=merge_tools, **kwargs
         )
         if output_type == 'show':
-            show(grid)
+            show(column(Div(text=suptitle),grid))
         elif output_type == 'save':
-            save(grid)
+            save(column(Div(text=suptitle),grid))
 

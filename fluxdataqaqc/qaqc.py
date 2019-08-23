@@ -706,11 +706,19 @@ class QaQc(Plot):
         # flag days in corrected ET that are missing and sum for each month
         df['et_gap'] = False
         df.loc[(df[et_name].isna() & df.et_fill.notna()), 'et_gap'] = True
-        df.loc[df.et_gap, et_name] = df.et_fill
-        # TODO: in order to see difference between gap filled and not need
-        # to backcalculate LE_corr and flux_corr from gap filled et_corr
-        # same for LE_user_corr if et_name is et_user_corr... here
-        # e.g. if et_name' == 'et_corr' and 'LE_corr' in self.variables: ...
+        df.loc[df.et_gap, et_name] = df.loc[df.et_gap, 'et_fill']
+        # in order to see difference between gap filled and not need
+        # to backcalculate LE_corr and flux_corr with gap filled et_corr
+        # not doing LE_user_corr if et_name is et_user_corr because not our meth
+        if et_name == 'et_corr' and 't_avg' in self.variables:
+            df['LE_corr'] =\
+                (df.et_corr * (2501000 - 2361 * df.t_avg.fillna(20))) / 86400
+            df['flux_corr'] = df.LE_corr + df.H_corr
+        # assume 20 degrees C
+        elif et_name == 'et_corr' and not 't_avg' in self.variables:
+            df['LE_corr'] =\
+                (df.et_corr * (2501000 - 2361 * 20)) / 86400
+            df['flux_corr'] = df.LE_corr + df.H_corr
 
         # et fill values only where they were used to gap fill, for plotting
         df['et_fill_val'] = np.nan
@@ -752,12 +760,13 @@ class QaQc(Plot):
         
         # LH from L.P. Harrison (1963)
         if 't_avg' in df.columns:
-            df['et'] = 86400 * (df.LE/(2501000 - (2361 * df.t_avg)))
+            df['et'] = 86400 * (df.LE/(2501000 - (2361 * df.t_avg.fillna(20))))
             if 'LE_corr' in df.columns:
-                df['et_corr']=86400 * (df.LE_corr/(2501000 - (2361 * df.t_avg)))
+                df['et_corr']=\
+                    86400 * (df.LE_corr/(2501000 - (2361*df.t_avg.fillna(20))))
             if 'LE_user_corr' in df.columns:
                 df['et_user_corr'] =\
-                    86400*(df.LE_user_corr/(2501000 - (2361 * df.t_avg)))
+                    86400*(df.LE_user_corr/(2501000-(2361*df.t_avg.fillna(20))))
         # otherwise assume air temp = 20 degrees C
         else:
             df['et'] = 86400 * (df.LE/(2501000 - (2361 * 20)))
@@ -1045,12 +1054,16 @@ class QaQc(Plot):
         # update flag for other methods
         self.corrected = True
 
-    def plot(self, ncols=1, group='all', output_type='save', out_file=None):
+    def plot(self, ncols=1, group='all', output_type='save', out_file=None,
+            suptitle=None, plot_width=1000, plot_height=450, 
+            sizing_mode='scale_both', merge_tools=False, **kwargs):
         """
         """
         # create aggregrated plot structure from fluxdataqaqc.Plot._plot() 
         self._plot(
-            self, ncols=ncols, output_type=output_type, out_file=out_file
+            self, ncols=ncols, output_type=output_type, out_file=out_file,
+            suptitle=suptitle, plot_width=plot_width, plot_height=plot_height,
+            sizing_mode=sizing_mode, merge_tools=merge_tools, **kwargs
         )
 
 def _drop_cols(df, cols):
