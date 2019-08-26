@@ -1,5 +1,25 @@
-Explanation of Energy Balance Ratio correction for adjusting turbulent heat fluxes
-----------------------------------------------------------------------------------
+Closure Methodologies
+=====================
+
+``flux-data-qaqc`` currently provides two routines for adjusting turbulent
+fluxes in order to improve energy balance closure of eddy covariance tower
+data, the Energy Balance Ratio and the Bowen Ratio method. 
+
+Closure methods are assigned as keyword arguments to the 
+:meth:`fluxdataqaqc.QaQc.correct_data` method, and for a list of provided 
+closure options see :attr:`fluxdataqaqc.QaQc.corr_methods`.
+For example, if you would like to run the Bowen Ratio correction routine
+assuming you have succesfully created a :obj:`QaQc` object, assign 'br' to
+the ``meth`` keyword argument, i.e.,
+
+.. code-block:: python
+
+    # q is a QaQc instance
+    q.correct_data(meth='br')
+
+
+Energy Balance Ratio method
+---------------------------
 
 The Energy Balance Ratio method (default) is modified from the `FLUXNET
 methodology <https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`__
@@ -162,9 +182,9 @@ used to calculate corrected :math:`ET` (:math:`ET_{corr}`) using
 :math:`LE_{corr}`.
 
 Note, in ``flux-data-qaqc`` new variable names from these steps are: LE_corr,
-H_corr, ebc_cf, et, et_corr, ebr_corr, and ebr_5day_clim. The inverse of the
-corrected EBR (filtered and smoothed from previous steps) is named ebc_cf
-which is short for energy balance closure correction factor as described by
+H_corr, ebr, ebr_corr, ebc_cf, et, et_corr, ebr_corr, and ebr_5day_clim. The
+inverse of the corrected EBR (filtered and smoothed from previous steps) is 
+named ebc_cf which is short for energy balance closure correction factor as described by
 the `FLUXNET
 methodology <https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`__
 (step 3 daily heat processing).
@@ -203,4 +223,29 @@ values indicating which days in the initial (from step 8) time series of
 :math:`ET_{corr}` were gaps.
 
 
+Bowen Ratio method
+------------------
+
+The Bowen Ratio energy balance closure correction method implemented
+here follows the typical approach where the corrected latent energy
+(:math:`LE`) and sensible heat (:math:`H`) fluxes are adjusted the
+following way
+
+.. math::  LE_{corr} = \frac{(Rn - G)}{(1 + \beta)}, 
+
+\ and
+
+.. math::  H_{corr} = LE_{corr} \times \beta 
+
+where :math:`\beta` is the Bowen Ratio, the ratio of sensible heat flux
+to latent energy flux,
+
+.. math:: \beta = \frac{H}{LE}.
+
+This routine forces energy balance closure for each day in the time
+series.
+
+New variables produced by ``flux-data-qaqc`` by this method include: br
+(Bowen Ratio), ebr, ebr_corr, LE_corr, H_corr, energy, flux, and
+flux_corr.
 
