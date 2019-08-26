@@ -44,6 +44,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.coverage',
     'sphinx.ext.mathjax',
+    'sphinx.ext.napoleon',
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
@@ -76,13 +77,17 @@ exclude_patterns = []
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = None
 
+# references to functions- hide parentheses inline
+add_function_parentheses = False
 
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+#html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
+html_theme_path = ["_themes", ]
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -105,6 +110,8 @@ html_static_path = ['_static']
 #
 # html_sidebars = {}
 
+# .ico 16*16 or 32*32
+html_favicon = '_static/favicon.ico'
 
 # -- Options for HTMLHelp output ---------------------------------------------
 
@@ -186,4 +193,19 @@ epub_exclude_files = ['search.html']
 # -- Options for intersphinx extension ---------------------------------------
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/': None}
+intersphinx_mapping = {
+    'bokeh': ('https://bokeh.pydata.org/en/latest', None),
+    'sphinx': ('http://www.sphinx-doc.org/en/stable', None),
+    'python': ('https://docs.python.org/3', None),
+    'matplotlib': ('https://matplotlib.org', None),
+    'numpy': ('https://docs.scipy.org/doc/numpy', None),
+    'pandas': ('http://pandas.pydata.org/pandas-docs/stable', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy/reference', None),
+}
+
+# toggle on code blocks to remove prompt ">>> "
+def setup(app):
+    app.add_javascript('copybutton.js')
+    app.add_stylesheet('custom.css')
+    app.add_javascript("custom.js")
+    app.add_javascript("https://cdn.jsdelivr.net/npm/clipboard@1/dist/clipboard.min.js")

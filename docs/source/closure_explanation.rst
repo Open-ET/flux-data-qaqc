@@ -214,6 +214,15 @@ is the crop coefficient that is smoothed with a 7 day moving average
 over gaps. Gap days and monthly total number of gap filled days are
 tracked for post-processing.
 
+This step is used by default when running ``flux-data-qaqc`` energy balance
+closure correction routines, to disable it set the ``etr_gap_fill`` 
+argument of :meth:`QaQc.correct_data` to False, e.g.
+
+.. code-block:: python
+
+    # q is a QaQc instance
+    q.correct_data(meth='ebr', etr_gap_fill=False)
+
 Note, in ``flux-data-qaqc`` new variable names from this step are: Kc,
 Kc_7day_mean, gridMET_etr_mm, et_gap, et_fill, and et_fill_val. The
 difference between et_fill and et_fill_val is that the latter is masked
