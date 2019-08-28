@@ -1,38 +1,71 @@
 # -*- coding: utf-8 -*-
 """
-Read and load in fluxnet or other climate time series files.
+Read and manage time series and metadata within ``flux-data-qaqc`` module
 """
 
 import configparser as cp
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from .plot import Plot
 
-
-class Data(object):
+class Data(Plot):
     """
-    Read a climate station time series file using a config file.
+    An object for interfacing ``flux-data-qaqc`` with input metadata (config)
+    and time series input, it provides methods and attributes for 
+    parsing, temporal analysis, visualization, and filtering data.
+    
+    A ``Data`` object is initialized from a config file which contains metadata
+    for an eddy covariance tower or other dataset containing time series
+    meterological data. It serves as a starting point in the Python API of the
+    energy balance closure analysis and data validation routines that are
+    provided by ``flux-data-qaqc``. 
+    
+    Manual pre-filtering of data based on user-defined quality is aided with
+    the :meth:`Data.apply_qc_flags` method.  Weighted or non-weighted means of
+    variables with multiple sensors/recordings is performed upon initialization
+    if these options are declared in the config file. The ``Data`` class also
+    includes the :attr:`Data.df` property which returns the time series data in
+    the form of a :obj:`pandas.DataFrame` object for custom workflows. ``Data``
+    inherits line and scatter plot methods from :obj:`.Plot` which allows for
+    the creation of interactive visualizations of input time series data.
 
-    Upon reading a config file for a specific climate station dataset the 
-    ``Data`` class stores metadata on climate variables in file, their units, 
-    and file path. Methods include tools to load climate time series data into a
-    :obj:`pandas.DataFrame` and convert units if needed.
+    Attributes:
+        climate_file (pathlib.Path): Absolute path to climate input file.
+        config (:obj:`configparser.ConfigParser`): Config parser instance
+            created from the data within the config.ini file.
+        config_file (:obj:`pathlib.Path`): Absolute path to config.ini file 
+            used for initialization of :obj:`Data` instance. 
+        header (:obj:`numpy.ndarray` or :obj:`pandas.DataFrame.index`): 
+            Header as found in input climate file.
+        elevation (float): Site elevation in meters as set in config.ini.
+        inv_map (dict): Dictionary with input climate file names as keys and 
+            internal names as values. May only include pairs when they differ.
+        latitude (float): Site latitude in decimal degrees, set in config.
+        longitude (float): Site longitude in decimal degrees, set in config.
+        out_dir (pathlib.Path): Path to directory to save output by default
+            when using :meth:`.QaQc.write` or :meth:`.QaQc.plot`.
+        site_id (str): Site ID as found in site_id config.ini entry.
+        soil_var_weight_pairs (dict): Dictionary with names and weights for
+            weighted averaging of soil heat flux or soil moisture variables.
+        qc_var_pairs (dict): Dictionary with variable names as keys and QC
+            value columns (numeric of characters) as values.
+        units (dict): Dictionary with internal variable names as keys and 
+            units as found in config as values.
+        variables (dict): Dictionary with internal variable names as keys and 
+            input climate file names as values.
+        variable_names_dict (dict): Dictionary with internal variable names
+            as keys and keys in config.ini file as values.
 
-    Note:
-        Path to climate time series file specified in the config_file should
-        be relative to the config file's location.
 
     TODO:
-     * verify/update input variable units
+     * verify/update input variable units, for now input energy balance variables must be in w/m2 and temperature in degrees celcius
     """
 
     # maps internal names to config names for variables
     # updated with user's column names in instance attribute "variables"
     variable_names_dict = {
         'date' : 'datestring_col',
-        'year' : 'year_col',
-        'month' : 'month_col',
-        'day' : 'day_col',
         'Rn' : 'net_radiation_col',
         'G' : 'ground_flux_col',
         'LE' : 'latent_heat_flux_col',
@@ -55,8 +88,8 @@ class Data(object):
 
         self.config_file = Path(config).absolute()
         self.config = self._load_config(self.config_file)
-        self.variables = self.get_config_vars()
-        self.units = self.get_config_units()
+        self.variables = self._get_config_vars()
+        self.units = self._get_config_units()
         self.na_val = self.config.get('METADATA', 'missing_data_value')
         # try to parse na_val as numeric 
         try:
@@ -160,7 +193,7 @@ class Data(object):
 
         return soil_var_weight_pairs
 
-    def get_config_vars(self):
+    def _get_config_vars(self):
         """
         Read config data section and get names of all variables, pair with
         internal variable names in a dictionary.
@@ -210,7 +243,7 @@ class Data(object):
 
         return variables
     
-    def get_config_units(self):
+    def _get_config_units(self):
         """
         Get units from config file, pair with var names and store in dictionary.
 
@@ -227,7 +260,7 @@ class Data(object):
 
         Note:
             Parsing of correct units and conversion if needed is performed
-            in the :obj:`fluxdataqaqc.QaQc` class. Also, if units are not given
+            in the :obj:`.QaQc` class. Also, if units are not given
             in the config file a warning message is printed and the units are
             not included and thus will either need to be manually added later
             e.g. in Python by adding to :attr:`Data.units` or by adding them
@@ -337,25 +370,33 @@ class Data(object):
 
     def apply_qc_flags(self, threshold=None, flag=None):
         """
-        Use provided QC values or flags for climate variables to filter bad 
-        data by converting them to null values, updates the :attr:`Data.df`. 
+        Apply user-provided QC values or flags for climate variables to filter
+        poor-quality data by converting them to null values, updates 
+        :attr:`Data.df`. 
         
-        Specifically where the QC value is < `threshold` change the variables 
-        value for that date-time to null. For FLUXNET datasets the QC value for 
-        daily data is a fraction between 0 and 1 indicating the percentage 
-        of measured or good quality gap filled data used. The other option
-        is to use a column of flags, e.g. 'x' for bad data. 
+        Specifically where the QC value is < `threshold` change the variables
+        value for that date-time to null. The other option is to use a column
+        of flags, e.g. 'x' for data values to be filtered out. The threshold
+        value or flag may be specified in the config file's **METADATA**
+        section otherwise they should be assigned as keyword arguments here.
 
-        The threshold value or flag may be also specified in the config file.
-
+        Specification of which QC (flag or numeric threshold) columns should be
+        applied to which variables is set in the **DATA** section of the config
+        file. For datasets with QC value columns with names identical to the
+        variable they correspond to with the suffix "_QC" the QC column names
+        for each variable do not need to be specified in the config file. 
+        
+        For detailed explanation and examples see the "Configuration Options"
+        section of the online documentation.
+        
         Keyword Arguments:
-            threshold (float): default None. Threshold for QC values, if flag
+            threshold (float): default :obj:`None`. Threshold for QC values, if flag
                 is below threshold replace that variables value with null.
-            flag (str, list, or tuple): default None. Character flag signifying 
+            flag (str, list, or tuple): default :obj:`None`. Character flag signifying 
                 bad data to filter out. Can be list or tuple of multiple flags.
 
         Returns:
-            None
+            :obj:`None`
 
         """
         # if QC threshold or flags not passed use values from config if exist
@@ -401,18 +442,101 @@ class Data(object):
     @property
     def df(self):
         """
-        Pulls energy balance variables out of config file and attempts to load 
-        them into a date-indexed pandas.DataFrame. 
+        Pull variables out of the config and climate time series files load 
+        them into a datetime-indexed :obj:`pandas.DataFrame`. 
 
-        Also read in any QC flag columns from input climate file if they exist
-        for later cleaning of data. The QC flags should have the same name as
-        the variables being used which are set in the config file. For example,
-        for FLUXNET data the gap filled variable for LE is LE_F_MDS and the
-        QC flag for that variable is LE_F_MDS_QC.        
+        Metadata about input time series file format: "missing_data_value",
+        "skiprows", and "date_parser" are utilized when first loading the
+        ``df`` into memory. Also, weighted and non-weighted averaging of
+        multiple measurements of the same climatic variable occurs on the first
+        call of :attr:`Data.df`, if these options are declared in the config
+        file. For more details and example uses of these config options please
+        see the "Configuration Options" section of the online documentation.
 
         Returns:
-            df (pandas.DataFrame): dataframe of all variables specified in 
-                config file, if not found they will be filled with NaNs.
+            df (:obj:`pandas.DataFrame`)
+
+        Examples:
+
+            You can utilize the df property as with any :obj:`pandas.DataFrame`
+            object. However, if you would like to make changes to the data you
+            must first make a copy, then make the changes and then reassign it
+            to :attr:`Data.df`, e.g. if you wanted to add 5 degrees to air temp.
+
+            >>> from fluxdataqaqc import Data
+            >>> d = Data('path_to_config.ini')
+            >>> df = d.df.copy()
+            >>> df['air_temp_column'] = df['air_temp_column'] + 5
+            >>> d.df = df
+            
+            The functionality shown above allows for user-controlled
+            preprocessing and modification of any time series data in the
+            initial dataset. It also allows for adding new columns but if
+            they are variables used by ``flux-data-qaqc`` e.g. Rn or other
+            energy balance variables, be sure to also update
+            :attr:`Data.variables` and :attr:`Data.units` with the appropriate
+            entries. New or modified values will be used in any further
+            analysis/ploting routines within ``flux-data-qaqc``.
+
+            By default the names of variables as found within input data are
+            retained in :attr:`QaQc.df`, however you can use the naming scheme
+            as ``flux-data-qaqc`` which can be viewed in 
+            :attr:`Data.variable_names_dict` by using the the 
+            :attr:`Data.inv_map` dictionary which maps names from user-defined
+            to internal names (as opposed to :attr:`Data.variables`) which
+            maps from internal names to user-defined. For example if your 
+            input data had the following names for LE, H, Rn, and G set in your
+            config::
+
+                [DATA]
+                net_radiation_col = Net radiation, W/m2
+                ground_flux_col = Soil-heat flux, W/m2
+                latent_heat_flux_col = Latent-heat flux, W/m2
+                sensible_heat_flux_col = Sensible-heat flux, W/m2
+
+            Then the :attr:`Data.df` will utilize the same names, e.g. 
+
+            >>> # d is a Data instance
+            >>> d.df.head()
+
+            produces:
+
+            ============== =================== ====================== ======================== ==================== 
+            date           Net radiation, W/m2 Latent-heat flux, W/m2 Sensible-heat flux, W/m2 Soil-heat flux, W/m2 
+            ============== =================== ====================== ======================== ==================== 
+            10/1/2009 0:00 -54.02421778        0.70761                0.95511                  -40.42365926         
+            10/1/2009 0:30 -51.07744708        0.04837                -1.24935                 -33.35383253         
+            10/1/2009 1:00 -50.99438925        0.68862                1.91101                  -43.17900525         
+            10/1/2009 1:30 -51.35032377        -1.85829               -15.4944                 -40.86201497         
+            10/1/2009 2:00 -51.06604228        -1.80485               -19.1357                 -39.80936855         
+            ============== =================== ====================== ======================== ====================
+
+            Here is how you could rename your dataframe using 
+            ``flux-data-qaqc`` internal names,
+
+            >>> d.df.rename(columns=q.inv_map).head()
+
+            ============== =================== ====================== ======================== ==================== 
+            date           Rn                  LE                     H                        G 
+            ============== =================== ====================== ======================== ==================== 
+            10/1/2009 0:00 -54.02421778        0.70761                0.95511                  -40.42365926         
+            10/1/2009 0:30 -51.07744708        0.04837                -1.24935                 -33.35383253         
+            10/1/2009 1:00 -50.99438925        0.68862                1.91101                  -43.17900525         
+            10/1/2009 1:30 -51.35032377        -1.85829               -15.4944                 -40.86201497         
+            10/1/2009 2:00 -51.06604228        -1.80485               -19.1357                 -39.80936855         
+            ============== =================== ====================== ======================== ====================
+
+            A minor note on variable naming, if your input data variables
+            use exactly the same names used by ``flux-data-qaqc``, they
+            will be renamed by adding the prefix "input\_", e.g. "G" becomes
+            "input_G" on the first time reading the data from disk, i.e. the
+            first time accessing :attr:`Data.df`.
+   
+
+        Note:
+            The temporal frequency of the input data is retained unlike the
+            :attr:`.Qaqc.df` which automatically resamples time series data to 
+            daily frequency.  
         """
 
         # avoid overwriting pre-assigned data

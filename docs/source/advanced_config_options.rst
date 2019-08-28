@@ -26,14 +26,14 @@ is from the FLUXNET 2015 dataset and can be downloaded
 `here <https://github.com/Open-ET/flux-data-qaqc/blob/master/examples/Basic_usage>`__.
 
 A reproducible Jupyter Notebook with minor differences of this tutorial can be found 
-`here <https://github.com/Open-ET/flux-data-qaqc/blob/master/examples/Config_options/advanced_config_options.ipynb>`__
+`here <https://github.com/Open-ET/flux-data-qaqc/blob/master/examples/Config_options/advanced_config_options.ipynb>`__.
 
 
 Seting up a config file
 -----------------------
 
-``flux-data-qaqc`` routines start with the reading of a configuration file
-with extension ".ini" or ".INI" that follows the rules set 
+``flux-data-qaqc`` start with the creation of a configuration file, a
+text file with extension ".ini" or ".INI" that follows the rules set 
 `here <https://docs.python.org/3/library/configparser.html#supported-ini-file-structure>`__.
 A config file for using ``flux-data-qaqc`` requires the sections: 1. **METADATA** 2. **DATA**
 although you may provide additional for custom uses. 
@@ -59,23 +59,20 @@ saving output files. Other metadata entries that are optional but used by
 “missing_data_value” is used to correctly parse missing values in the 
 input climate time series. All other optional metadata that can be used by
 ``flux-data-qaqc`` except "gridmet_file_path" (which is simply the path 
-to a file that is downloaded by :meth:`QaQc.download_gridMET`) are explained 
+to a file that is downloaded by :meth:`.QaQc.download_gridMET`) are explained 
 within this page.
 
 The **DATA** section of the config file is where you specify climate
-variables and their units. 
+variables and their units following the same approach explained above. 
 
 Here is a list of all the “expected” climate variable names in the
 **DATA** section of a config file, where keys are the keys in the config 
 file and values are the internal names used by ``flux-data-qaqc``. This list 
-can be accessed at any time from :attr:`Data.variable_names_dict`:
+can be accessed at any time from :attr:`.Data.variable_names_dict`:
 
    >>> from fluxdataqaqc import Data
    >>> Data.variable_names_dict
        {'datestring_col' : 'date' ,
-       'year_col' : 'year' ,
-       'month_col' : 'month' ,
-       'day_col' : 'day' ,
        'net_radiation_col' : 'Rn' ,
        'ground_flux_col' : 'G' ,
        'latent_heat_flux_col' : 'LE' ,
@@ -94,7 +91,7 @@ can be accessed at any time from :attr:`Data.variable_names_dict`:
        'wind_spd_col' : 'ws'}
 
 You may view these climate entry keys (as found in the config file) from within
-Python using the :attr:`Data.config` property which contains all information
+Python using the :attr:`.Data.config` property which contains all information
 listed in the config file as a :obj:`configparser.ConfigParser` instance.
 
     >>> config_path = 'USGS_config.ini'
@@ -136,7 +133,7 @@ listed in the config file as a :obj:`configparser.ConfigParser` instance.
         wind_spd_col
         wind_spd_units
 
-You can also access the data from the :attr:`Data.config` as a dictionary,
+You can also access the data from the :attr:`.Data.config` as a dictionary,
 for example if your **METADATA** section has an entry for "land_cover", e.g.
 
 .. parsed-literal::
@@ -245,7 +242,7 @@ Quality-based data filtering
 
 Currently ``flux-data-qaqc`` supports filtering out poor quality data
 based on user-provided quality control (QC) values (numeric) or flags 
-(characters) using the :meth:`Data.apply_qc_flags` method. This feature 
+(characters) using the :meth:`.Data.apply_qc_flags` method. This feature 
 helps to facilitate manual or semi-manual data filtering which is 
 sometimes necessary during data preprocessing.
 
@@ -273,10 +270,10 @@ and in the **DATA** section of your config you will state that the
    latent_heat_flux_qc = QC_flag
    sensible_heat_flux_qc = QC_flag
 
-Now, when the :meth:`Data.apply_qc_flags` method is used the all date
+Now, when the :meth:`.Data.apply_qc_flags` method is used the all date
 entries of LE and H that have a "QC_flag" value of 'b' will be forced 
-to null in the daily (:attr:`Data.df`) and monthly (:attr:`Data.monthly_df`)
-datasets of a :obj:`Data` instance. 
+to null in the daily (:attr:`.Data.df`) and monthly (:attr:`.Data.monthly_df`)
+datasets of a :obj:`.Data` instance. 
 
 Threshold-based filtering
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -324,8 +321,8 @@ days from incoming shorwave radiation,
 There is another option for specifying variables quality control
 values/flags. Name the column containing the qualtiy control value/flag
 in your input climate file the same as the variable it corresponds to
-with the suffix \**’_QC’\ **. For example if your sensible heat column
-was named**\ sens_h*\* then your qualtiy control column should be named
+with the suffix "_QC". For example if your sensible heat column 
+was named **sens_h** then your qualtiy control column should be named
 **sens_h_QC**. If you use this option you do not need to specify the 
 names in your config file. 
 
@@ -336,7 +333,7 @@ Below is an example using the provided FLUXNET 2015 file which includes its
 own qualtiy control flags for sensible heat and others. Note that if your datas
 qualtiy control header names follow this convention they will 
 automatically be detected and used when you apply them using 
-:meth:`Data.apply_qc_flags`.
+:meth:`.Data.apply_qc_flags`.
 
     >>> config_path = 'multiple_soilflux_config.ini'
     >>> d = Data(config_path)
@@ -351,7 +348,7 @@ View the list of string flags specified in the config file,
 
 
 
-The :attr:`Data.qc_var_pairs` attribute shows you which variables were found in your input file that have quality control values assigned, it uses the names as found in the input file,
+The :attr:`.Data.qc_var_pairs` attribute shows you which variables were found in your input file that have quality control values assigned, it uses the names as found in the input file,
 
     >>> d.qc_var_pairs
         {'LE': 'a_qc_value', 'H': 'a_qc_value', 'sw_in': 'swrad_flag'}
@@ -391,10 +388,10 @@ radiation.
 
 This is a good time to point out that ``flux-data-qaqc`` may change the
 names of your input variables if they exactly match the internal names
-used by the software (see :attr:`Data.variable_names_dict`, if this is 
+used by the software (see :attr:`.Data.variable_names_dict`, if this is 
 the case (as is above) a warning message is printed when reading in 
-the data (accessing the ``df`` or ``monthly_df`` properties of :obj:`Data`
-or :obj:`QaQc` for the first time) and the names will be modified with a
+the data (accessing the ``df`` or ``monthly_df`` properties of :obj:`.Data`
+or :obj:`.QaQc` for the first time) and the names will be modified with a
 prefix of "_input" as shown above.
 
 Here is a plot showing the data before and after applying the filter.
@@ -475,7 +472,7 @@ Verify that the QC columns have been paired with corresponding climate variables
 
 
 **Note,** for this dataset we did not specify a QC threshold or flag(s) in the config.
-We can assign it when calling the :meth:`Data.apply_qc_flags` method.
+We can assign it when calling the :meth:`.Data.apply_qc_flags` method.
 
     >>> # view the QC threshold specified in the config file
     >>> print(d.qc_threshold, type(d.qc_threshold))
@@ -569,7 +566,7 @@ and the sensible heat assignment in the **DATA** section would read:
 
 ``flux-data-qaqc`` will name the average in this case as H_mean, in general
 it will add the suffix "_mean" to the internal name of the variable used 
-by ``flux-data-qaqc`` which can be found in the keys of the :attr:`Data.variable_names_dict`
+by ``flux-data-qaqc`` which can be found in the keys of the :attr:`.Data.variable_names_dict`
 dictionary.
 
 **Note,** that because there is a comma in the last variable name we cannot
@@ -591,7 +588,7 @@ weighted or non weighted average, and write/plot their daily and monthly
 time series. Currently the weighted averaging is only provided for 
 soil heat flux and soil moisture variables, using this config option is also
 the only way to automatically produce time series plots of these variables
-when using :meth:`QaQc.plot`. This may be useful for comparing/validating multiple soil
+when using :meth:`.QaQc.plot`. This may be useful for comparing/validating multiple soil
 heat/moisture probes at varying locations or depths or varying
 instrumentation. 
 

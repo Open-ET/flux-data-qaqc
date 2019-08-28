@@ -746,7 +746,7 @@ class Plot(object):
             tmp_source = ColumnDataSource(tmp_df)
             plt_vars = list(rename_dict.values())
             colors = Viridis256[0:-1:int(256/num_lines)]
-            title = 'Daily Soil Moisture (Multiple Sensors)'
+            title = 'Daily Soil Heat Flux (Multiple Sensors)'
             x_label = 'date'
             y_label = _get_units(g_vars, units)
             fig = figure(
@@ -762,7 +762,7 @@ class Plot(object):
                 # same for monthly fig
                 tmp_df = monthly_df[g_vars].rename(columns=rename_dict)
                 tmp_source = ColumnDataSource(tmp_df)
-                title = 'Monthly Soil Moisture (Multiple Sensors)'
+                title = 'Monthly Soil Heat Flux (Multiple Sensors)'
                 fig = figure(
                     x_axis_label=x_label, y_axis_label=y_label,title=title,
                     plot_width=plot_width, plot_height=plot_height

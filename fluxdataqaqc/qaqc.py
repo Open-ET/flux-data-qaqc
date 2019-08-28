@@ -5,9 +5,6 @@ to improve energy balance closure.
 
 The default routine follows the procedure documented by `FLUXNET <https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`_ (see section 3. Heat Processing, Daily data). Other tools include estimation of ASCE clear sky 
 radiation, evapotranspiration, and other statistical variables. Input data can be either a :obj:`fluxdataqaqc.Data` instance or a :obj:`pandas.DataFrame`. 
-
-TODO: 
- * reading in of data for comparing ETr:ETo (gridMET)
 """
 
 

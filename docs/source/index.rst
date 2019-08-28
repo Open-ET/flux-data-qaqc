@@ -22,6 +22,7 @@ Notable tools include:
    install
    Configuration Options <advanced_config_options>
    Closure Algorithms <closure_explanation>
+   api
 
 Indices and tables
 ==================
