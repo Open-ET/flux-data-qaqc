@@ -11,9 +11,17 @@ from pathlib import Path
 
 class Plot(object):
     """
-    Container of plot routines of :mod:`fluxdataqaqc` including static methods 
-    that can be used to create  and update line and scatter plots from a 
-    :obj:`pandas.DataFrame` instance.
+    Container of plot routines of :mod:`fluxdataqaqc` including static methods
+    that can be used to create and update interactive line and scatter plots
+    from a :obj:`pandas.DataFrame` instance.  
+    
+    Note: 
+        The :obj:`.Data` and :obj:`.QaQc` objects both inherit all methods of
+        :obj:`Plot` therefore allowing them to be easily used for custom
+        interactive time series plots for data within input data (in
+        :any:`fluxdataqaqc.Data.df`) and daily and monthly data in
+        :attr:`fluxdataqaqc.QaQc.df` and :attr:`.QaQc.monthly_df`.
+
     """
 
     def __init__(self):
@@ -22,6 +30,69 @@ class Plot(object):
     @staticmethod
     def line_plot(fig, x, y, source, color, label=None,
             x_axis_type='date', **kwargs):
+        """
+        Add a single time series to a :obj:`bokeh.plotting.figure.Figure`
+        object using data from a datetime indexed :obj:`pandas.DataFrame` with
+        an interactive hover tool. 
+
+        Interactive hover shows the values of all time series data and date
+        that is added to the figure.
+
+        Arguments:
+            fig (:obj:`bokeh.plotting.figure.Figure`): a figure instance to add 
+                the line to.
+            x (str): name of the datetime index or column in the 
+                :obj:`pandas.DataFrame` containing data to plot.
+            y (str): name of the column in the :obj:`pandas.DataFrame` to plot.
+            source (:obj:`bokeh.models.sources.ColumnDataSource`): column data 
+                source created from the :obj:`pandas.DataFrame` with data to 
+                plot.
+            color (str): color of plot line, see Bokeh for color options.
+            label (str or :obj:`None`): default :obj:`None`. Label for plot 
+                legend (for ``y``).
+            x_axis_type (:obj:`str` or :obj:`None`): default 'date'. If "date" 
+                then the x-axis will be formatted as month-day-year. 
+
+        Returns:
+            :obj:`None`
+
+        Example:
+
+            To use the :meth:`Plot.line_plot` function we first need to create
+            a :obj:`bokeh.models.sources.ColumnDataSource` from a
+            :obj:`pandas.DataFrame`. Let's say we want to plot the monthly time
+            series of corrected latent energy, starting from a config.ini file,
+
+            >>> from fluxdataqaqc import Data, QaQc, Plot
+            >>> d = Data('path/to/config.ini')
+            >>> q = QaQc(d)
+            >>> q.correct_data()
+            
+            Now the :obj:`.QaQc` should have the "LE_corr" (corrected latent
+            energy) column, we can now make a
+            :obj:`bokeh.models.sources.ColumnDataSource` from
+            :attr:`fluxdataqaqc.QaQc.df` or
+            :attr:`fluxdataqaqc.QaQc.monthly_df`,
+
+            >>> from bokeh.plotting import ColumnDataSource, figure, show
+            >>> source = ColumnDataSource(q.monthly_df)
+            >>> # create the figure before using line_plot
+            >>> fig = figure(x_axis_label='date', y_axis_label='Corrected LE')
+            >>> Plot.line_plot(
+            >>>     fig, 'date', 'LE_corr', source, color='red', line_width=3
+            >>> )
+            >>> show(fig)
+
+            Notice, ``line_width`` is not an argument to :meth:`Plot.line_plot`
+            but it is an acceptable keyword argument to
+            :obj:`bokeh.plotting.figure.Figure` and therefore will work as
+            expected.
+
+
+        Note:
+            This method is also available from the :obj:`.Data` and :obj:`.QaQc`
+            objects.
+        """
         if label is None:
             fig.line(x,y, source=source, color=color, **kwargs)
         else:
@@ -48,11 +119,68 @@ class Plot(object):
     def scatter_plot(fig, x, y, source, color, label='', 
             lsrl=True, date_name='date', **kwargs):
         """
+        Add paired time series data to an interactive Bokeh scatter plot 
+        :obj:`bokeh.plotting.figure.Figure`.
+
+        Handles missing data points (gaps) by masking out indices in ``x`` and
+        ``y`` where one or both are null. The ``lsrl`` option adds the best
+        fit least squares linear regression line with y-intercept through zero
+        and reports the slope of the line in the figure legend. Interactive
+        hover shows the values of all paired (x,y) data and date that is added
+        to the figure. 
         
+        Returns:
+            (tuple): minimum and maximum ``x`` value of paired data which can be used for adding a one to one line to the figure later.
+
+        Example:
+
+            Let's say that we wanted to run the energy balance ratio closure
+            correction including gap filling with reference ET * crop
+            coefficient and then plot corrected ET versus the calculated ET
+            from reference ET (named "et_fill" in ``flux-data-qaqc``) which is
+            calculated on all days even those without gaps. Similar to
+            :meth:`Plot.line_plot` we first need to create a
+            :obj:`bokeh.models.sources.ColumnDataSource` from a
+            :obj:`pandas.DataFrame`. 
+
+            >>> from fluxdataqaqc import Data, QaQc
+            >>> d = Data('path/to/config.ini')
+            >>> q = QaQc(d)
+            >>> q.correct_data()
+            
+            Now the :obj:`.QaQc` instance should have the "et_corr" (corrected
+            ET) and "et_fill" (et calculated from reference ET and crop
+            coefficient) columns, we can now make a
+            :obj:`bokeh.models.sources.ColumnDataSource` from
+            :attr:`fluxdataqaqc.QaQc.df` or
+            :attr:`fluxdataqaqc.QaQc.monthly_df`,
+
+            >>> from bokeh.plotting import ColumnDataSource, figure, show
+            >>> df = q.df
+            >>> source = ColumnDataSource(df)
+            >>> fig = figure(
+            >>>     x_axis_label='ET, corrected', y_axis_label='ET, gap fill'
+            >>> )
+            >>> # note, we are calling this plot method from a QaQc instace
+            >>> q.scatter_plot(
+            >>>     fig, 'et_corr', 'et_fill', source, 'red', label='lslr'
+            >>> )
+            >>> show(fig)
+
+            The ``label`` keyword argument will be used in the legend and since
+            the least squares linear regression line between x and y is being
+            calculated the slope of the line will also be printed in the legend.
+            In this case, if the slope of the regression line is 0.94 then the 
+            legend will read "lslr, slope=0.94".
+
         Note:
-            If sending extra keyword arguments (for Bokeh) they will be passed
-            to the scatter plot but not to the least squares regression 
-            line plot.
+            Extra keyword arguments (accepted by
+            :obj:`bokeh.plotting.figure.Figure`) will be passed to the scatter
+            plot but not to the least squares regression line plot.
+
+        Note:
+            This method is also available from the :obj:`.Data` and :obj:`.QaQc`
+            objects.
         """
         name = '{}_vs_{}'.format(x,y)
         # remove pairs where one or both are nans, for LSRL and min/max-1:1
@@ -103,7 +231,68 @@ class Plot(object):
     @staticmethod
     def add_lines(fig, df, plt_vars, colors, x_name, source, 
             labels=None, **kwargs): 
-        """add multiple lines to line plot, if none exist return None"""
+        """
+        Add a multiple time series to a :obj:`bokeh.plotting.figure.Figure`
+        object using data from a datetime indexed :obj:`pandas.DataFrame` with
+        an interactive hover tool. 
+
+        Interactive hover shows the values of all time series data and date
+        that is added to the figure.
+
+        Arguments:
+            df (:obj:`pandas.DataFrame`): :obj:`pandas.DataFrame` containing 
+                time series data.
+            plt_vars (list): list of data columns in ``df`` to plot.
+            colors (list): list of line colors for variables in ``plt_vars``.
+            x_name (str): name of the x-axis variable, e.g. the datetime index,
+                in the :obj:`pandas.DataFrame` (``df``) containing data to plot.
+            source (:obj:`bokeh.models.sources.ColumnDataSource`): column data 
+                source created from the :obj:`pandas.DataFrame` with data to 
+                plot, i.e. ``df``.
+            labels (:obj:`list` or :obj:`None`): default :obj:`None`. Labels for
+                each plot variable in ``plt_vars``. 
+
+        Returns:
+            ret (:obj:`None` or :obj:`bokeh.plotting.figure.Figure`): if none of the variables in ``plt_vars`` are found in ``df`` then return :obj:`None` otherwise returns the updated figure. 
+
+        Example:
+
+            Similar to :meth:`Plot.line_plot` we first need to create a
+            :obj:`bokeh.models.sources.ColumnDataSource` from a
+            :obj:`pandas.DataFrame`. This example shows how to plot two
+            variables, daily corrected latent energy and sensible heat on the
+            same plot. 
+
+            >>> from fluxdataqaqc import Data, QaQc, Plot
+            >>> d = Data('path/to/config.ini')
+            >>> q = QaQc(d)
+            >>> q.correct_data()
+            
+            Now the :obj:`.QaQc` instance should have the "LE_corr" (corrected
+            latent energy) and "H_corr" (corrected sensible heat) columns, we
+            can now make a :obj:`bokeh.models.sources.ColumnDataSource` from
+            :attr:`fluxdataqaqc.QaQc.df` or
+            :attr:`fluxdataqaqc.QaQc.monthly_df`,
+
+            >>> from bokeh.plotting import ColumnDataSource, figure, show
+            >>> df = q.df
+            >>> plt_vars = ['LE_corr', 'H_corr']
+            >>> colors = ['blue', 'red']
+            >>> labels = ['LE', 'H']
+            >>> source = ColumnDataSource(df)
+            >>> fig = figure(
+            >>>     x_axis_label='date', y_axis_label='Corrected Turbulent Flux'
+            >>> )
+            >>> Plot.add_lines(
+            >>>     fig, df, plt_vars, colors, 'date', source, labels=labels
+            >>> )
+            >>> show(fig)
+
+        Note:
+            This method is also available from the :obj:`.Data` and :obj:`.QaQc`
+            objects.
+
+        """
         ret = None
         n_lines = 0
         for i, v in enumerate(plt_vars):
@@ -137,16 +326,20 @@ class Plot(object):
         monthly_df = QaQc.monthly_df.rename(columns=QaQc.inv_map) 
         variables = QaQc.variables
         units = QaQc.units 
-        if out_file is None:
+        if out_file is None and output_type == 'save':
             out_file = Path(QaQc.out_dir)/'{}_plots.html'.format(QaQc.site_id)
+            out_dir = out_file.parent
+            if not out_dir.is_dir():
+                out_dir.mkdir(parents=True, exist_ok=True)
         # add else statement to allow making any subdir that does not yet exist
         # if out_file is to a non-existent directory
-        else:
+        elif out_file is not None and output_type == 'save':
             out_dir = Path(out_file).parent
             if not out_dir.is_dir():
                 out_dir.mkdir(parents=True, exist_ok=True)
 
-        output_file(out_file)
+        if output_type == 'save':
+            output_file(out_file)
 
         # bokeh column sources for tooltips
         daily_source=ColumnDataSource(df)

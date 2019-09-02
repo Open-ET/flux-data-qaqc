@@ -142,7 +142,8 @@ for example if your **METADATA** section has an entry for "land_cover", e.g.
     land_cover = CROP
     ...
 
-You can access this value specifically knowing the config section and key name:
+then access this value with :meth:`configparser.ConfirParser.get` which returns 
+the value of "land_cover" in the config file's **METADATA** section
 
    >>> d.config.get('METADATA', 'land_cover')
        CROP
@@ -161,7 +162,7 @@ Input formatting and caveats
 Missing data
 ^^^^^^^^^^^^
 
-For reading certain values as null or missing data points assign the
+For parsing data gaps in input time series assign the
 “missing_data_value” to the **METADATA** section of the config file. 
 The value should be numeric, e.g.  
 
@@ -169,12 +170,11 @@ The value should be numeric, e.g.
 
     missing_data_value = -999
 
-If the input dataset does not contain all of expected climate variables 
-as found in in your data, if
-this is the case you may specify them as missing (‘na’) in your
-config file or simply do not list them. Missing variables will be ignored 
-for the most part and will not be present in output files/plots, however 
-if key variables for the energy balance are not present (LE, H, G, and Rn) 
+If the input time series file does not contain all climate variables 
+that are expeced by `flux-data-qaqc``, then specify them as missing (‘na’) 
+in the config file or simply do not list them in the config. Missing variables 
+will be ignored for the most part and will not be present in output files/plots, 
+however if key variables for the energy balance are not present (LE, H, G, and Rn) 
 then you will not be able to run energy balance closure correction routines.
 
 Data file format
@@ -396,7 +396,8 @@ prefix of "_input" as shown above.
 
 Here is a plot showing the data before and after applying the filter.
 
-
+    >>> from bokeh.plotting import ColumnDataSource, figure, show
+    >>> from bokeh.models.formatters import DatetimeTickFormatter
     >>> p = figure(x_axis_label='date', y_axis_label='swrad with data removed based on QC value')
     >>> p.line(no_qc_swrad.index, no_qc_swrad, color='red', legend="no flag", line_width=2)
     >>> p.line(no_qc_swrad.index, qc_flag_swrad, color='black', legend="flag = b or x", line_width=2)
@@ -487,6 +488,7 @@ everything seems correct. Below we see that the lowest QC values
 correspond with poor quality gap-fill data near the begining of the
 dataset.
 
+    >>> from bokeh.models import LinearAxis, Range1d
     >>> p = figure(x_axis_label='date', y_axis_label='sensible heat flux (w/m2)')
     >>> p.extra_y_ranges = {"sec": Range1d(start=-0.1, end=1.1)}
     >>> p.line(d.df.index, d.df['H_F_MDS'], color='red', line_width=1, legend='data')

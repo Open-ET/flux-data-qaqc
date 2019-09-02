@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
+""" 
+Tools for correcting energy-balance components to improve energy balance
+closure and other data management, validation and scientific analysis tools. 
 """
-Includes routines for 'correcting' turbulent surface energy-balance components 
-to improve energy balance closure. 
-
-The default routine follows the procedure documented by `FLUXNET <https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`_ (see section 3. Heat Processing, Daily data). Other tools include estimation of ASCE clear sky 
-radiation, evapotranspiration, and other statistical variables. Input data can be either a :obj:`fluxdataqaqc.Data` instance or a :obj:`pandas.DataFrame`. 
-"""
-
 
 from pathlib import Path
 
@@ -21,17 +17,30 @@ from .util import monthly_resample
 
 class QaQc(Plot):
     """
-    Numerical routines for adjusting or 'correcting' measured daily latent 
-    energy and sensible heat fluxes measured at an eddy covariance climate 
-    station which improve closure of the surface energy balance. 
+    Numerical routines for correcting daily energy balance closure 
+    for eddy covariance data and other data analysis tools.
     
-    The :obj:`QaQc` object has multiple options for loading of data, 
-    temporal frequency adjustments of data, estimation of climatic and 
-    statistical variables, and managing data and metadata with a file system.
-    Input data is expected to be a :obj:`fluxdataqaqc.data.Data` instance or a
-    :obj:`pandas.DataFrame` which can be used to create a :obj:`QaQc` object 
-    with the :meth:`QaQc.from_dataframe` method. Monthly and daily time series 
-    or raw or processed climatic data can be easily saved to disk.
+    Two routines are provided for improving energy balance closure by adjusting
+    turbulent fluxes, latent energy and sensible heat, the Energy Balance Ratio
+    method (modified from `FLUXNET
+    <https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`__)
+    and the Bowen Ratio method. 
+    
+    The :obj:`QaQc` object also has multiple tools for temporal frequency
+    aggregation and resampling, estimation of climatic and statistical
+    variables (e.g. ET and potential shortwave radiation), downloading gridMET
+    reference ET, managing data and metadata, interactive validation plots, and
+    managing a structure for input and output data files. Input data is
+    expected to be a :obj:`fluxdataqaqc.data.Data` instance or a
+    :obj:`pandas.DataFrame`. 
+    
+    Attributes:
+        agg_dict (dict): Dictionary with internal variable names as keys and
+            method of temporal resampling (e.g. "mean" or "sum") as values. 
+        corr_methods (tuple): List of Energy Balance Closure correction routines
+            usable by :meth:`QaQc.correct_data`.
+        gridMET_meta (dict): Dictionary with information for gridMET variables 
+            that may be downloaded using :meth:`QaQc.download_gridMET`.
 
     """
     # dictionary used for temporally aggregating variables
@@ -244,22 +253,22 @@ class QaQc(Plot):
     def download_gridMET(self, variables=None):
         """
         Download reference ET (alfalfa) and precipitation from gridMET for
-        days in flux station time series. Also has ability to download other
-        or specific gridMET variables by passing a list of gridMET variable
-        names. Possible names and their long form can be found in 
-        :attr:`QaQc.gridMET_meta`. 
+        all days in flux station time series by default. 
+        
+        Also has ability to download other specific gridMET variables by
+        passing a list of gridMET variable names. Possible variables and their
+        long form can be found in :attr:`QaQc.gridMET_meta`. 
 
         Upon download gridMET time series for the nearest gridMET cell will be
         merged into the instances dataframe attibute :attr:`QaQc.df` and all
-        gridMET variable names will have the prefix "gridMET_" for 
+        gridMET variable names will have the prefix "gridMET\_" for 
         identification. 
         
         The gridMET time series file will be saved to a subdirectory called
         "gridMET_data" within the directory that contains the config file
-        for the current :ob:`QaQc` instance and named with the site ID and 
+        for the current :obj:`QaQc` instance and named with the site ID and 
         gridMET cell centroid lat and long coordinates in decimal degrees.
         
-        Any previously downloaded gridMET time series will be overwritten.
         
         Arguments:
             variables (None, str, list, or tuple): default None. List of gridMET
@@ -269,8 +278,15 @@ class QaQc(Plot):
                 by this method.
 
         Returns:
-            None
+            :obj:`None`
 
+        Note: 
+            Any previously downloaded gridMET time series will be overwritten
+            when calling the method, however if using the the gap filling
+            method of the "ebr" correction routine the download will not
+            overwrite currently existing data so long as gridMET reference ET
+            and precipitation is on disk and its path is properly set in the
+            config file.
         
         """
         # opendap thredds server
@@ -408,6 +424,9 @@ class QaQc(Plot):
     
     @property     
     def df(self):
+        """
+        See :attr:`.Data.df`.
+        """
         # avoid overwriting pre-assigned data
         if isinstance(self._df, pd.DataFrame):
             return self._df.rename(columns=self.variables)
@@ -428,16 +447,16 @@ class QaQc(Plot):
         75 percent of a months days are missing in the daily data 
         (:attr:`QaQc.df`).
 
-        If a :obj:`QaQc` instance has not yet run an energy balance correction 
-        i.e. :attr:`QaQc.corrected` = False before accessing :attr:`monthly_df`
-        then the default routine of data correction (energy balance ratio 
-        method) will be conducted.
+        If a :obj:`QaQc` instance has not yet run an energy balance correction
+        i.e. :attr:`QaQc.corrected` = :obj:`False` before accessing
+        :attr:`monthly_df` then the default routine of data correction (energy
+        balance ratio method) will be conducted.
 
         Arguments:
-            None
+            :obj:`None`
 
         Returns:
-            None
+            :obj:`None`
 
         """
         if not self.corrected and self._has_eb_vars:
@@ -493,12 +512,13 @@ class QaQc(Plot):
         and one at monthly time frequencies. 
 
         Arguments:
-            out_dir (str or None): default None. Directory to save CSVs, if 
-                None save to :attr:`out_dir` instance variable (typically 
-                "output" directory where config.ini file exists).
+            out_dir (str or :obj:`None`): default :obj:`None`. Directory to 
+                save CSVs, if :obj:`None` save to :attr:`out_dir` instance 
+                variable (typically "output" directory where config.ini file 
+                exists).
 
         Returns:
-            None
+            :obj:`None`
 
         Note:
             If this method is used before correcting the data according to the
@@ -575,25 +595,30 @@ class QaQc(Plot):
 
     def correct_data(self, meth='ebr', etr_gap_fill=True):
         """
-        Correct turblent fluxes to close energy balance using different
-        methods, default 'ebr'. 
+        Correct turblent fluxes to improve energy balance closure using an
+        Energy Balance Ratio method modified from `FLUXNET
+        <https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`__. 
 
-        Currently two options are available: 'ebr' (Energy Balance Ratio) and 
-        'br' (Bowen Ratio). If you use one method followed by another corrected
-        versions of LE, H, et, and ebr will be overwritten with the most 
-        recently used approach. Also computes potential clear sky radiation 
-        (saved as *rso*) using the ASCE approach based on station elevation and 
+        Currently two correction options are available: 'ebr' (Energy Balance
+        Ratio) and 'br' (Bowen Ratio). If you use one method followed by
+        another corrected,the corrected versions of LE, H, et, ebr, etc. will
+        be overwritten with the most recently used approach. 
+        
+        This method also computes potential clear sky radiation 
+        (saved as "rso") using an ASCE approach based on station elevation and 
         latitude. ET is calculated from raw and corrected LE using daily air
         temperature to correct the latent heat of vaporization, if air temp. is
         not available in the input data then air temp. is assumed at 20 
         degrees celcius.
 
         Corrected or otherwise newly calculated variables are named using the
-        following suffixes to distinguish them::
+        following suffixes to distinguish them:
 
-          uncorrected LE, H, etc. from input data have no suffix
-          _corr uses adjusted LE, H, etc. from the correction method used 
-          _user_corr uses corrected LE, H, etc. found in data file (if provided)
+        .. code-block:: text
+
+            uncorrected LE, H, etc. from input data have no suffix
+            _corr uses adjusted LE, H, etc. from the correction method used 
+            _user_corr uses corrected LE, H, etc. found in data file (if provided)
 
         Keyword Arguments:
             meth (str): default 'ebr'. Method to correct energy balance.
@@ -604,8 +629,32 @@ class QaQc(Plot):
                 in each month that corrected ET are filled will is provided in
                 :attr:`QaQc.monthly_df` as the column "et_gap".
         
-        Returns
-            None
+        Returns:
+            :obj:`None`
+
+        Example:
+            Starting from a correctly formatted config.ini and climate time
+            series file, this example shows how to read in the data and apply
+            the energy balance ratio correction without gap-filling with 
+            reference ET.
+
+            >>> from fluxdataqaqc import Data, QaQc
+            >>> d = Data('path/to/config.ini')
+            >>> q = QaQc(d)
+            >>> q.corrected
+                False
+
+            Now apply the energy balance closure correction 
+
+            >>> q.correct_data(meth='ebr', etr_gap_fill=False)
+            >>> q.corrected
+                True
+
+        Note:
+            If ``etr_gap_fill`` is set to :obj:`True` (default) the gap filled
+            days of corrected ET will be used to recalculate LE_corr for those
+            days with the gap filled values, i.e. LE_corr will also be
+            gap-filled.
 
         Note:
             The *ebr_corr* variable or energy balance closure ratio is 
@@ -672,7 +721,7 @@ class QaQc(Plot):
                 calculated ET.
 
         Returns:
-            None
+            :obj:`None`
 
         """
         # get ETr if not on disk
@@ -750,7 +799,7 @@ class QaQc(Plot):
             None
 
         Returns:
-            None
+            :obj:`None`
         """
 
         # drop relavant calculated variables if they exist
@@ -792,10 +841,10 @@ class QaQc(Plot):
             None
 
         Returns:
-            None
+            :obj:`None`
 
         Note:
-            Does not overwrite existing calculation for rso, i.e. once any 
+            Does not overwrite existing calculation for Rso, i.e. once any 
             correction method has been run using :func:`correct_data` it will
             not be recalculated after subsequent calls since it is indepent of
             climate variables.
@@ -831,7 +880,7 @@ class QaQc(Plot):
             None
 
         Returns:
-            None
+            :obj:`None`
 
         """
         # moving windows FLUXNET methods 1, 2 and 3
@@ -1004,7 +1053,7 @@ class QaQc(Plot):
             None
 
         Returns:
-            None
+            :obj:`None`
         """
         # drop relavant calculated variables if they exist
         self._df = _drop_cols(self.df, self._eb_calc_vars)
@@ -1053,10 +1102,88 @@ class QaQc(Plot):
         # update flag for other methods
         self.corrected = True
 
-    def plot(self, ncols=1, group='all', output_type='save', out_file=None,
-            suptitle=None, plot_width=1000, plot_height=450, 
-            sizing_mode='scale_both', merge_tools=False, **kwargs):
+    def plot(self, ncols=1, output_type='save', out_file=None, suptitle=None, 
+            plot_width=1000, plot_height=450, sizing_mode='scale_both', 
+            merge_tools=False, **kwargs):
         """
+        Creates a series of interactive diagnostice line and scatter 
+        plots of input and computed daily and monthly aggregated data.
+
+        It is possible to change the format of the output plots including
+        adjusting the dimensions of subplots, defining the number of columns of
+        subplots, setting a super title that accepts HTML, and other options.
+        If variables are not present for plots they will not be created and a
+        warning message will be printed. There are two options for output: open
+        a temporary file for viewing or saving a copy to :attr:`QaQc.out_dir`.
+        
+        A list of all potential time series plots created: 
+        
+        * energy balance components 
+        * radiation components 
+        * incoming shortwave radiation with ASCE potential clear sky (daily only)
+        * multiple soil heat flux measurements
+        * air temperature
+        * vapor pressure and vapor pressure deficit
+        * wind speed
+        * station precipitation and gridMET precipitation
+        * initial and corrected latent energy
+        * initial, corrected, gap filled, and reference evapotranspiration
+        * crop coefficient and smoothed and interpolated crop coefficient
+        * initial and corrected energy balance ratio
+        * multiple soil moisture measurements
+
+        A list of all potential scatter plots created: 
+
+        * radiative versus turblent fluxes, initial and corrected
+        * initial versus corrected latent energy
+        * initial versus corrected evapotranspiration
+
+        Keyword Arguments:
+            ncols (int): default 1. Number of columns of subplots.
+            output_type (str): default "save". How to output plots, "save" or 
+                "show".
+            out_file (str or None): default :obj:`None`. Path to save output 
+                file, if :obj:`None` save output to :attr:`QaQc.out_dir` with 
+                the name [site_id]_plots.html where [site_id] is 
+                :attr:`QaQc.site_id`.
+            suptitle (str or None): default :obj:`None`. Super title to go 
+                above plots, accepts HTML/CSS syntax.
+            plot_width (int): default 1000. Width of subplots in pixels.
+            plot_height (int): default 450. Height of subplots in pixels, note 
+                for subplots the height will be forced as the same as 
+                ``plot_width``.
+            sizing_mode (str): default "scale_both". Bokeh option to scale
+                dimensions of :obj:`bokeh.layouts.gridplot`.
+            merge_tools (bool): default False. Merges all subplots toolbars into
+                a single location if True.
+
+        Example:
+            
+            Starting from a correctly formatted config.ini and climate time
+            series file, this example shows how to read in the data and produce
+            the default series of plots for viewing with the addition of text
+            at the top of plot that states the site's location and ID.
+
+            >>> from fluxdataqaqc import Data, QaQc
+            >>> d = Data('path/to/config.ini')
+            >>> q = QaQc(d)
+            >>> q.correct_data()
+            >>> # create plot title from site ID and location in N. America
+            >>> title = "<b>Site:</b> {}; <b>Lat:</b> {}N; <b>Long:</b> {}W".format(
+            >>>     q.site_id, q.latitude, q.longitude
+            >>> )
+            >>> q.plot(
+            >>>     ncols=2, output_type='show', plot_width=500, suptitle=title
+            >>> )
+
+            Note, we specified the width of plots to be smaller than default
+            because we want both columns of subplots to be viewable on one page.
+
+        Note:
+            Additional keyword arguments that are recognized by
+            :obj:`bokeh.layouts.gridplot` are also accepted by
+            :meth:`QaQc.plot`.
+
         """
         # create aggregrated plot structure from fluxdataqaqc.Plot._plot() 
         self._plot(

@@ -206,8 +206,7 @@ class Data(Plot):
             None
 
         Returns:
-            variables (dict): dictionary with internal climate variable names
-                as keys and user's names as found in config as values. 
+            variables (dict): dictionary with internal climate variable names as keys and user's names as found in config as values. 
         """
 
         variables = {}
@@ -255,8 +254,7 @@ class Data(Plot):
             None
 
         Returns:
-            units (dict): dictionary with `flux-data-qaqc` variable names as
-                keys and user's units for each as values.
+            units (dict): dictionary with `flux-data-qaqc` variable names as keys and user's units for each as values.
 
         Note:
             Parsing of correct units and conversion if needed is performed
@@ -390,10 +388,11 @@ class Data(Plot):
         section of the online documentation.
         
         Keyword Arguments:
-            threshold (float): default :obj:`None`. Threshold for QC values, if flag
-                is below threshold replace that variables value with null.
-            flag (str, list, or tuple): default :obj:`None`. Character flag signifying 
-                bad data to filter out. Can be list or tuple of multiple flags.
+            threshold (float): default :obj:`None`. Threshold for QC values, if 
+                flag is below threshold replace that variables value with null.
+            flag (str, list, or tuple): default :obj:`None`. Character flag 
+                signifying data to filter out. Can be list or tuple of multiple
+                flags.
 
         Returns:
             :obj:`None`
@@ -543,12 +542,6 @@ class Data(Plot):
         if isinstance(self._df, pd.DataFrame):
             return self._df.rename(columns=self.variables)
 
-        # handle missing 'na' data
-        # loop for debugging only
-        #for k,v in variables.items():
-        #    if v == 'na':
-        #        print('WARNING: {} is missing from input data'.format(k))
-
         variables = self.variables
         # remove variable entries that were given as 'na' in config
         vars_notnull = dict((k, v) for k, v in variables.items() if v != 'na')
@@ -581,6 +574,14 @@ class Data(Plot):
             cols = set(cols).intersection(self.header)
 
         kwargs = {}
+        if 'missing_data_value' in dict(self.config.items('METADATA')):
+            self.na_val = self.config.get('METADATA', 'missing_data_value')
+            # try to parse na_val as numeric 
+            try:
+                self.na_val = float(self.na_val)
+            except:
+                pass
+            kwargs['na_values'] =  [self.na_val]
         if 'skiprows' in dict(self.config.items('METADATA')):
             kwargs['skiprows'] = int(self.config.get('METADATA','skiprows'))
         if 'date_parser' in dict(self.config.items('METADATA')):
@@ -596,7 +597,6 @@ class Data(Plot):
                 self.climate_file,
                 parse_dates = [variables.get('date')],
                 usecols = ix,
-                na_values=['NaN', 'NAN', '#VALUE!', self.na_val],
                 **kwargs
             )
         else:
@@ -604,11 +604,12 @@ class Data(Plot):
                 self.climate_file,
                 parse_dates = [variables.get('date')],
                 usecols = cols,
-                na_values=['NaN', 'NAN', '#VALUE!', self.na_val],
                 **kwargs
             )
-        # force na_val because sometimes with read_excel it doesn't work...
-        df[df == self.na_val] = np.nan
+
+        if 'missing_data_value' in dict(self.config.items('METADATA')):
+            # force na_val because sometimes with read_excel it doesn't work...
+            df[df == self.na_val] = np.nan
 
         if missing_cols:
             df = df.reindex(columns=list(cols)+list(missing_cols))
@@ -687,7 +688,8 @@ class Data(Plot):
                 df.loc[df[tmp_df.columns].isnull().all(1), val] = np.nan
 
                 self.variables[key] = val
-            else:
+            elif len(vs) == 1:
+                # only print this message if 1 weighted avg var is assigned...
                 print(
                     'WARNING: Insufficient data to calculate mean for multiple '
                     '{} measurements'.format(pref.replace('_','').upper())
