@@ -32,7 +32,7 @@ A reproducible Jupyter Notebook with minor differences of this tutorial can be f
 Seting up a config file
 -----------------------
 
-``flux-data-qaqc`` start with the creation of a configuration file, a
+``flux-data-qaqc`` starts with the creation of a configuration file, a
 text file with extension ".ini" or ".INI" that follows the rules set 
 `here <https://docs.python.org/3/library/configparser.html#supported-ini-file-structure>`__.
 A config file for using ``flux-data-qaqc`` requires the sections: 1. **METADATA** 2. **DATA**

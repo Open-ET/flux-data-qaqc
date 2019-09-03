@@ -31,17 +31,52 @@ class QaQc(Plot):
     variables (e.g. ET and potential shortwave radiation), downloading gridMET
     reference ET, managing data and metadata, interactive validation plots, and
     managing a structure for input and output data files. Input data is
-    expected to be a :obj:`fluxdataqaqc.data.Data` instance or a
+    expected to be a :obj:`.Data` instance or a
     :obj:`pandas.DataFrame`. 
     
     Attributes:
         agg_dict (dict): Dictionary with internal variable names as keys and
             method of temporal resampling (e.g. "mean" or "sum") as values. 
+        config (:obj:`configparser.ConfigParser`): Config parser instance
+            created from the data within the config.ini file.
+        config_file (:obj:`pathlib.Path`): Absolute path to config.ini file 
+            used for initialization of the :obj:`fluxdataqaqc.Data` instance
+            used to create the :obj:`QaQc` instance. 
+        corrected (bool): False until an energy balance closure correction has
+            been run by calling :meth:`QaQc.correct_data`.
         corr_methods (tuple): List of Energy Balance Closure correction routines
             usable by :meth:`QaQc.correct_data`.
+        corr_meth (str or None): Name of most recently applied energy balance
+            closure correction.
+        elevation (float): Site elevation in meters.
+        gridMET_exists (bool): True if path to matching gridMET time series
+            file exists on disk and has time series for reference ET and 
+            precipitation and the dates for these fully overlap with the energy
+            balance variables, i.e. the date index of :attr:`QaQc.df`.
         gridMET_meta (dict): Dictionary with information for gridMET variables 
             that may be downloaded using :meth:`QaQc.download_gridMET`.
+        inv_map (dict): Dictionary with input climate file names as keys and 
+            internal names as values. May only include pairs when they differ.
+        latitude (float): Site latitude in decimal degrees.
+        longitude (float): Site longitude in decimal degrees.
+        out_dir (pathlib.Path): Path to directory to save output by default
+            when using :meth:`QaQc.write` or :meth:`QaQc.plot`.
+        site_id (str): Site ID.
+        temporal_freq (str): temporal frequency of initial (as found in input 
+            climate file) data as determined by :func:`pandas.infer_freq`.
+        units (dict): Dictionary with internal variable names as keys and 
+            units as found in config as values.
+        variables (dict): Dictionary with internal variable names as keys and 
+            input climate file names as values.
 
+    Note:
+        Upon initialization of a :obj:`QaQc` instance the temporal frequency of
+        the input data checked using :func:`pandas.infer_freq` which does not
+        always correctly parse datetime indices, if it is not able to correctly
+        determine the temporal frequency the time series will be resampled to 
+        daily frequency but if it is in fact already at daily frequency the data
+        will be unchanged. In this case the :attr:`QaQc.temporal_freq` will be
+        set to "na".
     """
     # dictionary used for temporally aggregating variables
     agg_dict = {
@@ -425,7 +460,8 @@ class QaQc(Plot):
     @property     
     def df(self):
         """
-        See :attr:`.Data.df`.
+        See :attr:`fluxdataqaqc.Data.df` as the only difference is that the
+        :attr:`QaQc.df` is first resampled to daily frequency.
         """
         # avoid overwriting pre-assigned data
         if isinstance(self._df, pd.DataFrame):
@@ -441,22 +477,22 @@ class QaQc(Plot):
     def monthly_df(self):
         """
         Temporally resample time series data to monthly frequency based on 
-        monthly means or sums based on :attr:`QaQc.agg_dict`. 
+        monthly means or sums based on :attr:`QaQc.agg_dict`, provides data 
+        as :obj:`pandas.DataFrame`. 
         
-        Also replaces monthly means or sums with null values if less than
-        75 percent of a months days are missing in the daily data 
-        (:attr:`QaQc.df`).
+        Note that monthly means or sums are forced to null values if less than
+        30 percent of a months days are missing in the daily data
+        (:attr:`QaQc.df`). Also, for variables that are summed (e.g. ET or
+        precipitation) missing days (if less than 30 percent of the month) will
+        be filled with the month's daily mean value before summation.
 
         If a :obj:`QaQc` instance has not yet run an energy balance correction
         i.e. :attr:`QaQc.corrected` = :obj:`False` before accessing
         :attr:`monthly_df` then the default routine of data correction (energy
         balance ratio method) will be conducted.
 
-        Arguments:
-            :obj:`None`
-
-        Returns:
-            :obj:`None`
+        Utilize the :attr:`QaQc.monthly_df` property the same way as the 
+        :attr:`fluxdataqaqc.Data.df`, see it's API documentation for examples.
 
         """
         if not self.corrected and self._has_eb_vars:
@@ -507,9 +543,18 @@ class QaQc(Plot):
 
     def write(self, out_dir=None):
         """
-        Save a copy of the "corrected" energy balance time series (default 
-        correction method) including raw input. Saves two CSVs one at daily 
-        and one at monthly time frequencies. 
+        Save daily and monthly time series of initial and "corrected" data in 
+        CSV format.
+
+        Note, if the energy balance closure correction
+        (:attr:`QaQc.correct_data`) has not been run, this method will run it
+        with default options before saving time series files to disk.
+
+        The default location for saving output time series files is within an
+        "output" subdifrectory of the parent directory containing the
+        config.ini file that was used to create the :obj:`fluxdataqaqc.Data`
+        and :obj:`QaQc` objects, the names of the files will start with the
+        site_id and have either the "daily_data" or "monthly_data" suffix. 
 
         Arguments:
             out_dir (str or :obj:`None`): default :obj:`None`. Directory to 
@@ -520,9 +565,21 @@ class QaQc(Plot):
         Returns:
             :obj:`None`
 
+        Example:
+            
+            Starting from a config.ini file,
+
+            >>> from fluxdataqaqc import Data, QaQc
+            >>> d = Data('path/to/config.ini')
+            >>> q = QaQc(d)
+            >>> # note no energy balance closure correction has been run
+            >>> q.corrected
+                False
+            >>> q.write()
+            >>> q.corrected
+                True
+
         Note:
-            If this method is used before correcting the data according to the
-            default routines in ``correct_data`` it will be done before saving. 
             To save data created by multiple correction routines, be sure to 
             run the correction and then save to different output directories 
             otherwise output files will be overwritten with the most recently 

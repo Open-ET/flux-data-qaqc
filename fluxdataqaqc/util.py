@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Collection of utility objects or functions for use by the :mod:`fluxdataqaqc`
+Collection of utility objects or functions for the :mod:`fluxdataqaqc`
 module.
 """
 
@@ -23,8 +23,7 @@ def monthly_resample(df, cols, agg_str, thresh=0.75):
             the monthly value for the month will be null.
 
     Returns:
-        ret (:obj:`pandas.DataFrame`): datetime indexed DataFrame that
-            has been resampled to monthly time frequency
+        ret (:obj:`pandas.DataFrame`): datetime indexed DataFrame that has been resampled to monthly time frequency.
 
     Note:
         If taking monthly totals (`agg_str` = 'sum') missing days will be filled

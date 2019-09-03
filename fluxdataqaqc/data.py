@@ -15,11 +15,11 @@ class Data(Plot):
     and time series input, it provides methods and attributes for 
     parsing, temporal analysis, visualization, and filtering data.
     
-    A ``Data`` object is initialized from a config file which contains metadata
-    for an eddy covariance tower or other dataset containing time series
-    meterological data. It serves as a starting point in the Python API of the
-    energy balance closure analysis and data validation routines that are
-    provided by ``flux-data-qaqc``. 
+    A :obj:`Data` object is initialized from a config file (see :ref:`Seting up
+    a config file`) with metadata for an eddy covariance tower or other dataset
+    containing time series meterological data. It serves as a starting point in
+    the Python API of the energy balance closure analysis and data validation
+    routines that are provided by ``flux-data-qaqc``. 
     
     Manual pre-filtering of data based on user-defined quality is aided with
     the :meth:`Data.apply_qc_flags` method.  Weighted or non-weighted means of
@@ -321,7 +321,7 @@ class Data(Plot):
         qc_var_pairs = {}
         tmp = {}
 
-        no_qc_vars = ('datestring_col', 'year_col', 'month_col', 'day_col')
+        no_qc_vars = ('datestring_col')
         # dictionary that maps config QC values to keys for main variables
         # other variables like multiple g or theta (with unknown names) are
         # search for in loop below
@@ -384,9 +384,6 @@ class Data(Plot):
         variable they correspond to with the suffix "_QC" the QC column names
         for each variable do not need to be specified in the config file. 
         
-        For detailed explanation and examples see the "Configuration Options"
-        section of the online documentation.
-        
         Keyword Arguments:
             threshold (float): default :obj:`None`. Threshold for QC values, if 
                 flag is below threshold replace that variables value with null.
@@ -396,6 +393,58 @@ class Data(Plot):
 
         Returns:
             :obj:`None`
+
+        Example:
+
+            If the input time series file has a column with numeric quality 
+            values named "LE_QC" which signify the data quality for latent
+            energy measurements, then in the config.ini file's **DATA** section
+            the following must be specified::
+
+                [DATA]
+                latent_heat_flux_qc = LE_QC
+                ...
+
+            Now you must specify the threshold of this column in which to filter
+            out when using :meth:`Data.apply_qc_flags`. For example if you want
+            to remove all data entries of latent energy where the "LE_QC" value
+            is below 5, then the threshold value would be 5. The threshold
+            can either be set in the config file or passed as an argument. If it
+            is set in the config file, i.e.::
+
+                [METADATA]
+                qc_threshold = 0.5
+
+            Then you would cimply call the method and this threshold would be
+            applied to all *QC* columns specified in the config file,
+
+            >>> from fluxdataqaqc import Data
+            >>> d = Data('path/to/config.ini')
+            >>> d.apply_qc_flags()
+
+            Alternatively, if the threshold is not defined in the config file or
+            if you would like to use a different value then pass it in,
+
+            >>> d.apply_qc_flags(threshold=2.5)
+
+            Lastly, this method also can filter out based on a single or list
+            of character flags, e.g. "x" or "bad" gievn that the column
+            containing these is specified in the config file for whichever
+            variable they are to be applied to. For example, if a flag column
+            contains multiple flags signifying different data quality control
+            info and two in particular signify poor quality data, say "b" and
+            "a", then apply them either in the config file::
+
+
+                [METADATA]
+                qc_flag = b,a
+
+            Of within Python
+
+            >>> d.apply_qc_flags(flag=['b', 'a'])
+
+            For more explanation and examples see the "Configuration
+            Options" section of the online documentation.
 
         """
         # if QC threshold or flags not passed use values from config if exist
