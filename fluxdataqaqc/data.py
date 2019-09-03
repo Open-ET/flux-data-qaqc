@@ -43,8 +43,8 @@ class Data(Plot):
             internal names as values. May only include pairs when they differ.
         latitude (float): Site latitude in decimal degrees, set in config.
         longitude (float): Site longitude in decimal degrees, set in config.
-        out_dir (pathlib.Path): Path to directory to save output by default
-            when using :meth:`.QaQc.write` or :meth:`.QaQc.plot`.
+        out_dir (pathlib.Path): Default directory to save output of 
+            :meth:`QaQc.write` or :meth:`QaQc.plot` methods.
         site_id (str): Site ID as found in site_id config.ini entry.
         soil_var_weight_pairs (dict): Dictionary with names and weights for
             weighted averaging of soil heat flux or soil moisture variables.
@@ -52,11 +52,10 @@ class Data(Plot):
             value columns (numeric of characters) as values.
         units (dict): Dictionary with internal variable names as keys and 
             units as found in config as values.
-        variables (dict): Dictionary with internal variable names as keys and 
-            input climate file names as values.
+        variables (dict): Dictionary with internal names for variables as keys 
+            and names as found in the input data as values.
         variable_names_dict (dict): Dictionary with internal variable names
             as keys and keys in config.ini file as values.
-
 
     TODO:
      * verify/update input variable units, for now input energy balance variables must be in w/m2 and temperature in degrees celcius

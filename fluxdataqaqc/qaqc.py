@@ -13,9 +13,9 @@ from refet.calcs import _ra_daily, _rso_simple
 
 from .data import Data
 from .plot import Plot
-from .util import monthly_resample
+from .util import monthly_resample, Convert
 
-class QaQc(Plot):
+class QaQc(Plot, Convert):
     """
     Numerical routines for correcting daily energy balance closure 
     for eddy covariance data and other data analysis tools.
@@ -59,15 +59,15 @@ class QaQc(Plot):
             internal names as values. May only include pairs when they differ.
         latitude (float): Site latitude in decimal degrees.
         longitude (float): Site longitude in decimal degrees.
-        out_dir (pathlib.Path): Path to directory to save output by default
-            when using :meth:`QaQc.write` or :meth:`QaQc.plot`.
+        out_dir (pathlib.Path): Default directory to save output of 
+            :meth:`QaQc.write` or :meth:`QaQc.plot` methods.
         site_id (str): Site ID.
-        temporal_freq (str): temporal frequency of initial (as found in input 
+        temporal_freq (str): Temporal frequency of initial (as found in input 
             climate file) data as determined by :func:`pandas.infer_freq`.
         units (dict): Dictionary with internal variable names as keys and 
             units as found in config as values.
         variables (dict): Dictionary with internal variable names as keys and 
-            input climate file names as values.
+            names as found in the input data as values.
 
     Note:
         Upon initialization of a :obj:`QaQc` instance the temporal frequency of
@@ -101,6 +101,7 @@ class QaQc(Plot):
         'rso': 'mean',
         'sw_pot': 'mean',
         'sw_in': 'mean',
+        'vp': 'mean',
         'vpd': 'mean',
         'ppt': 'sum',
         'ws': 'mean',
@@ -115,7 +116,7 @@ class QaQc(Plot):
         'H_corr': 'mean',
         'H_user_corr': 'mean',
     }
- 
+
     # EBR correction methods available
     corr_methods = (
         'ebr',
@@ -173,7 +174,7 @@ class QaQc(Plot):
             'units': 'K'
         },
     }
-    
+
     # all potentially calculated variables for energy balance corrections
     _eb_calc_vars = (
         'br',
@@ -186,6 +187,7 @@ class QaQc(Plot):
         'ebr_5day_clim',
         'et_gap',
         'et_fill',
+        'et_fill_val',
         'flux',
         'flux_corr',
         'flux_user_corr',
@@ -226,7 +228,10 @@ class QaQc(Plot):
                 if user_G_name:
                     self.inv_map[user_G_name] = 'G'
 
+            # data will be loaded if it has not yet via Data.df
             self.temporal_freq = self._check_daily_freq()
+            # check units, convert if possible for energy balance, ppt, Rs, vp,
+            self._check_convert_units()
             self._check_gridMET()
             # assume energy balance vars exist, will be validated upon corr
             self._has_eb_vars = True
@@ -239,6 +244,39 @@ class QaQc(Plot):
 
         self.corrected = False 
         self.corr_meth = None
+
+    def _check_convert_units(self):
+        """
+        Verify if units are recognized for variables in QaQc.allowable_units,
+        next verify that they have required units as in QaQc.required_units
+        if not convert them.
+
+        Conversions are handled by util.Convert.convert class method.
+        """
+        # force all input units to lower case
+        for k, v in self.units.items():
+            self.units[k] = v.lower()
+
+        # can add check/rename unit aliases, e.g. C or c or celcius, etc... 
+
+        df = self._df.rename(columns=self.inv_map)
+
+        for v, u in self.units.items():
+            if not v in QaQc.required_units.keys():
+                continue
+            elif not u in QaQc.allowable_units[v]:
+                print('ERROR: {} units are not recognizable for var: {}\n'
+                    'allowable input units are: {}'.format(
+                        u, v, ','.join(QaQc.allowable_units[v])
+                    )
+                )
+            elif not u == QaQc.required_units[v]:
+                # do conversion, update units
+                # pass variable, initial unit, unit to be converted to, df
+                df = Convert.convert(v, u, QaQc.required_units[v], df)
+                self.units[v] = QaQc.required_units[v]
+
+        self._df = df
             
     def _check_gridMET(self):
         """
@@ -777,17 +815,31 @@ class QaQc(Plot):
         TODO: handle unit conversions, change to calc other way too- VPD to VP
         """
         df = self.df.rename(columns=self.inv_map)
-        # if vapor pressure and temperature not found do nothing
-        if not set(['vp','t_avg']).issubset(df.columns):
-            return
-        # for now skip if incorrect units, need to add conversions in contructor
-        if self.units.get('vp') != 'kPa' or if self.units.get('t_avg') != 'C':
-            return
-        # saturation vapor pressure (es)
-        es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
-        df['vpd'] = df.vp - es
-        self.variables['vpd'] = 'vpd'
-        self.units['vpd'] = 'kPa'
+        # calculate vpd from actual vapor pressure and temp
+        # check if needed variables exist and units are correct
+        has_vpd_vars = set(['vp','t_avg']).issubset(df.columns)
+        units_correct = (
+            self.units.get('vp') == 'kPa' and self.units.get('t_avg') == 'C'
+        )
+        if has_vpd_vars and units_correct:
+            # saturation vapor pressure (es)
+            es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
+            df['vpd'] = df.vp - es
+            self.variables['vpd'] = 'vpd'
+            self.units['vpd'] = 'kPa'
+
+        # same calc actual vapor pressure from vapor pressure deficit and temp
+        has_vp_vars = set(['vpd','t_avg']).issubset(df.columns)
+        units_correct = (
+            self.units.get('vpd') == 'kPa' and self.units.get('t_avg') == 'C'
+        )
+
+        if has_vp_vars and units_correct:
+            # saturation vapor pressure (es)
+            #es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
+            #df['vp'] = 
+            self.variables['vp'] = 'vp'
+            self.units['vp'] = 'kPa'
 
         self._df = df
 

@@ -553,7 +553,7 @@ class Plot(object):
 
         #### 
         # vapor pressure time series plots
-        #### 
+        #### TODO: make vpd on secondary y-axis 
         plt_vars = ['vp', 'vpd']
         colors = ['blue', 'black']
         title = 'Daily Average Vapor Pressure and Deficit'

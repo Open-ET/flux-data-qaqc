@@ -5,32 +5,32 @@ This page documents objects and functions provided by ``flux-data-qaqc``.
 
 
 
-Data object
------------
+Data
+----
 
 .. autoclass:: fluxdataqaqc.Data
     :members:
     :undoc-members:
     :show-inheritance:
 
-QaQc object
------------
+QaQc
+----
 
 .. autoclass:: fluxdataqaqc.QaQc
     :members:
     :undoc-members:
     :show-inheritance:
 
-Plot object
------------
+Plot
+----
 
 .. autoclass:: fluxdataqaqc.Plot
     :members:
     :undoc-members:
     :show-inheritance:
 
-util functions
---------------
+utility classes and functions
+-----------------------------
 
 .. automodule:: fluxdataqaqc.util
     :members:

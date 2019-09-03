@@ -1,12 +1,28 @@
+.. image:: https://readthedocs.org/projects/flux-data-qaqc/badge/?version=latest
+   :target: https://flux-data-qaqc.readthedocs.io/en/latest/?badge=latest
+   :alt: Documentation Status
+
+
 flux-data-qaqc
 ================
 
-A Python package for correcting/validating the surface energy balance for `FLUXNET <https://fluxnet.fluxdata.org>`_ (or other eddy covariance station data) using techniques that adjust latent energy and sensible heat fluxes. Other major functionalities includes parsing of climate time series, performing QA/QC routines, and generating visualizations of corrected energy balance components and radiative-turbulent flux ratios at daily and monthly frequencies. The software is currently in early development. 
+``flux-data-qaqc`` provides a framework to create reproducible workflows for the analysis of eddy covariance time series data. In particular for performing energy balance closure analysis and correction routines which adjust turbulent fluxes.
+
+Notable tools include:
+
+* data validation with methods for quality-based filtering
+* time series data tools, e.g. temporal aggregation and resampling
+* management of site metadata, data provenance, and file structure
+* energy balance closure algorithms and other meterological calculations
+* downloading and management of `gridMET <http://www.climatologylab.org/gridmet.html>`__ meterological data
+* customizable and interactive data visualizations
+* batch processing 
+* unit conversions
 
 Documentation
 -------------
 
-Online documentation is in development, until then it is recommended to view the `FLUXNET_2015_example <https://github.com/Open-ET/flux-data-qaqc/blob/master/examples/Basic_usage/FLUXNET_2015_example.ipynb>`_ Jupyter notebook. The example includes explanations of multiple functionalities of ``flux-data-qaqc`` and utilizes a provided `FLUXNET 2015 daily climate file <https://github.com/Open-ET/flux-data-qaqc/blob/master/examples/Basic_usage/FLX_US-AR1_FLUXNET2015_SUBSET_DD_2009-2012_1-3.xlsx>`_.
+`ReadTheDocs <https://flux-data-qaqc.readthedocs.io/>`_
 
 Installation
 ------------

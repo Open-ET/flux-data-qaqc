@@ -10,3 +10,5 @@ __version__ = '0.0.5'
 from fluxdataqaqc.data import Data
 from fluxdataqaqc.qaqc import QaQc
 from fluxdataqaqc.plot import Plot
+from fluxdataqaqc.util import Convert
+from fluxdataqaqc import util 
