@@ -734,6 +734,9 @@ class QaQc(Plot):
 
         # calculate clear sky radiation if not already computed
         self._calc_rso()
+        # calculate vpd from actual vapor pressure and air temp if exist
+        self._calc_vpd_from_vp()
+
         # energy balance corrections
         if not set(['Rn','LE','H','G']).issubset(self.variables.keys()) or\
                 not set(['Rn','LE','H','G']).issubset(
@@ -765,6 +768,28 @@ class QaQc(Plot):
         if not 'G' in self.inv_map.values():
             user_G_name = self.variables.get('G')
             self.inv_map[user_G_name] = 'G'
+
+    def _calc_vpd_from_vp(self):
+        """
+        Based on ASCE standardized ref et eqn. 37, air temperature must be in 
+        celcius and actual vapor pressure in kPa.
+
+        TODO: handle unit conversions, change to calc other way too- VPD to VP
+        """
+        df = self.df.rename(columns=self.inv_map)
+        # if vapor pressure and temperature not found do nothing
+        if not set(['vp','t_avg']).issubset(df.columns):
+            return
+        # for now skip if incorrect units, need to add conversions in contructor
+        if self.units.get('vp') != 'kPa' or if self.units.get('t_avg') != 'C':
+            return
+        # saturation vapor pressure (es)
+        es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
+        df['vpd'] = df.vp - es
+        self.variables['vpd'] = 'vpd'
+        self.units['vpd'] = 'kPa'
+
+        self._df = df
 
     def _ETr_gap_fill(self, et_name='et_corr'):
         """

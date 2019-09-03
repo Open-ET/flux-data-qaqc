@@ -331,7 +331,7 @@ class Plot(object):
             out_dir = out_file.parent
             if not out_dir.is_dir():
                 out_dir.mkdir(parents=True, exist_ok=True)
-        # add else statement to allow making any subdir that does not yet exist
+        # to allow making any subdir that does not yet exist
         # if out_file is to a non-existent directory
         elif out_file is not None and output_type == 'save':
             out_dir = Path(out_file).parent
@@ -413,9 +413,11 @@ class Plot(object):
         # incoming shortwave and ASCE potential clear sky time series plots
         #### 
         plt_vars = ['sw_in', 'rso']
-        labels = ['station', 'ASCE_pot']
+        labels = ['Station Rs', 'ASCE Rso']
         colors = ['black', 'red']
-        title = 'Daily Incoming Shortwave and ASCE Potential Radiation'
+        title =\
+            'Daily Incoming Shortwave (Rs) and ASCE Clear Sky Shortwave '+\
+            'Radiation (Rso)'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
         fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title,
@@ -426,21 +428,64 @@ class Plot(object):
         )
         if fig is not None:
             daily_figs.append(fig)
-            # same for monthly fig
-            title = 'Monthly Incoming Shortwave and ASCE Potential Radiation'
-            fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title,
-                width=plot_width, height=plot_height
-            )
-            fig = Plot.add_lines(
-                fig, monthly_df, plt_vars, colors, x_label, monthly_source,
-                labels=labels
-            )
-            monthly_figs.append(fig)
+            ## same for monthly fig (removed for now)
+            #title = 'Monthly Incoming Shortwave and ASCE Potential Radiation'
+            #fig = figure(x_axis_label=x_label,y_axis_label=y_label,title=title,
+            #    width=plot_width, height=plot_height
+            #)
+            #fig = Plot.add_lines(
+            #    fig, monthly_df, plt_vars, colors, x_label, monthly_source,
+            #    labels=labels
+            #)
+            #monthly_figs.append(fig)
         else:
             print(
                 'Shortwave and potential clear sky shortwave time series '
                 'grapths missing all variables'
             )
+
+        #### 
+        # multiple soil heat flux sensor time series plots
+        #### 
+        # keep user names for these in hover 
+        g_re = re.compile('g_\d+|G')
+        g_vars = [
+            v for v in variables if g_re.match(v) and v in df.columns
+        ]
+        num_lines = len(g_vars)
+        if num_lines > 1:
+            rename_dict = {k:variables[k] for k in g_vars}
+            tmp_df = df[g_vars].rename(columns=rename_dict)
+            tmp_source = ColumnDataSource(tmp_df)
+            plt_vars = list(rename_dict.values())
+            colors = Viridis256[0:-1:int(256/num_lines)]
+            title = 'Daily Soil Heat Flux (Multiple Sensors)'
+            x_label = 'date'
+            y_label = _get_units(g_vars, units)
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                plot_width=plot_width, plot_height=plot_height
+            )
+            fig = Plot.add_lines(
+                fig, tmp_df, plt_vars, colors, x_label, tmp_source, 
+                labels=plt_vars
+            )
+            if fig is not None:
+                daily_figs.append(fig)
+                # same for monthly fig
+                tmp_df = monthly_df[g_vars].rename(columns=rename_dict)
+                tmp_source = ColumnDataSource(tmp_df)
+                title = 'Monthly Soil Heat Flux (Multiple Sensors)'
+                fig = figure(
+                    x_axis_label=x_label, y_axis_label=y_label,title=title,
+                    plot_width=plot_width, plot_height=plot_height
+                )
+                fig = Plot.add_lines(
+                    fig, tmp_df, plt_vars, colors, x_label, tmp_source,
+                    labels=plt_vars
+                )
+                monthly_figs.append(fig)
+            # do not print warning if missing multiple soil moisture recordings
 
         #### 
         # radiation time series plots
@@ -615,7 +660,7 @@ class Plot(object):
         if fig is not None:
             daily_figs.append(fig)
             # same for monthly fig
-            title = 'Monthly Average Vapor Pressure'
+            title = 'Monthly Average Latent Energy Flux'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
                 width=plot_width, height=plot_height
@@ -631,8 +676,9 @@ class Plot(object):
         #### 
         # ET time series plots
         #### 
-        plt_vars = ['et', 'et_corr', 'et_user_corr', 'et_fill_val']
-        colors = ['black', 'red', 'darkred', 'green']
+        plt_vars = ['et', 'et_corr', 'et_user_corr', 'gridMET_etr_mm']
+        labels = plt_vars[0:3] + ['etr']
+        colors = ['black', 'red', 'darkred', 'blue']
         title = 'Daily Evapotranspiration'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
@@ -641,8 +687,15 @@ class Plot(object):
             width=plot_width, height=plot_height
         )
         fig = Plot.add_lines(
-            fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
+            fig, df, plt_vars, colors, x_label, daily_source, labels=labels
         )
+        if 'et_fill_val' in df.columns:
+            # make gap fill values more visible
+            Plot.line_plot(
+                fig, 'date', 'et_fill_val', daily_source, 'green', 
+                label='et_fill_val', line_width=3
+            )
+
         if fig is not None:
             daily_figs.append(fig)
             # same for monthly fig
@@ -651,9 +704,6 @@ class Plot(object):
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
                 width=plot_width, height=plot_height
             )
-            # do not sum et_fill_val (gap filled with etr*kc) instead ndays fill
-            plt_vars[3] = 'et_gap'
-            labels = plt_vars[0:3] + ['days_filled']
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=labels
@@ -663,6 +713,26 @@ class Plot(object):
             print(
                 'Evapotranspiration time series grapths missing all variables'
             )
+
+        #### 
+        # number gap filled days monthly time series plot
+        #### 
+
+        if 'et_gap' in monthly_df.columns:
+            title = 'Number of Gap Filled Days in Corrected Monthly ET'
+            x_label = 'date'
+            y_label = 'number of gap-filled days'
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_height
+            )
+            x = 'date'
+            y = 'et_gap'
+            color = 'black'
+            Plot.line_plot(fig, x, y, monthly_source, color)
+            monthly_figs.append(fig)
+        else:
+            print('Monthly count of gap filled ET days plot missing variable')
 
         #### 
         # Kc time series plots
@@ -922,51 +992,6 @@ class Plot(object):
             monthly_figs.append(fig)
         else:
             print('Evapotranspiration scatter grapths missing all variables')
-
-
-        #### 
-        # multiple soil heat flux sensor time series plots
-        #### 
-        # keep user names for these in hover 
-        g_re = re.compile('g_\d+|G')
-        g_vars = [
-            v for v in variables if g_re.match(v) and v in df.columns
-        ]
-        num_lines = len(g_vars)
-        if num_lines > 0:
-            rename_dict = {k:variables[k] for k in g_vars}
-            tmp_df = df[g_vars].rename(columns=rename_dict)
-            tmp_source = ColumnDataSource(tmp_df)
-            plt_vars = list(rename_dict.values())
-            colors = Viridis256[0:-1:int(256/num_lines)]
-            title = 'Daily Soil Heat Flux (Multiple Sensors)'
-            x_label = 'date'
-            y_label = _get_units(g_vars, units)
-            fig = figure(
-                x_axis_label=x_label, y_axis_label=y_label, title=title,
-                plot_width=plot_width, plot_height=plot_height
-            )
-            fig = Plot.add_lines(
-                fig, tmp_df, plt_vars, colors, x_label, tmp_source, 
-                labels=plt_vars
-            )
-            if fig is not None:
-                daily_figs.append(fig)
-                # same for monthly fig
-                tmp_df = monthly_df[g_vars].rename(columns=rename_dict)
-                tmp_source = ColumnDataSource(tmp_df)
-                title = 'Monthly Soil Heat Flux (Multiple Sensors)'
-                fig = figure(
-                    x_axis_label=x_label, y_axis_label=y_label,title=title,
-                    plot_width=plot_width, plot_height=plot_height
-                )
-                fig = Plot.add_lines(
-                    fig, tmp_df, plt_vars, colors, x_label, tmp_source,
-                    labels=plt_vars
-                )
-                monthly_figs.append(fig)
-            # do not print warning if missing multiple soil moisture recordings
-
 
         #### 
         # multiple soil moisture time series plots
