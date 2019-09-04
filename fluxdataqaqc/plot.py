@@ -163,7 +163,7 @@ class Plot(object):
             >>> )
             >>> # note, we are calling this plot method from a QaQc instace
             >>> q.scatter_plot(
-            >>>     fig, 'et_corr', 'et_fill', source, 'red', label='lslr'
+            >>>     fig, 'ET_corr', 'ET_fill', source, 'red', label='lslr'
             >>> )
             >>> show(fig)
 
@@ -415,34 +415,37 @@ class Plot(object):
         # incoming shortwave and ASCE potential clear sky time series plots
         #### 
         plt_vars = ['sw_in', 'rso']
-        labels = ['Station Rs', 'ASCE Rso']
-        colors = ['black', 'red']
-        title =\
-            'Daily Incoming Shortwave (Rs) and ASCE Clear Sky Shortwave '+\
-            'Radiation (Rso)'
-        x_label = 'date'
-        y_label = _get_units(plt_vars, units)
-        fig = figure(x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_height
-        )
-        fig = Plot.add_lines(
-            fig, df, plt_vars, colors, x_label, daily_source, labels=labels
-        )
-        if fig is not None:
-            daily_line.append(fig)
-            ## same for monthly fig (removed for now)
-            #title = 'Monthly Incoming Shortwave and ASCE Potential Radiation'
-            #fig = figure(x_axis_label=x_label,y_axis_label=y_label,title=title,
-            #    width=plot_width, height=plot_height
-            #)
-            #fig = Plot.add_lines(
-            #    fig, monthly_df, plt_vars, colors, x_label, monthly_source,
-            #    labels=labels
-            #)
-            #monthly_line.append(fig)
+        # only plot if we have both
+        if set(plt_vars).issubset(df.columns):
+            labels = ['Station Rs', 'ASCE Rso']
+            colors = ['black', 'red']
+            title =\
+                'Daily Incoming Shortwave (Rs) and ASCE Clear Sky Shortwave '+\
+                'Radiation (Rso)'
+            x_label = 'date'
+            y_label = _get_units(plt_vars, units)
+            fig = figure(x_axis_label=x_label, y_axis_label=y_label, 
+                title=title, width=plot_width, height=plot_height
+            )
+            fig = Plot.add_lines(
+                fig, df, plt_vars, colors, x_label, daily_source, labels=labels
+            )
+            if fig is not None:
+                daily_line.append(fig)
+                ## same for monthly fig (removed for now)
+                #title='Monthly Incoming Shortwave and ASCE Potential Radiation'
+                #fig = figure(
+                #    x_axis_label=x_label,y_axis_label=y_label,title=title,
+                #    width=plot_width, height=plot_height
+                #)
+                #fig = Plot.add_lines(
+                #    fig, monthly_df, plt_vars, colors, x_label, monthly_source,
+                #    labels=labels
+                #)
+                #monthly_line.append(fig)
         else:
             print(
-                'Shortwave and potential clear sky shortwave time series '
+                'Shortwave and potential clear sky radiation time series '
                 'grapths missing all variables'
             )
 
@@ -615,7 +618,7 @@ class Plot(object):
         #### 
         # precipitation time series plots
         #### 
-        plt_vars = ['ppt', 'gridMET_prcp_mm']
+        plt_vars = ['ppt', 'gridMET_prcp']
         labels = ['station', 'gridMET']
         colors = ['black', 'red']
         title = 'Daily Station and gridMET Precipitation'
@@ -631,7 +634,7 @@ class Plot(object):
         if fig is not None:
             daily_line.append(fig)
             # same for monthly fig
-            title = 'Monthly Station and gridMET precipitation'
+            title = 'Monthly Station and gridMET Precipitation'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
                 width=plot_width, height=plot_height
@@ -678,8 +681,8 @@ class Plot(object):
         #### 
         # ET time series plots
         #### 
-        plt_vars = ['et', 'et_corr', 'et_user_corr', 'gridMET_etr_mm']
-        labels = plt_vars[0:3] + ['etr']
+        plt_vars = ['ET', 'ET_corr', 'ET_user_corr', 'gridMET_ETr']
+        labels = plt_vars[0:3] + ['ETr']
         colors = ['black', 'red', 'darkred', 'blue']
         title = 'Daily Evapotranspiration'
         x_label = 'date'
@@ -691,11 +694,11 @@ class Plot(object):
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=labels
         )
-        if 'et_fill_val' in df.columns:
+        if 'ET_fill_val' in df.columns:
             # make gap fill values more visible
             Plot.line_plot(
-                fig, 'date', 'et_fill_val', daily_source, 'green', 
-                label='et_fill_val', line_width=3
+                fig, 'date', 'ET_fill_val', daily_source, 'green', 
+                label='ET_fill_val', line_width=3
             )
 
         if fig is not None:
@@ -720,8 +723,11 @@ class Plot(object):
         # number gap filled days monthly time series plot
         #### 
 
-        if 'et_gap' in monthly_df.columns:
-            title = 'Number of Gap Filled Days in Corrected Monthly ET'
+        if 'ET_gap' in monthly_df.columns:
+            txt = ''
+            if 'ET_corr' in df.columns:
+                txt = 'Corrected'
+            title = 'Number of Gap Filled Days in {} Monthly ET'.format(txt)
             x_label = 'date'
             y_label = 'number of gap-filled days'
             fig = figure(
@@ -729,7 +735,7 @@ class Plot(object):
                 width=plot_width, height=plot_height
             )
             x = 'date'
-            y = 'et_gap'
+            y = 'ET_gap'
             color = 'black'
             Plot.line_plot(fig, x, y, monthly_source, color)
             monthly_line.append(fig)
@@ -737,11 +743,11 @@ class Plot(object):
             print('Monthly count of gap filled ET days plot missing variable')
 
         #### 
-        # Kc time series plots
+        # ETrF time series plots
         #### 
-        plt_vars = ['Kc', 'Kc_7day_mean']
+        plt_vars = ['ETrF', 'ETrF_filtered']
         colors = ['black', 'red']
-        title = 'Daily Crop Coefficient (Kc)'
+        title = 'Daily Fraction of Reference ET (ETrF)'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
         fig = figure(
@@ -754,7 +760,7 @@ class Plot(object):
         if fig is not None:
             daily_line.append(fig)
             # same for monthly fig
-            title = 'Monthly Crop Coefficient (Kc)'
+            title = 'Monthly Fraction of Reference ET (ETrF)'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
                 width=plot_width, height=plot_height
@@ -765,7 +771,10 @@ class Plot(object):
             )
             monthly_line.append(fig)
         else:
-            print('Crop coefficient time series grapths missing all variables')
+            print(
+                'Fraction of reference ET time series grapths missing all '
+                'variables'
+            )
 
         #### 
         # energy balance ratio time series plots
@@ -942,14 +951,14 @@ class Plot(object):
         # ET scatter plots
         #### 
         title = 'Daily Evapotranspiration, Initial Versus Corrected'
-        unit = _get_units(['et', 'et_corr', 'et_user_corr'], units)
+        unit = _get_units(['ET', 'ET_corr', 'ET_user_corr'], units)
         y_label = 'corrected ({})'.format(unit)
         x_label = 'initial ({})'.format(unit)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
             width=plot_width, height=plot_width
         )
-        y_vars = ['et_corr', 'et_user_corr']
+        y_vars = ['ET_corr', 'ET_user_corr']
         colors = ['red', 'darkred']
         labels = ['corr', 'user_corr']
         # add plot pairs to plot if they exist, add 1:1
@@ -959,7 +968,7 @@ class Plot(object):
             if v in df.columns and not df[v].isna().all():
                 n_vars_fnd += 1
                 min_max = Plot.scatter_plot(
-                    fig, 'et', v, daily_source, colors[i], label=labels[i]
+                    fig, 'ET', v, daily_source, colors[i], label=labels[i]
                 )
                 mins_maxs.append(min_max)
         if n_vars_fnd > 0:
@@ -981,7 +990,7 @@ class Plot(object):
             for i, v in enumerate(y_vars):
                 if v in monthly_df.columns:
                     min_max = Plot.scatter_plot(
-                        fig, 'et', v, monthly_source, colors[i], 
+                        fig, 'ET', v, monthly_source, colors[i], 
                         label=labels[i]
                     )
                     mins_maxs.append(min_max)

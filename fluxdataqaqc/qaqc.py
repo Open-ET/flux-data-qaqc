@@ -84,18 +84,18 @@ class QaQc(Plot, Convert):
         'flux': 'mean',
         'flux_corr': 'mean',
         'br': 'mean',
-        'et': 'sum',
-        'et_corr': 'sum',
-        'et_gap': 'sum',
-        'et_fill': 'sum',
-        'et_fill_val': 'sum',
-        'et_user_corr': 'sum',
+        'ET': 'sum',
+        'ET_corr': 'sum',
+        'ET_gap': 'sum',
+        'ET_fill': 'sum',
+        'ET_fill_val': 'sum',
+        'ET_user_corr': 'sum',
         'ebr': 'mean',
         'ebr_corr': 'mean',
         'ebr_user_corr': 'mean',
         'ebr_5day_clim': 'mean',
-        'gridMET_etr_mm': 'sum',
-        'gridMET_prcp_mm': 'sum',
+        'gridMET_ETr': 'sum',
+        'gridMET_prcp': 'sum',
         'lw_in': 'mean',
         't_avg': 'mean',
         'rso': 'mean',
@@ -125,52 +125,52 @@ class QaQc(Plot, Convert):
 
     # gridMET dict, keys are names which can be passed to download_gridMET
     gridMET_meta = {
-        'etr': {
+        'ETr': {
             'nc_suffix': 'agg_met_etr_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_reference_evapotranspiration_alfalfa',
-            'rename': 'gridMET_etr_mm',
+            'rename': 'gridMET_ETr',
             'units': 'mm'
         },
         'pr': {
             'nc_suffix': 'agg_met_pr_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'precipitation_amount',
-            'rename': 'gridMET_prcp_mm',
+            'rename': 'gridMET_prcp',
             'units': 'mm'
         },    
         'pet': {
             'nc_suffix': 'agg_met_pet_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_reference_evapotranspiration_grass',
-            'rename': 'gridMET_eto_mm',
+            'rename': 'gridMET_eto',
             'units': 'mm'
         },
         'sph': {
             'nc_suffix': 'agg_met_sph_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_specific_humidity',
-            'rename': 'gridMET_q_kgkg',
+            'rename': 'gridMET_q',
             'units': 'kg/kg'
         },
         'srad': {
             'nc_suffix': 'agg_met_srad_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_shortwave_radiation_at_surface',
-            'rename': 'gridMET_srad_wm2',
+            'rename': 'gridMET_srad',
             'units': 'w/m2'
         },
         'vs': {
             'nc_suffix': 'agg_met_vs_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_wind_speed',
-            'rename': 'gridMET_u10_ms',
+            'rename': 'gridMET_u10',
             'units': 'm/s'
         },
         'tmmx': {
             'nc_suffix': 'agg_met_tmmx_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_maximum_temperature',
-            'rename': 'gridMET_tmax_k',
+            'rename': 'gridMET_tmax',
             'units': 'K'
         },
         'tmmn': {
             'nc_suffix': 'agg_met_tmmn_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_minimum_temperature',
-            'rename': 'gridMET_tmin_k',
+            'rename': 'gridMET_tmin',
             'units': 'K'
         },
     }
@@ -185,22 +185,22 @@ class QaQc(Plot, Convert):
         'ebr_user_corr',
         'ebc_cf',
         'ebr_5day_clim',
-        'et_gap',
-        'et_fill',
-        'et_fill_val',
+        'ET_gap',
+        'ET_fill',
+        'ET_fill_val',
         'flux',
         'flux_corr',
         'flux_user_corr',
-        'Kc',
-        'Kc_7day_mean',
+        'ETrF',
+        'ETrF_filtered',
         'LE_corr',
         'H_corr'
     )
     # potentially calculated variables for ET
     _et_calc_vars = (
-        'et',
-        'et_corr',
-        'et_user_corr'
+        'ET',
+        'ET_corr',
+        'ET_user_corr'
     )
 
     def __init__(self, data=None):
@@ -310,7 +310,7 @@ class QaQc(Plot, Convert):
                     self.variables[meta['rename']] = meta['rename']
                     self.units[meta['rename']] = meta['units']
                 # flag False if ETr was not downloaded for our purposes
-                if not 'gridMET_etr_mm' in grid_df.columns:
+                if not 'gridMET_ETr' in grid_df.columns:
                     self.gridMET_exists = False
                 elif station_dates.isin(gridMET_dates).all():
                     self.gridMET_exists = True
@@ -367,7 +367,7 @@ class QaQc(Plot, Convert):
             'http://thredds.northwestknowledge.net:8080/thredds/dodsC/'
 
         if variables is None:
-            variables = ['etr', 'pr']
+            variables = ['ETr', 'pr']
 
         elif not isinstance(variables, (str,list,tuple)):
             print(
@@ -480,7 +480,8 @@ class QaQc(Plot, Convert):
             mean_cols = set(df.columns) - set(sum_cols)
             means = df.loc[:,mean_cols].apply(
                 pd.to_numeric, errors='coerce').resample('D').mean()
-            sums = df.loc[:,sum_cols].apply(
+            # major issue with resample sum of nans, need to drop first else 0
+            sums = df.loc[:,sum_cols].dropna().apply(
                 pd.to_numeric, errors='coerce').resample('D').sum()
             # using numpy forces nans if 1 or more sub-daily value missing
             # having issues however creating more than expected null days
@@ -718,11 +719,11 @@ class QaQc(Plot, Convert):
         Keyword Arguments:
             meth (str): default 'ebr'. Method to correct energy balance.
             etr_gap_fill (bool): default True. If true fill any remaining gaps
-                in corrected ET with ETr * Kc, where ETr is reference ET from
-                gridMET and Kc is the smoothed (7 day moving avg. min 2 days) 
-                and linearly interpolated crop coefficient. The number of days
-                in each month that corrected ET are filled will is provided in
-                :attr:`QaQc.monthly_df` as the column "et_gap".
+                in corrected ET with ETr * ETrF, where ETr is reference ET from
+                gridMET and ETrF is the filtered, smoothed (7 day moving avg. 
+                min 2 days) and linearly interpolated crop coefficient. The 
+                number of days in each month that corrected ET are filled will 
+                is provided in :attr:`QaQc.monthly_df` as the column "ET_gap".
         
         Returns:
             :obj:`None`
@@ -772,7 +773,7 @@ class QaQc(Plot, Convert):
 
         # calculate clear sky radiation if not already computed
         self._calc_rso()
-        # calculate vpd from actual vapor pressure and air temp if exist
+        # calc vpd from actual vp (or other way) and air temp if exist
         self._calc_vpd_from_vp()
 
         # energy balance corrections
@@ -784,7 +785,13 @@ class QaQc(Plot, Convert):
                 ' energy balance correction.'
             )
             self._has_eb_vars = False
+            # calculate raw (from input LE) ET 
+            self._calc_et()
+            # fill gaps of raw ET with ET from smoothed and gap filled ETrF*ETr
+            if etr_gap_fill:
+                self._ETr_gap_fill(et_name='ET')
             return
+
         if meth == 'ebr':
             self._ebr_correction()
         if meth == 'br':
@@ -793,7 +800,7 @@ class QaQc(Plot, Convert):
         self.corr_meth = meth
         # calculate raw, corrected ET 
         self._calc_et()
-        # fill gaps of corr ET with ET from smoothed and gap filled Kc*ETr
+        # fill gaps of corr ET with ET from smoothed and gap filled ETrF*ETr
         if etr_gap_fill:
             self._ETr_gap_fill()
 
@@ -843,14 +850,14 @@ class QaQc(Plot, Convert):
 
         self._df = df
 
-    def _ETr_gap_fill(self, et_name='et_corr'):
+    def _ETr_gap_fill(self, et_name='ET_corr'):
         """
-        Use gridMET reference ET to calculate ET from Kc, smooth and gap fill
+        Use gridMET reference ET to calculate ET from ETrF, smooth and gap fill
         calced ET and then use to fill gaps in corrected ET. Keeps tabs on 
         number of days in ET that were filled in each month.
         
         Keyword Arguments:
-            et_name (str): default "et_corr". Name of ET variable to use when 
+            et_name (str): default "ET_corr". Name of ET variable to use when 
                 calculating the crop coefficient and to fill gaps with 
                 calculated ET.
 
@@ -878,51 +885,64 @@ class QaQc(Plot, Convert):
             for c in grid_df.columns:
                 self.variables[c] = c
 
-        # calc Kc 7 day moving average, min vals in window = 2, linear interp
         df = self.df.rename(columns=self.inv_map)
-        df['Kc'] = df[et_name].astype(float) / df.gridMET_etr_mm.astype(float)
-        # filter out extremes of ETrf
-        Q1 = df['Kc'].quantile(0.25)
-        Q3 = df['Kc'].quantile(0.75)
+        if not et_name in df.columns:
+            print(
+                'ERROR: {} not found in data, cannot gap-fill'.format(et_name)
+            )
+            return
+
+        # calc ETrF 7 day moving average, min vals in window = 2, linear interp
+        print(
+            'Gap filling {} with filtered ETrF x ETr (gridMET)'\
+                .format(et_name)
+        )
+        df['ETrF'] = df[et_name].astype(float) / df.gridMET_ETr.astype(float)
+        df['ETrF_filtered'] = df['ETrF']
+        # filter out extremes of ETrF
+        Q1 = df['ETrF_filtered'].quantile(0.25)
+        Q3 = df['ETrF_filtered'].quantile(0.75)
         IQR = Q3 - Q1
         to_filter = df.query(
-            'Kc < (@Q1 - 1.5 * @IQR) or Kc > (@Q3 + 1.5 * @IQR)'
+            'ETrF_filtered < (@Q1-1.5*@IQR) or ETrF_filtered > (@Q3+1.5*@IQR)'
         )
-        df.loc[to_filter.index, 'Kc'] = np.nan
-        df['Kc_7day_mean'] = df.Kc.rolling(7, min_periods=2, center=True).mean()
-        df.Kc_7day_mean = df.Kc_7day_mean.interpolate(method='linear')
-        # calc ET from Kc and ETr
-        df['et_fill'] = df.gridMET_etr_mm * df.Kc_7day_mean
+        df.loc[to_filter.index, 'ETrF_filtered'] = np.nan
+        df['ETrF_filtered'] = df.ETrF_filtered.rolling(
+            7, min_periods=2, center=True
+        ).mean()
+        df.ETrF_filtered = df.ETrF_filtered.interpolate(method='linear')
+        # calc ET from ETrF_filtered and ETr
+        df['ET_fill'] = df.gridMET_ETr * df.ETrF_filtered
         # flag days in corrected ET that are missing and sum for each month
-        df['et_gap'] = False
-        df.loc[(df[et_name].isna() & df.et_fill.notna()), 'et_gap'] = True
-        df.loc[df.et_gap, et_name] = df.loc[df.et_gap, 'et_fill']
+        df['ET_gap'] = False
+        df.loc[(df[et_name].isna() & df.ET_fill.notna()), 'ET_gap'] = True
+        df.loc[df.ET_gap, et_name] = df.loc[df.ET_gap, 'ET_fill']
         # in order to see difference between gap filled and not need
         # to backcalculate LE_corr and flux_corr with gap filled et_corr
         # not doing LE_user_corr if et_name is et_user_corr because not our meth
-        if et_name == 'et_corr' and 't_avg' in self.variables:
+        if et_name == 'ET_corr' and 't_avg' in self.variables:
             df['LE_corr'] =\
-                (df.et_corr * (2501000 - 2361 * df.t_avg.fillna(20))) / 86400
+                (df.ET_corr * (2501000 - 2361 * df.t_avg.fillna(20))) / 86400
             df['flux_corr'] = df.LE_corr + df.H_corr
         # assume 20 degrees C
-        elif et_name == 'et_corr' and not 't_avg' in self.variables:
+        elif et_name == 'ET_corr' and not 't_avg' in self.variables:
             df['LE_corr'] =\
-                (df.et_corr * (2501000 - 2361 * 20)) / 86400
+                (df.ET_corr * (2501000 - 2361 * 20)) / 86400
             df['flux_corr'] = df.LE_corr + df.H_corr
 
         # et fill values only where they were used to gap fill, for plotting
-        df['et_fill_val'] = np.nan
-        df.loc[df.et_gap , 'et_fill_val'] = df.et_fill
+        df['ET_fill_val'] = np.nan
+        df.loc[df.ET_gap , 'ET_fill_val'] = df.ET_fill
 
         # update variables attribute with new variables (may vary)
         new_cols = set(df.columns) - set(self.variables)
         for el in new_cols:
             self.variables[el] = el
-        self.units['Kc'] = 'unitless'
-        self.units['Kc_7day_mean'] = 'unitless'
-        self.units['et_fill'] = 'mm'
-        self.units['et_fill_val'] = 'mm'
-        self.units['et_gap'] = 'unitless'
+        self.units['ETrF'] = 'unitless'
+        self.units['ETrF_filtered'] = 'unitless'
+        self.units['ET_fill'] = 'mm'
+        self.units['ET_fill_val'] = 'mm'
+        self.units['ET_gap'] = 'unitless'
 
         self._df = df
 
@@ -934,8 +954,7 @@ class QaQc(Plot, Convert):
         
         Currently computes on :attr:`df` dataframe attribute in place. Can be 
         called before or after energy balance closure corrections, if before 
-        the only raw ET will be calculated. Assumes at least LE raw exists in 
-        dataframe.
+        the only raw ET will be calculated. 
 
         Arguments:
             None
@@ -947,23 +966,28 @@ class QaQc(Plot, Convert):
         # drop relavant calculated variables if they exist
         self._df = _drop_cols(self._df, self._et_calc_vars)
         df = self.df.rename(columns=self.inv_map)
+        if not set(['LE','LE_corr','LE_user_corr']).intersection(df.columns):
+            print(
+                'ERROR: no LE variables found in data, cannot calculate ET'
+            )
+            return
         
         # LH from L.P. Harrison (1963)
         if 't_avg' in df.columns:
-            df['et'] = 86400 * (df.LE/(2501000 - (2361 * df.t_avg.fillna(20))))
+            df['ET'] = 86400 * (df.LE/(2501000 - (2361 * df.t_avg.fillna(20))))
             if 'LE_corr' in df.columns:
-                df['et_corr']=\
+                df['ET_corr']=\
                     86400 * (df.LE_corr/(2501000 - (2361*df.t_avg.fillna(20))))
             if 'LE_user_corr' in df.columns:
-                df['et_user_corr'] =\
+                df['ET_user_corr'] =\
                     86400*(df.LE_user_corr/(2501000-(2361*df.t_avg.fillna(20))))
         # otherwise assume air temp = 20 degrees C
         else:
-            df['et'] = 86400 * (df.LE/(2501000 - (2361 * 20)))
+            df['ET'] = 86400 * (df.LE/(2501000 - (2361 * 20)))
             if 'LE_corr' in df.columns:
-                df['et_corr'] = 86400 * (df.LE_corr/(2501000 - (2361 * 20)))
+                df['ET_corr'] = 86400 * (df.LE_corr/(2501000 - (2361 * 20)))
             if 'LE_user_corr' in df.columns:
-                df['et_user_corr']=86400*(df.LE_user_corr/(2501000-(2361*20)))
+                df['ET_user_corr']=86400*(df.LE_user_corr/(2501000-(2361*20)))
         
         # update variables attribute with new variables (may vary)
         new_cols = set(df.columns) - set(self.variables)

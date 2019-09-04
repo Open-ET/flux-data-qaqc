@@ -800,6 +800,7 @@ class Data(Plot):
         # also remove entry from var dict to avoid issues later
         for k in del_keys:
             self.variables.pop(k, None)
+            self.units.pop(k, None)
 
         # update renaming dict with any newly created mean variables/removed
         self.inv_map = {
