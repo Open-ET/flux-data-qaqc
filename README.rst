@@ -26,7 +26,7 @@ Documentation
 
 Installation
 ------------
-Currently clone or download from `GitHub <https://github.com/Open-ET/flux-data-qaqc/edit/master/README.md>`_.  
+Currently clone or download from GitHub,
 
 .. code-block:: bash
 

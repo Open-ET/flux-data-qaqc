@@ -81,8 +81,8 @@ using average air temperature to adjust the latent heat of vaporization.
 
 **Step 9 (optional):** if desired fill remaining gaps in the corrected
 :math:`ET` time series with :math:`ET` that is calculated by gridMET
-reference :math:`ET` (:math:`ETr`) multiplied by the calculated crop
-coefficient (:math:`Kc`).
+reference :math:`ET` (:math:`ETr`) multiplied by the filtered and smoothed
+fraction of reference ET (:math:`ET_{rf}`).
 
 View initial data
 ^^^^^^^^^^^^^^^^^
@@ -202,17 +202,18 @@ Step 9, optionally gap fill corrected ET using gridMET reference ET and calculat
 This is done by downloading :math:`ETr` for the overlapping gridMET cell
 (site must be in CONUS) and then calculating,
 
-.. math:: ET_{fill} = Kc \times ETr,
+.. math:: ET_{fill} = ET_{rf} \times ET_r,
 
 \ where
 
-.. math:: Kc = \frac{ET_{corr}}{ETr}
+.. math:: ET_{rf} = \frac{ET_{corr}}{ET_r}
 
-:math:`ET_{corr}` is the corrected ET produced by step 8 and :math:`Kc`
-is the crop coefficient that is smoothed with a 7 day moving average
-(minimum of 2 days must exist in window) and then linearly interpolated
-over gaps. Gap days and monthly total number of gap filled days are
-tracked for post-processing.
+:math:`ET_{corr}` is the corrected ET produced by step 8 and :math:`ET_{rf}`
+is the fraction of reference ET. :math:`ET_{rf}` if first filtered to remove
+outliers outside of 1.5 time the interquartile range, it is then is smoothed 
+with a 7 day moving average (minimum of 2 days must exist in window) and lastly it
+is linearly interpolated to fill any remaining gaps. Gap days and monthly total 
+number of gap filled days are tracked for post-processing.
 
 This step is used by default when running ``flux-data-qaqc`` energy balance
 closure correction routines, to disable it set the ``etr_gap_fill`` 
@@ -223,8 +224,8 @@ argument of :meth:`QaQc.correct_data` to False, e.g.
     # q is a QaQc instance
     q.correct_data(meth='ebr', etr_gap_fill=False)
 
-Note, in ``flux-data-qaqc`` new variable names from this step are: Kc,
-Kc_7day_mean, gridMET_etr_mm, et_gap, et_fill, and et_fill_val. The
+Note, in ``flux-data-qaqc`` new variable names from this step are: ETrf,
+ETrf_7day_mean, gridMET_etr_mm, et_gap, et_fill, and et_fill_val. The
 difference between et_fill and et_fill_val is that the latter is masked
 (null) on days that the fill value was not used to fill gaps in
 :math:`ET_{corr}`. Also, et_gap is a daily series of True and False

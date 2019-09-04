@@ -812,34 +812,34 @@ class QaQc(Plot, Convert):
         Based on ASCE standardized ref et eqn. 37, air temperature must be in 
         celcius and actual vapor pressure in kPa.
 
-        TODO: handle unit conversions, change to calc other way too- VPD to VP
+        Also calculates VP from VPD.
         """
         df = self.df.rename(columns=self.inv_map)
         # calculate vpd from actual vapor pressure and temp
         # check if needed variables exist and units are correct
         has_vpd_vars = set(['vp','t_avg']).issubset(df.columns)
         units_correct = (
-            self.units.get('vp') == 'kPa' and self.units.get('t_avg') == 'C'
+            self.units.get('vp') == 'kpa' and self.units.get('t_avg') == 'c'
         )
         if has_vpd_vars and units_correct:
             # saturation vapor pressure (es)
             es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
             df['vpd'] = df.vp - es
             self.variables['vpd'] = 'vpd'
-            self.units['vpd'] = 'kPa'
+            self.units['vpd'] = 'kpa'
 
         # same calc actual vapor pressure from vapor pressure deficit and temp
         has_vp_vars = set(['vpd','t_avg']).issubset(df.columns)
         units_correct = (
-            self.units.get('vpd') == 'kPa' and self.units.get('t_avg') == 'C'
+            self.units.get('vpd') == 'kpa' and self.units.get('t_avg') == 'c'
         )
 
         if has_vp_vars and units_correct:
             # saturation vapor pressure (es)
-            #es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
-            #df['vp'] = 
+            es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
+            df['vp'] = df.vpd + es
             self.variables['vp'] = 'vp'
-            self.units['vp'] = 'kPa'
+            self.units['vp'] = 'kpa'
 
         self._df = df
 
@@ -881,6 +881,14 @@ class QaQc(Plot, Convert):
         # calc Kc 7 day moving average, min vals in window = 2, linear interp
         df = self.df.rename(columns=self.inv_map)
         df['Kc'] = df[et_name].astype(float) / df.gridMET_etr_mm.astype(float)
+        # filter out extremes of ETrf
+        Q1 = df['Kc'].quantile(0.25)
+        Q3 = df['Kc'].quantile(0.75)
+        IQR = Q3 - Q1
+        to_filter = df.query(
+            'Kc < (@Q1 - 1.5 * @IQR) or Kc > (@Q3 + 1.5 * @IQR)'
+        )
+        df.loc[to_filter.index, 'Kc'] = np.nan
         df['Kc_7day_mean'] = df.Kc.rolling(7, min_periods=2, center=True).mean()
         df.Kc_7day_mean = df.Kc_7day_mean.interpolate(method='linear')
         # calc ET from Kc and ETr
@@ -1238,11 +1246,16 @@ class QaQc(Plot, Convert):
 
     def plot(self, ncols=1, output_type='save', out_file=None, suptitle=None, 
             plot_width=1000, plot_height=450, sizing_mode='scale_both', 
-            merge_tools=False, **kwargs):
+            merge_tools=False, link_x=True, **kwargs):
         """
-        Creates a series of interactive diagnostice line and scatter 
+        Creates a series of interactive diagnostic line and scatter 
         plots of input and computed daily and monthly aggregated data.
 
+        The main interactive features of the plots include: pan, selection and
+        scrol zoom, hover tool that shows paired variable values including date,
+        and linked x-axes that pan/zoom togehter for daily and monthly time 
+        series plots.
+ 
         It is possible to change the format of the output plots including
         adjusting the dimensions of subplots, defining the number of columns of
         subplots, setting a super title that accepts HTML, and other options.
@@ -1290,6 +1303,10 @@ class QaQc(Plot, Convert):
                 dimensions of :obj:`bokeh.layouts.gridplot`.
             merge_tools (bool): default False. Merges all subplots toolbars into
                 a single location if True.
+            link_x (bool): default True. If True link x axes of daily time 
+                series plots and monthly time series plots so that when zooming 
+                or panning on one plot they all zoom accordingly, the axes will 
+                also be of the same length.
 
         Example:
             
@@ -1313,6 +1330,10 @@ class QaQc(Plot, Convert):
             Note, we specified the width of plots to be smaller than default
             because we want both columns of subplots to be viewable on one page.
 
+        Tip:
+            To reset all subplots at once, refresh the page with your web
+            browser.
+
         Note:
             Additional keyword arguments that are recognized by
             :obj:`bokeh.layouts.gridplot` are also accepted by
@@ -1323,7 +1344,8 @@ class QaQc(Plot, Convert):
         self._plot(
             self, ncols=ncols, output_type=output_type, out_file=out_file,
             suptitle=suptitle, plot_width=plot_width, plot_height=plot_height,
-            sizing_mode=sizing_mode, merge_tools=merge_tools, **kwargs
+            sizing_mode=sizing_mode, merge_tools=merge_tools, link_x=link_x,
+            **kwargs
         )
 
 def _drop_cols(df, cols):

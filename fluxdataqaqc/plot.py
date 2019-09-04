@@ -315,7 +315,7 @@ class Plot(object):
 
     def _plot(self, QaQc, ncols=1, output_type='save', out_file=None, 
             suptitle=None, plot_width=1000, plot_height=450, 
-            sizing_mode='scale_both', merge_tools=False, **kwargs): 
+            sizing_mode='scale_both', merge_tools=False, link_x=True, **kwargs): 
         """ 
         Private routine for aggregated validation plots which are called by
         default using the :meth:`fluxdataqaqc.QaQc.plot` method. Full API
@@ -345,8 +345,10 @@ class Plot(object):
         daily_source=ColumnDataSource(df)
         monthly_source = ColumnDataSource(monthly_df)
         # for aggregating plots
-        daily_figs = []
-        monthly_figs = []
+        daily_line = []
+        daily_scatter = []
+        monthly_line = []
+        monthly_scatter = []
 
         def _get_units(plt_vars, units):
             """
@@ -392,7 +394,7 @@ class Plot(object):
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
         )
         if fig is not None:
-            daily_figs.append(fig)
+            daily_line.append(fig)
             # same for monthly fig
             title = 'Monthly Surface Energy Balance Components'
             fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title,
@@ -402,7 +404,7 @@ class Plot(object):
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=plt_vars
             )
-            monthly_figs.append(fig)
+            monthly_line.append(fig)
         else:
             print(
                 'Energy balance components time series grapths missing all '
@@ -427,7 +429,7 @@ class Plot(object):
             fig, df, plt_vars, colors, x_label, daily_source, labels=labels
         )
         if fig is not None:
-            daily_figs.append(fig)
+            daily_line.append(fig)
             ## same for monthly fig (removed for now)
             #title = 'Monthly Incoming Shortwave and ASCE Potential Radiation'
             #fig = figure(x_axis_label=x_label,y_axis_label=y_label,title=title,
@@ -437,7 +439,7 @@ class Plot(object):
             #    fig, monthly_df, plt_vars, colors, x_label, monthly_source,
             #    labels=labels
             #)
-            #monthly_figs.append(fig)
+            #monthly_line.append(fig)
         else:
             print(
                 'Shortwave and potential clear sky shortwave time series '
@@ -471,7 +473,7 @@ class Plot(object):
                 labels=plt_vars
             )
             if fig is not None:
-                daily_figs.append(fig)
+                daily_line.append(fig)
                 # same for monthly fig
                 tmp_df = monthly_df[g_vars].rename(columns=rename_dict)
                 tmp_source = ColumnDataSource(tmp_df)
@@ -484,7 +486,7 @@ class Plot(object):
                     fig, tmp_df, plt_vars, colors, x_label, tmp_source,
                     labels=plt_vars
                 )
-                monthly_figs.append(fig)
+                monthly_line.append(fig)
             # do not print warning if missing multiple soil moisture recordings
 
         #### 
@@ -503,7 +505,7 @@ class Plot(object):
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
         )
         if fig is not None:
-            daily_figs.append(fig)
+            daily_line.append(fig)
             # same for monthly fig
             title = 'Monthly Radiation Components'
             fig = figure(
@@ -514,7 +516,7 @@ class Plot(object):
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=plt_vars
             )
-            monthly_figs.append(fig)
+            monthly_line.append(fig)
         else:
             print(
                 'Radiation components time series grapths missing all variables'
@@ -534,7 +536,7 @@ class Plot(object):
         )
         fig = Plot.add_lines(fig, df, plt_vars, colors, x_label, daily_source)
         if fig is not None:
-            daily_figs.append(fig)
+            daily_line.append(fig)
             # same for monthly fig
             title = 'Monthly Average Air Temperature'
             fig = figure(
@@ -544,7 +546,7 @@ class Plot(object):
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source
             )
-            monthly_figs.append(fig)
+            monthly_line.append(fig)
         else:
             print(
                 'Average air temperature time series grapths missing all '
@@ -553,9 +555,9 @@ class Plot(object):
 
         #### 
         # vapor pressure time series plots
-        #### TODO: make vpd on secondary y-axis 
+        #### 
         plt_vars = ['vp', 'vpd']
-        colors = ['blue', 'black']
+        colors = ['black', 'darkred']
         title = 'Daily Average Vapor Pressure and Deficit'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
@@ -567,7 +569,7 @@ class Plot(object):
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
         )
         if fig is not None:
-            daily_figs.append(fig)
+            daily_line.append(fig)
             # same for monthly fig
             title = 'Monthly Average Vapor Pressure'
             fig = figure(
@@ -578,7 +580,7 @@ class Plot(object):
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=plt_vars
             )
-            monthly_figs.append(fig)
+            monthly_line.append(fig)
         else:
             print('Vapor pressure time series grapths missing all variables')
 
@@ -596,7 +598,7 @@ class Plot(object):
         )
         fig = Plot.add_lines(fig, df, plt_vars, colors, x_label, daily_source)
         if fig is not None:
-            daily_figs.append(fig)
+            daily_line.append(fig)
             # same for monthly fig
             title = 'Monthly Average Windspeed'
             fig = figure(
@@ -606,7 +608,7 @@ class Plot(object):
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source
             )
-            monthly_figs.append(fig)
+            monthly_line.append(fig)
         else:
             print('Windspeed time series grapths missing all variables')
 
@@ -627,7 +629,7 @@ class Plot(object):
             fig, df, plt_vars, colors, x_label, daily_source, labels=labels
         )
         if fig is not None:
-            daily_figs.append(fig)
+            daily_line.append(fig)
             # same for monthly fig
             title = 'Monthly Station and gridMET precipitation'
             fig = figure(
@@ -638,7 +640,7 @@ class Plot(object):
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=labels
             )
-            monthly_figs.append(fig)
+            monthly_line.append(fig)
         else:
             print('Precipitation time series grapths missing all variables')
 
@@ -658,7 +660,7 @@ class Plot(object):
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
         )
         if fig is not None:
-            daily_figs.append(fig)
+            daily_line.append(fig)
             # same for monthly fig
             title = 'Monthly Average Latent Energy Flux'
             fig = figure(
@@ -669,7 +671,7 @@ class Plot(object):
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=plt_vars
             )
-            monthly_figs.append(fig)
+            monthly_line.append(fig)
         else:
             print('Latent energy time series grapths missing all variables')
 
@@ -697,7 +699,7 @@ class Plot(object):
             )
 
         if fig is not None:
-            daily_figs.append(fig)
+            daily_line.append(fig)
             # same for monthly fig
             title = 'Monthly Evapotranspiration'
             fig = figure(
@@ -708,7 +710,7 @@ class Plot(object):
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=labels
             )
-            monthly_figs.append(fig)
+            monthly_line.append(fig)
         else:
             print(
                 'Evapotranspiration time series grapths missing all variables'
@@ -730,7 +732,7 @@ class Plot(object):
             y = 'et_gap'
             color = 'black'
             Plot.line_plot(fig, x, y, monthly_source, color)
-            monthly_figs.append(fig)
+            monthly_line.append(fig)
         else:
             print('Monthly count of gap filled ET days plot missing variable')
 
@@ -750,7 +752,7 @@ class Plot(object):
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
         )
         if fig is not None:
-            daily_figs.append(fig)
+            daily_line.append(fig)
             # same for monthly fig
             title = 'Monthly Crop Coefficient (Kc)'
             fig = figure(
@@ -761,7 +763,7 @@ class Plot(object):
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=plt_vars
             )
-            monthly_figs.append(fig)
+            monthly_line.append(fig)
         else:
             print('Crop coefficient time series grapths missing all variables')
 
@@ -789,7 +791,7 @@ class Plot(object):
             fig, df, plt_vars, colors, x_label, daily_source, labels=labels
         )
         if fig is not None:
-            daily_figs.append(fig)
+            daily_line.append(fig)
             # same for monthly fig
             title = 'Monthly Energy Balance Ratio with Long-term Mean'
             # add mean for monthly EBRs to legend
@@ -810,7 +812,7 @@ class Plot(object):
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
                 labels=labels
             )
-            monthly_figs.append(fig)
+            monthly_line.append(fig)
         else:
             print(
                 'Energy balance ratio time series grapths missing all '
@@ -851,7 +853,7 @@ class Plot(object):
                 one2one_vals, one2one_vals, legend='1:1 line', color='black', 
                 line_dash='dashed'
             )
-            daily_figs.append(fig)
+            daily_scatter.append(fig)
             # same for monthly fig
             title = 'Monthly Energy Balance Closure, Energy Versus Flux '\
                 'with Slope Through Origin'
@@ -874,7 +876,7 @@ class Plot(object):
                 one2one_vals, one2one_vals, legend='1:1 line', color='black', 
                 line_dash='dashed'
             )
-            monthly_figs.append(fig)
+            monthly_scatter.append(fig)
         else:
             print('Energy balance scatter grapths missing all variables')
 
@@ -911,7 +913,7 @@ class Plot(object):
                 one2one_vals, one2one_vals, legend='1:1 line', color='black', 
                 line_dash='dashed'
             )
-            daily_figs.append(fig)
+            daily_scatter.append(fig)
             # same for monthly fig
             title = 'Monthly Latent Energy, Initial Versus Corrected'
             fig = figure(
@@ -932,7 +934,7 @@ class Plot(object):
                 one2one_vals, one2one_vals, legend='1:1 line', color='black', 
                 line_dash='dashed'
             )
-            monthly_figs.append(fig)
+            monthly_scatter.append(fig)
         else:
             print('Latent energy scatter grapths missing all variables')
 
@@ -968,7 +970,7 @@ class Plot(object):
                 one2one_vals, one2one_vals, legend='1:1 line', color='black', 
                 line_dash='dashed'
             )
-            daily_figs.append(fig)
+            daily_scatter.append(fig)
             # same for monthly fig
             title = 'Monthly Evapotranspiration, Initial Versus Corrected'
             fig = figure(
@@ -989,7 +991,7 @@ class Plot(object):
                 one2one_vals, one2one_vals, legend='1:1 line', color='black', 
                 line_dash='dashed'
             )
-            monthly_figs.append(fig)
+            monthly_scatter.append(fig)
         else:
             print('Evapotranspiration scatter grapths missing all variables')
 
@@ -1020,7 +1022,7 @@ class Plot(object):
                 labels=plt_vars
             )
             if fig is not None:
-                daily_figs.append(fig)
+                daily_line.append(fig)
                 # same for monthly fig
                 tmp_df = monthly_df[theta_vars].rename(columns=rename_dict)
                 tmp_source = ColumnDataSource(tmp_df)
@@ -1033,14 +1035,23 @@ class Plot(object):
                     fig, tmp_df, plt_vars, colors, x_label, tmp_source,
                     labels=plt_vars
                 )
-                monthly_figs.append(fig)
+                monthly_line.append(fig)
             # do not print warning if missing multiple soil moisture recordings
 
 
         # Aggregate plots and output depending on options
-        figs = daily_figs + monthly_figs
-        # remove None values in list 
-        figs = list(filter(None, figs))
+        # remove None values in different figure groups 
+        daily_line = list(filter(None, daily_line))
+        daily_scatter = list(filter(None, daily_scatter))
+        monthly_line = list(filter(None, monthly_line))
+        monthly_scatter = list(filter(None, monthly_scatter))
+        # link axes for time series plots
+        if link_x:
+            for each in daily_line:
+                each.x_range = daily_line[0].x_range
+            for each in monthly_line:
+                each.x_range = monthly_line[0].x_range
+        figs = daily_line + daily_scatter + monthly_line + monthly_scatter
         grid = gridplot(
             figs, ncols=ncols, plot_width=None, plot_height=None, 
             sizing_mode=sizing_mode, merge_tools=merge_tools, **kwargs
