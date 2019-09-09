@@ -89,7 +89,7 @@ class Data(Plot):
         self.config = self._load_config(self.config_file)
         self.variables = self._get_config_vars()
         self.units = self._get_config_units()
-        self.na_val = self.config.get('METADATA', 'missing_data_value')
+        self.na_val = self.config.get('METADATA', 'missing_data_value', fallback=None)
         # try to parse na_val as numeric 
         try:
             self.na_val = float(self.na_val)
