@@ -1364,6 +1364,20 @@ class QaQc(Plot, Convert):
             :meth:`QaQc.plot`.
 
         """
+
+        # handle file save for accessing from instance variable
+        if out_file is None and output_type == 'save':
+            out_file = Path(self.out_dir)/'{}_plots.html'.format(self.site_id)
+            out_dir = out_file.parent
+            if not out_dir.is_dir():
+                out_dir.mkdir(parents=True, exist_ok=True)
+        # to allow making any subdir that does not yet exist
+        # if out_file is to a non-existent directory create parents
+        elif out_file is not None and output_type == 'save':
+            out_dir = Path(out_file).parent
+            if not out_dir.is_dir():
+                out_dir.mkdir(parents=True, exist_ok=True)
+        
         # create aggregrated plot structure from fluxdataqaqc.Plot._plot() 
         self._plot(
             self, ncols=ncols, output_type=output_type, out_file=out_file,
@@ -1371,6 +1385,8 @@ class QaQc(Plot, Convert):
             sizing_mode=sizing_mode, merge_tools=merge_tools, link_x=link_x,
             **kwargs
         )
+
+        self.plot_file = out_file
 
 def _drop_cols(df, cols):
     """Drop columns from dataframe if they exist """

@@ -22,7 +22,7 @@ class Convert(object):
         'lw_out': ['w/m2'],
         'sw_in': ['w/m2'],
         'sw_out': ['w/m2'],
-        'ppt': ['mm'],
+        'ppt': ['mm', 'in'],
         'vp': ['kpa', 'hpa'],
         'vpd': ['kpa', 'hpa'],
         't_avg': ['c', 'f']
@@ -58,6 +58,7 @@ class Convert(object):
 
         self._conversion_map = {
             'hpa_to_kpa': self._hpa_to_kpa,
+            'in_to_mm': self._in_to_mm,
             'f_to_c': self._f_to_c
         }
 
@@ -105,6 +106,10 @@ class Convert(object):
         )
         df = convert_func(df, var_name)
 
+        return df
+
+    def _in_to_mm(self, df, var_name):
+        df[var_name] = df[var_name] * 25.4
         return df
 
     def _f_to_c(self, df, var_name):

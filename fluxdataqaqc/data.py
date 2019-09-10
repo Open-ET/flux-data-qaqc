@@ -684,7 +684,8 @@ class Data(Plot):
                 # if multiple Gs specified and same num multiple Gs specifed
                 # as the main G var and no weights assigned do not duplicate
                 # mean that is calculated below from comma separated list
-                if delim and pref == 'g_' and delim in self.variables.get('G'):
+                if delim and pref == 'g_' and self.variables.get('G') is not \
+                        None and delim in self.variables.get('G'):
                     n_Gs = len(self.variables.get('G').split(delim))
                     if len(weights) == total_weights and len(weights) == n_Gs: 
                         return

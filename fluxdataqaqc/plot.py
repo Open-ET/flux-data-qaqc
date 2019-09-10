@@ -326,17 +326,6 @@ class Plot(object):
         monthly_df = QaQc.monthly_df.rename(columns=QaQc.inv_map) 
         variables = QaQc.variables
         units = QaQc.units 
-        if out_file is None and output_type == 'save':
-            out_file = Path(QaQc.out_dir)/'{}_plots.html'.format(QaQc.site_id)
-            out_dir = out_file.parent
-            if not out_dir.is_dir():
-                out_dir.mkdir(parents=True, exist_ok=True)
-        # to allow making any subdir that does not yet exist
-        # if out_file is to a non-existent directory
-        elif out_file is not None and output_type == 'save':
-            out_dir = Path(out_file).parent
-            if not out_dir.is_dir():
-                out_dir.mkdir(parents=True, exist_ok=True)
 
         if output_type == 'save':
             output_file(out_file)

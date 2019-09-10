@@ -322,9 +322,9 @@ In ``flux-data-qaqc`` new variable names from this step are: ETrF,
 ETrF_filtered, gridMET_ETr, ET_gap, ET_fill, and ET_fill_val. The
 difference between ET_fill and ET_fill_val is that the latter is masked
 (null) on days that the fill value was not used to fill gaps in
-:math:`ET_{corr}`. Also, et_gap is a daily series of True and False
-values indicating which days in the initial (from step 8) time series of
-:math:`ET_{corr}` were gaps.
+:math:`ET_{corr}`. Also, ET_gap is a daily series of True and False
+values indicating which days (from step 8) of :math:`ET_{corr}` were gaps
+that were subsequently filled.
 
 .. Note::
    When using the :math:`ETr`-based gap-filling option, any gap filled days
