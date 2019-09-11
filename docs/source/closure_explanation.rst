@@ -107,10 +107,7 @@ some periods of poor quality data. This is a common issue due, e.g. to
 instrumentation problems, that cannot always be avoided. In this case the
 sensor did not record values at night (or they were not provided with the data)
 when :math:`Rn` values are lower for several days (e.g. around 8/26/2014) which
-resulted in overestimates of daily mean :math:`Rn` during these periods.
-Therefore, manual inspection and pre-filtering of poor quality data (or in this
-case several systematic sub-daily data gaps) before proceeding with energy
-balance closure corrections is often necessary.
+resulted in overestimates of daily mean :math:`Rn` during these periods. Although these days can automatically be filtered out by the :obj:`.QaQc` class, the example below shows a way of manually filtering them because in other cases outliers in the daily data may not be caused by resampling of sub-daily data with systematic measurement gaps. The main point is that manual inspection and potentially pre-filtering of poor quality data before proceeding with energy balance closure corrections is often necessary.
 
 .. raw:: html
     :file: _static/closure_algorithms/step0_NotFiltered.html
@@ -123,7 +120,9 @@ There are several ways to conduct manual pre-filtering of poor quality meterolog
     >>> import numpy as np
     >>> from fluxdataqaqc import Data, QaQc
     >>> d = Data('Path/to/config.ini')
-    >>> q = QaQc(d) 
+    >>> # days with sub daily gaps can be filtered out automatically here, 
+    >>> # see "Tip" below the following plot 
+    >>> q = QaQc(d, drop_gaps=False) 
     >>> # rename dataframe columns for ease of variable access, adjust
     >>> df = q.df.rename(columns=q.inv_map)
 
@@ -147,11 +146,14 @@ The resulting energy balance component plot with :math:`Rn` filtered:
     :file: _static/closure_algorithms/step0_Filtered.html
 
 .. tip::
-   Another option would have been to flag the days with gaps in the sub-daily
-   input time series so that they could be filtered out by
-   :meth:`.Data.apply_qc_flags`
-
-Now, if we wanted to continue with the energy balance closure correction using the manually prefiltered energy balance components we simply reassign the data to the :obj:`.QaQc` instance and run the correction:
+   In this case, the issues with :math:`Rn` were caused by resampling 30 minute
+   data with systematic night-time gaps. These sort of issues can be
+   automatically handled when creating a :obj:`.QaQc` object; the keyword
+   arguments ``drop_gaps`` and ``daily_frac`` to the :obj:`.QaQc` class are
+   used to automatically filter out days with measurement gaps of varying size.
+   Another more fine-grained option would have been to flag the days with gaps
+   in the sub-daily input time series that you would like to filter by
+   :meth:`.Data.apply_qc_flags`.
 
     >>> q.df = df
     >>> q.correct_data()

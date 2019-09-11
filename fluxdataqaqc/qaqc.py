@@ -33,6 +33,21 @@ class QaQc(Plot, Convert):
     managing a structure for input and output data files. Input data is
     expected to be a :obj:`.Data` instance or a
     :obj:`pandas.DataFrame`. 
+
+    Keyword Arguments:
+        data (:obj:`.Data`): :obj:`.Data` instance to create :obj:`.QaQc` 
+            instance.
+        drop_gaps (bool): default :obj:`True`. If :obj:`True` automatically 
+            filter variables on days with sub-daily measurement gaps less than
+            ``daily_frac``.
+        daily_frac (float): default 0.75. Fraction of sub-daily data required
+            otherwise the daily value will be filtered out if ``drop_gaps`` is
+            :obj:`True`. E.g. if ``daily_frac = 0.5`` and the input data is
+            hourly, then data on days with less than 12 hours of data will be
+            forced to null within :attr:`QaQc.df`. This is important because 
+            systematic diurnal gaps will affect the autmoatic resampling that
+            occurs when creating a :obj:`QaQc` instance and the daily data is 
+            used in closure corrections, other calculations, and plots. 
     
     Attributes:
         agg_dict (dict): Dictionary with internal variable names as keys and
@@ -205,7 +220,7 @@ class QaQc(Plot, Convert):
         'ET_user_corr'
     )
 
-    def __init__(self, data=None):
+    def __init__(self, data=None, drop_gaps=True, daily_frac=0.75):
         
         if isinstance(data, Data):
             self.config_file = data.config_file
@@ -231,7 +246,9 @@ class QaQc(Plot, Convert):
                     self.inv_map[user_G_name] = 'G'
 
             # data will be loaded if it has not yet via Data.df
-            self.temporal_freq = self._check_daily_freq()
+            self.temporal_freq = self._check_daily_freq(
+                drop_gaps=drop_gaps, daily_frac=daily_frac
+            )
             # check units, convert if possible for energy balance, ppt, Rs, vp,
             self._check_convert_units()
             self._check_gridMET()
@@ -441,7 +458,7 @@ class QaQc(Plot, Convert):
         self.gridMET_exists = True
     
         
-    def _check_daily_freq(self):
+    def _check_daily_freq(self, drop_gaps, daily_frac):
         """
         Check temporal frequency of input Data, resample to daily if not already
 
@@ -476,6 +493,33 @@ class QaQc(Plot, Convert):
             freq = 'na'
 
         if not freq == 'D':
+            # find frequency manually, optionally drop days with subdaily gaps
+            # see if two adj. dates exist, skip first day in case it is not full
+            second_day = df.index.date[2]
+            third_day = second_day + pd.Timedelta(1, unit='D')
+            downsample = False
+            if daily_frac > 1:
+                print('ERROR: daily_frac must be between 0 and 1, using 1')
+                daily_frac = 1
+            elif daily_frac < 0:
+                print('ERROR: daily_frac must be between 0 and 1, using 0')
+                daily_frac = 0
+            if not third_day in df.index and drop_gaps:
+                print('WARNING: it looks like the input temporal frequency',
+                    'is greater than daily, downsampling, proceed with' ,
+                    'caution!\n')
+                downsample = True
+            elif drop_gaps:
+                # both days start at 00:00:00, don't duplicate
+                max_times_in_day = len(df.loc[second_day:third_day].index) - 1
+                n_vals_needed = max_times_in_day * daily_frac
+                # don't overwrite QC flag columns
+                data_cols = [
+                    c for c in df.columns if not c.endswith('_qc_flag')
+                ]
+                days_with_gaps = df[data_cols].groupby(
+                    df.index.date).count() < n_vals_needed
+
             print('Data is being resampled to daily temporal frequency.')
             sum_cols = [k for k,v in QaQc.agg_dict.items() if v == 'sum']
             sum_cols = list(set(sum_cols).intersection(df.columns))
@@ -494,6 +538,15 @@ class QaQc(Plot, Convert):
             #    lambda x: x.values.sum()
             #)
             df = means.join(sums)
+
+            if not downsample and drop_gaps:
+                print(
+                    'Filtering days with less then {}% or {}/{} sub-daily '
+                    'measurements'.format(
+                        daily_frac * 100, int(n_vals_needed), max_times_in_day
+                    )
+                )
+                df[days_with_gaps] = np.nan
 
         self._df = df.rename(self.variables)
         return freq
