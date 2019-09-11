@@ -61,6 +61,8 @@ class QaQc(Plot, Convert):
         longitude (float): Site longitude in decimal degrees.
         out_dir (pathlib.Path): Default directory to save output of 
             :meth:`QaQc.write` or :meth:`QaQc.plot` methods.
+        plot_file (pathlib.Path or None): path to plot file once it is 
+            created/saved by :meth:`QaQc.plot`. 
         site_id (str): Site ID.
         temporal_freq (str): Temporal frequency of initial (as found in input 
             climate file) data as determined by :func:`pandas.infer_freq`.

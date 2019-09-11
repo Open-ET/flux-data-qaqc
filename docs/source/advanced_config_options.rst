@@ -230,8 +230,9 @@ A common format of some time series data is that the header row may
 not start on the first line of the file. If this is the case you must add
 an entry to the **METADATA** section of the config file "skiprows" which
 states the number of rows to skip before finding the header row. A 
-caveat is that if using excel files you must also ensure that the lines
-before the header row begin with a hashtag symbol "#". 
+caveat is that if using CSV data files you may have any number of comment
+lines before the header so long as they start with a hashtag symbol "#"
+(comment), in this case you should not add "skiprows" to **METADATA**. 
 
 Optimize data load time 
 ^^^^^^^^^^^^^^^^^^^^^^^

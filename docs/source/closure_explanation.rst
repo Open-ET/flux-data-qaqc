@@ -102,10 +102,14 @@ fraction of reference ET (:math:`ET_{rF}`).
 Step 0, manual cleaning of poor quality data
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Below we can see that the measured time series of net radiation (:math:`Rn`)
-has some periods of poor quality data. This is a common issue due, e.g. to
-instrumentation problems, that cannot always be avoided. Therefore, manual
-inspection and pre-filtering of poor quality data before proceeding with energy
+Below we can see that the daily time series of net radiation (:math:`Rn`) has
+some periods of poor quality data. This is a common issue due, e.g. to
+instrumentation problems, that cannot always be avoided. In this case the
+sensor did not record values at night (or they were not provided with the data)
+when :math:`Rn` values are lower for several days (e.g. around 8/26/2014) which
+resulted in overestimates of daily mean :math:`Rn` during these periods.
+Therefore, manual inspection and pre-filtering of poor quality data (or in this
+case several systematic sub-daily data gaps) before proceeding with energy
 balance closure corrections is often necessary.
 
 .. raw:: html
@@ -141,6 +145,11 @@ The resulting energy balance component plot with :math:`Rn` filtered:
 
 .. raw:: html
     :file: _static/closure_algorithms/step0_Filtered.html
+
+.. tip::
+   Another option would have been to flag the days with gaps in the sub-daily
+   input time series so that they could be filtered out by
+   :meth:`.Data.apply_qc_flags`
 
 Now, if we wanted to continue with the energy balance closure correction using the manually prefiltered energy balance components we simply reassign the data to the :obj:`.QaQc` instance and run the correction:
 

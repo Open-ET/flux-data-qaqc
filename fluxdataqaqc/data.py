@@ -45,6 +45,8 @@ class Data(Plot):
         longitude (float): Site longitude in decimal degrees, set in config.
         out_dir (pathlib.Path): Default directory to save output of 
             :meth:`QaQc.write` or :meth:`QaQc.plot` methods.
+        plot_file (pathlib.Path or None): path to plot file once it is 
+            created/saved by :meth:`Data.plot`. 
         site_id (str): Site ID as found in site_id config.ini entry.
         soil_var_weight_pairs (dict): Dictionary with names and weights for
             weighted averaging of soil heat flux or soil moisture variables.
@@ -121,7 +123,123 @@ class Data(Plot):
         # output dir will be in directory of config file
         self.out_dir = self.config_file.parent / 'output'
         self._df = None
+        self.plot_file = None
 
+    def plot(self, ncols=1, output_type='save', out_file=None, suptitle=None, 
+            plot_width=1000, plot_height=450, sizing_mode='scale_both', 
+            merge_tools=False, link_x=True, **kwargs):
+        """
+        Creates a series of interactive diagnostic line and scatter 
+        plots of input data in whichever temporal frequency it is in.
+
+        The main interactive features of the plots include: pan, selection and
+        scrol zoom, hover tool that shows paired variable values including date,
+        and linked x-axes that pan/zoom togehter for daily and monthly time 
+        series plots.
+ 
+        It is possible to change the format of the output plots including
+        adjusting the dimensions of subplots, defining the number of columns of
+        subplots, setting a super title that accepts HTML, and other options.
+        If variables are not present for plots they will not be created and a
+        warning message will be printed. There are two options for output: open
+        a temporary file for viewing or saving a copy to :attr:`QaQc.out_dir`.
+        
+        A list of all potential time series plots created: 
+        
+        * energy balance components 
+        * radiation components 
+        * multiple soil heat flux measurements
+        * air temperature
+        * vapor pressure and vapor pressure deficit
+        * wind speed
+        * precipitation 
+        * latent energy
+        * multiple soil moisture measurements
+
+
+        Keyword Arguments:
+            ncols (int): default 1. Number of columns of subplots.
+            output_type (str): default "save". How to output plots, "save" or 
+                "show".
+            out_file (str or None): default :obj:`None`. Path to save output 
+                file, if :obj:`None` save output to :attr:`Data.out_dir` with 
+                the name [site_id]_input_plots.html where [site_id] is 
+                :attr:`Data.site_id`.
+            suptitle (str or None): default :obj:`None`. Super title to go 
+                above plots, accepts HTML/CSS syntax.
+            plot_width (int): default 1000. Width of subplots in pixels.
+            plot_height (int): default 450. Height of subplots in pixels, note 
+                for subplots the height will be forced as the same as 
+                ``plot_width``.
+            sizing_mode (str): default "scale_both". Bokeh option to scale
+                dimensions of :obj:`bokeh.layouts.gridplot`.
+            merge_tools (bool): default False. Merges all subplots toolbars into
+                a single location if True.
+            link_x (bool): default True. If True link x axes of daily time 
+                series plots and monthly time series plots so that when zooming 
+                or panning on one plot they all zoom accordingly, the axes will 
+                also be of the same length.
+
+        Example:
+            
+            Starting from a correctly formatted config.ini and climate time
+            series file, this example shows how to read in the data and produce
+            a series of plots of input data as it is found in the input data
+            file (unlike :meth:`.QaQc.plot` which produces plots at daily and
+            monthly temporal frequency). This example also shows how to display
+            a title at the top of plot with the site's location and site ID.
+
+            >>> from fluxdataqaqc import Data
+            >>> d = Data('path/to/config.ini')
+            >>> # create plot title from site ID and location in N. America
+            >>> title = "<b>Site:</b> {}; <b>Lat:</b> {}N; <b>Long:</b> {}W".format(
+            >>>     q.site_id, q.latitude, q.longitude
+            >>> )
+            >>> q.plot(
+            >>>     ncols=2, output_type='show', plot_width=500, suptitle=title
+            >>> )
+
+            Note, we specified the width of plots to be smaller than default
+            because we want both columns of subplots to be viewable on the 
+            screen.
+
+        Tip:
+            To reset all subplots at once, refresh the page with your web
+            browser.
+
+        Note:
+            Additional keyword arguments that are recognized by
+            :obj:`bokeh.layouts.gridplot` are also accepted by
+            :meth:`Data.plot`.
+
+        See Also:
+            :meth:`.QaQc.plot`
+        """
+
+        # handle file save for accessing from instance variable
+        if out_file is None and output_type == 'save':
+            out_file = Path(self.out_dir)/'{}_input_plots.html'.format(
+                self.site_id
+            )
+            out_dir = out_file.parent
+            if not out_dir.is_dir():
+                out_dir.mkdir(parents=True, exist_ok=True)
+        # to allow making any subdir that does not yet exist
+        # if out_file is to a non-existent directory create parents
+        elif out_file is not None and output_type == 'save':
+            out_dir = Path(out_file).parent
+            if not out_dir.is_dir():
+                out_dir.mkdir(parents=True, exist_ok=True)
+        
+        # create aggregrated plot structure from fluxdataqaqc.Plot._plot() 
+        self._plot(
+            self, ncols=ncols, output_type=output_type, out_file=out_file,
+            suptitle=suptitle, plot_width=plot_width, plot_height=plot_height,
+            sizing_mode=sizing_mode, merge_tools=merge_tools, link_x=link_x,
+            **kwargs
+        )
+
+        self.plot_file = out_file
 
     def _load_config(self, config_file):
         if not config_file.is_file():
