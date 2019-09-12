@@ -31,8 +31,8 @@ A reproducible Jupyter Notebook with minor differences of this tutorial can be
 found `here <https://github.com/Open-ET/flux-data-qaqc/blob/master/examples/Config_options/advanced_config_options.ipynb>`__.
 
 
-Seting up a config file
------------------------
+Setting up a config file
+------------------------
 
 ``flux-data-qaqc`` starts with the creation of a configuration file, a
 text file with extension ".ini" or ".INI" that follows the rules set 

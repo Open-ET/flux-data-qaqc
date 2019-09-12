@@ -150,21 +150,31 @@ The resulting energy balance component plot with :math:`Rn` filtered:
    data with systematic night-time gaps. These sort of issues can be
    automatically handled when creating a :obj:`.QaQc` object; the keyword
    arguments ``drop_gaps`` and ``daily_frac`` to the :obj:`.QaQc` class are
-   used to automatically filter out days with measurement gaps of varying size.
-   Another more fine-grained option would have been to flag the days with gaps
-   in the sub-daily input time series that you would like to filter by
-   :meth:`.Data.apply_qc_flags`.
+   used to automatically filter out days with measurement gaps of varying size,
+   i.e.,
+   
+   >>> d = Data('path/to/config.ini')
+   >>> q = QaQc(d, drop_gaps=True, daily_frac=0.8)
+   >>> q.correct_data()
 
-    >>> q.df = df
-    >>> q.correct_data()
+   This would produce very similar energy balance closure results as the manual
+   filter above. Another more fine-grained option would have been to flag the
+   days with gaps in the sub-daily input time series that you would like to
+   filter by :meth:`.Data.apply_qc_flags`.
 
-This will directly produce the output of step 9 using the pre-filtered data. 
 
 .. Note::
    The remaining step-by-step explanation in this page uses the pre-filtered
    input time series, however results of the energy balance closure correction
    without pre-filtering outliers of :math:`Rn` are also shown in plots for the
-   final steps (8 and 9) for comparison.
+   final steps (8 and 9) for comparison. If you now ran:
+
+   >>> q.df = df
+   >>> q.correct_data()
+   >>> q.plot(output_type='show')
+
+   This will directly produce the same output of step 9 using the 
+   pre-filtered data. 
 
 Steps 1 and 2, filtering outliers of EBR
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

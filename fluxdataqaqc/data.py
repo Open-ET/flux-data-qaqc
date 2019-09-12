@@ -15,7 +15,7 @@ class Data(Plot):
     and time series input, it provides methods and attributes for 
     parsing, temporal analysis, visualization, and filtering data.
     
-    A :obj:`Data` object is initialized from a config file (see :ref:`Seting up
+    A :obj:`Data` object is initialized from a config file (see :ref:`Setting up
     a config file`) with metadata for an eddy covariance tower or other dataset
     containing time series meterological data. It serves as a starting point in
     the Python API of the energy balance closure analysis and data validation
