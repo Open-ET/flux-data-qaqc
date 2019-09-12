@@ -139,6 +139,8 @@ Here were the dates chosen and one way to filter them,
     >>> df.loc[pd.date_range('3/3/2017','3/3/2017'), 'Rn_qc'] = 'bad'
     >>> # filter (make null) based on our QC flag column for Rn
     >>> df.loc[df.Rn_qc == 'bad', 'Rn'] = np.nan
+    >>> # reassign to use pre-filtered data for corrections
+    >>> q.df = df
 
 The resulting energy balance component plot with :math:`Rn` filtered:
 

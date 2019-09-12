@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Collection of utility objects or functions for the :mod:`fluxdataqaqc`
+Collection of utility objects and functions for the :mod:`fluxdataqaqc`
 module.
 """
 

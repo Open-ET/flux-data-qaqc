@@ -285,7 +285,7 @@ class QaQc(Plot, Convert):
                 continue
             elif not u in QaQc.allowable_units[v]:
                 print('ERROR: {} units are not recognizable for var: {}\n'
-                    'allowable input units are: {}'.format(
+                    'allowable input units are: {}\nNot converting.'.format(
                         u, v, ','.join(QaQc.allowable_units[v])
                     )
                 )
