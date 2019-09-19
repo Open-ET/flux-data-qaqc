@@ -2,6 +2,7 @@
 import re
 import numpy as np
 from bokeh import models
+from bokeh.io import reset_output
 from bokeh.palettes import Viridis256
 from bokeh.layouts import gridplot, column
 from bokeh.plotting import figure, ColumnDataSource, output_file, show, save
@@ -322,15 +323,17 @@ class Plot(object):
         the :meth:`.QaQc.plot` and :meth:`.Data.plot` methods.
         """
         # get daily and monthly time series with internal names, get units
-        df = FluxObj.df.rename(columns=FluxObj.inv_map) 
-        variables = FluxObj.variables
-        units = FluxObj.units 
         monthly = False
         if hasattr(FluxObj, 'monthly_df'):
+            # will run correction as of now if it is a QaQc
             monthly = True
             monthly_df = FluxObj.monthly_df.rename(columns=FluxObj.inv_map) 
             monthly_source = ColumnDataSource(monthly_df)
 
+        # so that the correction is run, may change this
+        df = FluxObj.df.rename(columns=FluxObj.inv_map) 
+        variables = FluxObj.variables
+        units = FluxObj.units 
         # bokeh column sources for tooltips
         daily_source=ColumnDataSource(df)
         # for aggregating plots
@@ -1086,6 +1089,12 @@ class Plot(object):
         )
         if output_type == 'show':
             show(column(Div(text=suptitle),grid))
+        elif output_type == 'notebook':
+            from bokeh.io import output_notebook
+            output_notebook()
+            show(column(Div(text=suptitle),grid))
         elif output_type == 'save':
             save(column(Div(text=suptitle),grid))
+
+        reset_output()
 

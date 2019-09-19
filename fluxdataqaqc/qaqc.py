@@ -220,7 +220,7 @@ class QaQc(Plot, Convert):
         'ET_user_corr'
     )
 
-    def __init__(self, data=None, drop_gaps=True, daily_frac=0.75):
+    def __init__(self, data=None, drop_gaps=True, daily_frac=1.00):
         
         if isinstance(data, Data):
             self.config_file = data.config_file
@@ -828,8 +828,6 @@ class QaQc(Plot, Convert):
 
         # calculate clear sky radiation if not already computed
         self._calc_rso()
-        # calc vpd from actual vp (or other way) and air temp if exist
-        self._calc_vpd_from_vp()
 
         # energy balance corrections
         if not set(['Rn','LE','H','G']).issubset(self.variables.keys()) or\
@@ -874,7 +872,7 @@ class QaQc(Plot, Convert):
         Based on ASCE standardized ref et eqn. 37, air temperature must be in 
         celcius and actual vapor pressure in kPa.
 
-        Also calculates VP from VPD.
+        Can also calculate VP from VPD and air temperature.
         """
         df = self.df.rename(columns=self.inv_map)
         # calculate vpd from actual vapor pressure and temp
@@ -1366,8 +1364,8 @@ class QaQc(Plot, Convert):
 
         Keyword Arguments:
             ncols (int): default 1. Number of columns of subplots.
-            output_type (str): default "save". How to output plots, "save" or 
-                "show".
+            output_type (str): default "save". How to output plots, "save", 
+                "show", or "notebook" for Jupyter Notebooks.
             out_file (str or None): default :obj:`None`. Path to save output 
                 file, if :obj:`None` save output to :attr:`QaQc.out_dir` with 
                 the name [site_id]_plots.html where [site_id] is 

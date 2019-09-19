@@ -125,6 +125,46 @@ class Data(Plot):
         self._df = None
         self.plot_file = None
 
+    def _calc_vpd_from_vp(self):
+        """
+        Based on ASCE standardized ref et eqn. 37, air temperature must be in 
+        celcius and actual vapor pressure in kPa.
+
+        Can also calculate VP from VPD and air temperature.
+
+        TODO: make sure temporal frequency of input is <= hourly before calc.
+            This calc should go in df after loading.
+        
+        """
+        df = self.df.rename(columns=self.inv_map)
+        # calculate vpd from actual vapor pressure and temp
+        # check if needed variables exist and units are correct
+        has_vpd_vars = set(['vp','t_avg']).issubset(df.columns)
+        units_correct = (
+            self.units.get('vp') == 'kpa' and self.units.get('t_avg') == 'c'
+        )
+        if has_vpd_vars and units_correct:
+            # saturation vapor pressure (es)
+            es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
+            df['vpd'] = df.vp - es
+            self.variables['vpd'] = 'vpd'
+            self.units['vpd'] = 'kpa'
+
+        # same calc actual vapor pressure from vapor pressure deficit and temp
+        has_vp_vars = set(['vpd','t_avg']).issubset(df.columns)
+        units_correct = (
+            self.units.get('vpd') == 'kpa' and self.units.get('t_avg') == 'c'
+        )
+
+        if has_vp_vars and units_correct:
+            # saturation vapor pressure (es)
+            es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
+            df['vp'] = df.vpd + es
+            self.variables['vp'] = 'vp'
+            self.units['vp'] = 'kpa'
+
+        self._df = df
+
     def plot(self, ncols=1, output_type='save', out_file=None, suptitle=None, 
             plot_width=1000, plot_height=450, sizing_mode='scale_both', 
             merge_tools=False, link_x=True, **kwargs):
@@ -159,8 +199,8 @@ class Data(Plot):
 
         Keyword Arguments:
             ncols (int): default 1. Number of columns of subplots.
-            output_type (str): default "save". How to output plots, "save" or 
-                "show".
+            output_type (str): default "save". How to output plots, "save", 
+                "show", or "notebook" for Jupyter Notebooks.
             out_file (str or None): default :obj:`None`. Path to save output 
                 file, if :obj:`None` save output to :attr:`Data.out_dir` with 
                 the name [site_id]_input_plots.html where [site_id] is 
