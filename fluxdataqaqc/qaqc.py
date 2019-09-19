@@ -282,6 +282,7 @@ class QaQc(Plot, Convert):
 
         for v, u in self.units.items():
             if not v in QaQc.required_units.keys():
+                # variable is not required to have any particular unit, skip
                 continue
             elif not u in QaQc.allowable_units[v]:
                 print('ERROR: {} units are not recognizable for var: {}\n'
@@ -481,14 +482,11 @@ class QaQc(Plot, Convert):
 
         # pd.infer_freq does not always work and may return None
         if freq and freq > 'D':
-            print('WARNING: it looks like the input data temporal frequency',
-                'is greater than daily, downsampling to daily, proceed with' ,
-                'caution!\n')
-        if freq and freq < 'D':
+            pass
+        elif freq and freq < 'D':
             print('The input data temporal frequency appears to be less than',
                 'daily.\n')
-
-        if freq is None:
+        elif freq is None:
             print('The input data temporal frequency was not detected.')
             freq = 'na'
 

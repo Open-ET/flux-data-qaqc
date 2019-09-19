@@ -8,8 +8,9 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from .plot import Plot
+from .util import Convert
 
-class Data(Plot):
+class Data(Plot, Convert):
     """
     An object for interfacing ``flux-data-qaqc`` with input metadata (config)
     and time series input, it provides methods and attributes for 
@@ -125,18 +126,40 @@ class Data(Plot):
         self._df = None
         self.plot_file = None
 
-    def _calc_vpd_from_vp(self):
+    def _calc_vpd_or_vp(self):
         """
         Based on ASCE standardized ref et eqn. 37, air temperature must be in 
         celcius and actual vapor pressure in kPa.
 
         Can also calculate VP from VPD and air temperature.
-
-        TODO: make sure temporal frequency of input is <= hourly before calc.
-            This calc should go in df after loading.
-        
         """
-        df = self.df.rename(columns=self.inv_map)
+        df = self._df.rename(columns=self.inv_map)
+
+        # make sure day intervals are hourly or less if not skip
+        second_day = df.index.date[2]
+        third_day = second_day + pd.Timedelta(1, unit='D')
+        # both days start at 00:00:00, don't duplicate
+        times_in_day = len(df.loc[second_day:third_day].index) - 1
+        if times_in_day < 24:
+            return
+
+        for v in ['vp', 'vpd', 't_avg']:
+            u = self.units.get(v)
+            if u:
+                self.units[v] = u = u.lower()
+
+            if u and not u in Data.allowable_units[v]:
+                print('ERROR: {} units are not recognizable for var: {}\n'
+                    'allowable input units are: {}\nNot converting.'.format(
+                        u, v, ','.join(Data.allowable_units[v])
+                    )
+                )
+            elif u and not u == Data.required_units[v]:
+                # do conversion, update units
+                # pass variable, initial unit, unit to be converted to, df
+                df = Convert.convert(v, u, Data.required_units[v], df)
+                self.units[v] = Data.required_units[v]
+
         # calculate vpd from actual vapor pressure and temp
         # check if needed variables exist and units are correct
         has_vpd_vars = set(['vp','t_avg']).issubset(df.columns)
@@ -144,9 +167,13 @@ class Data(Plot):
             self.units.get('vp') == 'kpa' and self.units.get('t_avg') == 'c'
         )
         if has_vpd_vars and units_correct:
+            print(
+                'Calculating vapor pressure deficit from vapor pressure and '
+                'air temperature'
+            )
             # saturation vapor pressure (es)
             es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
-            df['vpd'] = df.vp - es
+            df['vpd'] = es - df.vp
             self.variables['vpd'] = 'vpd'
             self.units['vpd'] = 'kpa'
 
@@ -157,13 +184,18 @@ class Data(Plot):
         )
 
         if has_vp_vars and units_correct:
+            print(
+                'Calculating vapor pressure from vapor pressure deficit and '
+                'air temperature'
+            )
             # saturation vapor pressure (es)
             es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
-            df['vp'] = df.vpd + es
+            df['vp'] = es - df.vpd
             self.variables['vp'] = 'vp'
             self.units['vp'] = 'kpa'
 
-        self._df = df
+        return df.rename(columns=self.variables)
+
 
     def plot(self, ncols=1, output_type='save', out_file=None, suptitle=None, 
             plot_width=1000, plot_height=450, sizing_mode='scale_both', 
@@ -972,7 +1004,12 @@ class Data(Plot):
         # date index
         df.index = df.date
         df.drop('date', axis=1, inplace=True)
+        self._df = df # vpd calc uses attribute
+        # calc vapor pressure or vapor pressure deficit if hourly or less
+        # also update units if needed for vp, vpd, t_avg
+        df = self._calc_vpd_or_vp()
         self._df = df
+
         return df
 
     @df.setter

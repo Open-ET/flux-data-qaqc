@@ -1102,10 +1102,8 @@ Vapor pressure/deficit
 The :obj:`.Data` object will attempt to calculate vapor pressure or vapor
 pressure deficit if one exists but not the other and average air
 temperature time series also exists with the input data at hourly or
-shorter temporal frequency. Equation 37 from `“ASCE Standardized
-Reference Evapotranspiration
-Equation” <https://www.mesonet.org/images/site/ASCE_Evapotranspiration_Formula.pdf>`__
-states that the saturation vapor pressure (:math:`es`) in kPa equals,
+shorter temporal frequency. The Magnus equation (eqn. 37 in the ASCE report) 
+states that the saturation vapor pressure ($es$) in kPa relates to air temperature,
 
 .. math::  es = 0.6108  e^{\left(\frac{17.27 \cdot T}{(T + 237.3)}\right)} 
 
@@ -1117,8 +1115,7 @@ Vapor pressure deficit (:math:`vpd`) is,
 ,
 
 where :math:`ea` is actual vapor pressure in kPa. **Note,** The
-equations above from the “ASCE Standardized Reference Evapotranspiration
-Equation” report are defined for hourly data however they are used for
+equations above are defined for hourly measurements however they are used for
 hourly or shorter mean variables (:math:`T`, :math:`ea`, or :math:`vpd`)
 within ``flux-data-qaqc`` and then converted to daily means, if they are
 not present in the input data at hourly or shorter frequencies then they
@@ -1131,6 +1128,8 @@ if given :math:`T` and :math:`vpd`, then to get actual vapor pressure
 .. math::  es = 0.6108  e^{\left(\frac{17.27 \cdot T}{(T + 237.3)}\right)}  
 
 .. math::  ea = es - vpd. 
+
+In ``flux-data-qaqc`` actual vapor pressure is named "vp" not "ea".
 
 A note on units
 ---------------
