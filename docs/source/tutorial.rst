@@ -608,8 +608,8 @@ Here is an example,
         Evapotranspiration scatter grapths missing all variables
 
 
-.. raw:: html
-    :file: _static/tutorial/US-Tw3_input_plots.html
+The output plot is not shown in the online documentation due to 
+memory constraints. 
 
 
 .. hint:: 
@@ -640,7 +640,8 @@ suffix “\_input_plots”:
     >>> d.plot_file
         PosixPath('/home/john/flux-data-qaqc/examples/Basic_usage/output/US-Tw3_input_plots.html')
 
-The following plot is not shown due to excessive memory usage in online documentation.
+The following plot is not shown due to excessive memory usage needed to build 
+online documentation.
 
     >>> # view outplot plots within Jupyter notebook
     >>> from IPython.display import HTML
