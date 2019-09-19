@@ -12,7 +12,7 @@ This tutorial shows how to use ``flux-data-qaqc`` with climate data of various
 formats and generally covers formatting rules of input data and extra options
 that can be set in a config file. The major differences when using
 ``flux-data-qaqc`` for different input data lie in the config file declarations
-therefore the entire workflow from :ref:`Basic Usage`
+therefore the entire workflow from :ref:`Tutorial`
 will work just the same once your config file is set up correctly. 
 
 Example data description

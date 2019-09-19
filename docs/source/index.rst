@@ -27,7 +27,7 @@ Notable tools include:
 
    install
    Configuration Options <advanced_config_options>
-   Basic Usage <basic_usage>
+   Tutorial <tutorial>
    Closure Algorithms <closure_explanation>
    api
 
