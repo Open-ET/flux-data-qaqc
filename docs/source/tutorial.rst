@@ -640,12 +640,11 @@ suffix “\_input_plots”:
     >>> d.plot_file
         PosixPath('/home/john/flux-data-qaqc/examples/Basic_usage/output/US-Tw3_input_plots.html')
 
+The following plot is not shown due to excessive memory usage in online documentation.
+
     >>> # view outplot plots within Jupyter notebook
     >>> from IPython.display import HTML
     >>> HTML(filename=d.plot_file)
-
-.. raw:: html
-    :file: _static/tutorial/US-Tw3_input_plots_2cols.html
 
 
 .. hint:: 
