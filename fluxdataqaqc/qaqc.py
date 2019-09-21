@@ -750,7 +750,7 @@ class QaQc(Plot, Convert):
 
         Currently two correction options are available: 'ebr' (Energy Balance
         Ratio) and 'br' (Bowen Ratio). If you use one method followed by
-        another corrected,the corrected versions of LE, H, et, ebr, etc. will
+        another corrected,the corrected versions of LE, H, ET, ebr, etc. will
         be overwritten with the most recently used approach. 
         
         This method also computes potential clear sky radiation 
@@ -968,18 +968,14 @@ class QaQc(Plot, Convert):
         df['ET_gap'] = False
         df.loc[(df[et_name].isna() & df.ET_fill.notna()), 'ET_gap'] = True
         df.loc[df.ET_gap, et_name] = df.loc[df.ET_gap, 'ET_fill']
-        # in order to see difference between gap filled and not need
-        # to backcalculate LE_corr and flux_corr with gap filled et_corr
-        # not doing LE_user_corr if et_name is et_user_corr because not our meth
+        # backcalculate LE_corr and flux_corr with gap filled et_corr
         if et_name == 'ET_corr' and 't_avg' in self.variables:
             df['LE_corr'] =\
                 (df.ET_corr * (2501000 - 2361 * df.t_avg.fillna(20))) / 86400
-            df['flux_corr'] = df.LE_corr + df.H_corr
         # assume 20 degrees C
         elif et_name == 'ET_corr' and not 't_avg' in self.variables:
             df['LE_corr'] =\
                 (df.ET_corr * (2501000 - 2361 * 20)) / 86400
-            df['flux_corr'] = df.LE_corr + df.H_corr
 
         # et fill values only where they were used to gap fill, for plotting
         df['ET_fill_val'] = np.nan

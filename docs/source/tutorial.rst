@@ -258,8 +258,6 @@ tools for time series analysis and visualization.
 
     >>> # first 5 datetimes that are not gaps
     >>> d.df.dropna().head()
-        Calculating mean for var: THETA from columns: ['SWC_1_1_1', 'SWC_1_2_1']
-        WARNING: renaming column G to input_G
 
 .. raw:: html
 
@@ -598,15 +596,6 @@ The most useful interactive features of plots created by
 Here is an example,
 
     >>> d.plot(output_type='notebook', plot_width=700)
-        Shortwave and potential clear sky radiation time series grapths missing all variables
-        Precipitation time series grapths missing all variables
-        Evapotranspiration time series grapths missing all variables
-        Fraction of reference ET time series grapths missing all variables
-        Energy balance ratio time series grapths missing all variables
-        Energy balance scatter grapths missing all variables
-        Latent energy scatter grapths missing all variables
-        Evapotranspiration scatter grapths missing all variables
-
 
 The output plot is not shown in the online documentation due to 
 memory constraints. 
@@ -621,15 +610,6 @@ memory constraints.
 If you rather save the plot, and maybe you want 2 columns of plots,
 
     >>> d.plot(ncols=2, plot_width=500) 
-        Shortwave and potential clear sky radiation time series grapths missing all variables
-        Precipitation time series grapths missing all variables
-        Evapotranspiration time series grapths missing all variables
-        Fraction of reference ET time series grapths missing all variables
-        Energy balance ratio time series grapths missing all variables
-        Energy balance scatter grapths missing all variables
-        Latent energy scatter grapths missing all variables
-        Evapotranspiration scatter grapths missing all variables
-
 
 After saving a plot without specifying the output file path (keyword
 argument ``out_file``), it will be saved to an “output” directory where
@@ -802,18 +782,6 @@ daily mean :math:`Rn` if not filtered carefully:
     >>> Rn_df['require_75'] = q.df.rename(columns=q.inv_map).Rn
     >>> q = QaQc(d, daily_frac=1) 
     >>> Rn_df['require_100'] = q.df.rename(columns=q.inv_map).Rn
-        The input data temporal frequency appears to be less than daily.
-        Data is being resampled to daily temporal frequency.
-        The input data temporal frequency appears to be less than daily.
-        Data is being resampled to daily temporal frequency.
-        Filtering days with less then 50.0% or 24/48 sub-daily measurements
-        The input data temporal frequency appears to be less than daily.
-        Data is being resampled to daily temporal frequency.
-        Filtering days with less then 75.0% or 36/48 sub-daily measurements
-        Data is being resampled to daily temporal frequency.
-        Filtering days with less then 100% or 48/48 sub-daily measurements
-
-
     >>> # plot to compare results of day-gap filter
     >>> fig = figure(x_axis_label='date', y_axis_label='mean daily net radiation (w/m2), filtered based on sub-daily gaps')
     >>> # arguments needed for creating interactive line plots
@@ -957,11 +925,6 @@ corrections. Here are a few tips on using them,
 
     >>> # to specify the Bowen Raito method:
     >>> q.correct_data(meth='br')
-        gridMET reference ET already downloaded for station at:
-        /home/john/flux-data-qaqc/examples/Basic_usage/gridMET_data/US-Tw3_38.1083N_-121.6417W.csv
-        not redownloading.
-        Gap filling ET_corr with filtered ETrF x ETr (gridMET)
-
 
     >>> # the most recently used correction method is now shown
     >>> q.corr_meth
@@ -983,14 +946,6 @@ corrections. Here are a few tips on using them,
     >>> br_gapfilled = q.df
     >>> q.correct_data(meth='br', etr_gap_fill=False)
     >>> br_notgapfilled = q.df
-        gridMET reference ET already downloaded for station at:
-        /home/john/flux-data-qaqc/examples/Basic_usage/gridMET_data/US-Tw3_38.1083N_-121.6417W.csv
-        not redownloading.
-        Gap filling ET_corr with filtered ETrF x ETr (gridMET)
-        gridMET reference ET already downloaded for station at:
-        /home/john/flux-data-qaqc/examples/Basic_usage/gridMET_data/US-Tw3_38.1083N_-121.6417W.csv
-        not redownloading.
-        Gap filling ET_corr with filtered ETrF x ETr (gridMET)
 
 
 ET gap-filling
@@ -1027,33 +982,6 @@ argument ``QaQc.correct_data(etr_gap_fill = True)``.
    recorded before 1979 this option will not be ususable and you should always
    run corrections with ``etr_gap_fill=False`` to avoid potential errors.
 
-Lastly, although variables created by energy balance closure corrections
-are described in :ref:`Closure
-Methodologies`.
-For reference here is a list of all possible variables created by the
-Energy Balance Ratio correction algorithm:
-
-::
-
-   rso : potential clear sky radiation (ASCE formulation)
-   flux : input LE + H
-   energy : input Rn - G
-   ebr_5day_clim : 5 day climatology of the filtered Energy Balance Ratio 
-   LE_corr : corrected latent energy
-   ebc_cf  : energy balance closure correction factor (inverse of ebr_corr)
-   ebr_corr : corrected energy balance ratio
-   flux_corr : LE_corr + H_corr 
-   ebr : input energy balance ratio
-   H_corr : corrected sensible heat
-   ET : ET calculated from input LE and average air temperature
-   ET_corr : ET calculated from LE_corr and avg. air temp.
-   gridMET_ETr : gridMET alfalfa reference ET (nearest cell)
-   gridMET_prcp : gridMET precipitation
-   ETrF : fraction of reference ET for ET_corr, i.e. ET_corr / gridMET_ETr
-   ETrF_filtered : filtered ETrF
-   ET_fill : gridMET_ETr * ETrF_filtered (to fill gaps in ET_corr, full time series)
-   ET_gap : True on gap days in ET_corr, False otherwise (for plotting and post-processing)
-   ET_fill_val : value of ET_fill on gap days (for plotting and post-processing)
 
 The Bowen Ratio correction method will produce the ‘br’ variable which
 is the Bowen Ratio.
@@ -1130,6 +1058,59 @@ if given :math:`T` and :math:`vpd`, then to get actual vapor pressure
 .. math::  ea = es - vpd. 
 
 In ``flux-data-qaqc`` actual vapor pressure is named "vp" not "ea".
+
+Calculated variable reference
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Although variables created by energy balance closure corrections are described
+in :ref:`Closure Methodologies` and others are below, here is a reference list 
+of all possibly calculated variables created by ``flux-data-qaqc``:
+    
+
+   +--------------+-----------------------------------------------------------------+
+   |Variable      | Description                                                     |
+   +==============+=================================================================+
+   |rso           | potential clear sky radiation (ASCE formulation)                |
+   +--------------+-----------------------------------------------------------------+
+   |flux          | input LE + H                                                    |
+   +--------------+-----------------------------------------------------------------+
+   |energy        | input Rn - G                                                    |
+   +--------------+-----------------------------------------------------------------+
+   |ebr_5day_clim | 5 day climatology of the filtered Energy Balance Ratio          |
+   +--------------+-----------------------------------------------------------------+
+   |LE_corr       | corrected latent energy                                         |
+   +--------------+-----------------------------------------------------------------+
+   |ebc_cf        | energy balance closure correction factor (inverse of ebr_corr)  |
+   +--------------+-----------------------------------------------------------------+
+   |ebr_corr      | corrected energy balance ratio                                  |
+   +--------------+-----------------------------------------------------------------+
+   |flux_corr     | LE_corr + H_corr                                                |
+   +--------------+-----------------------------------------------------------------+
+   |ebr           | input energy balance ratio                                      |
+   +--------------+-----------------------------------------------------------------+
+   |br            | bowen ratio                                                     |
+   +--------------+-----------------------------------------------------------------+
+   |H_corr        | corrected sensible heat                                         |
+   +--------------+-----------------------------------------------------------------+
+   |ET            | ET calculated from input LE and average air temperature         |
+   +--------------+-----------------------------------------------------------------+
+   |ET_corr       | ET calculated from LE_corr and avg. air temp.                   |
+   +--------------+-----------------------------------------------------------------+
+   |gridMET_ETr   | gridMET alfalfa reference ET (nearest cell)                     |
+   +--------------+-----------------------------------------------------------------+
+   |gridMET_prcp  | gridMET precipitation                                           |
+   +--------------+-----------------------------------------------------------------+
+   |ETrF          | fraction of reference ET for ET_corr, i.e. ET_corr / gridMET_ETr|
+   +--------------+-----------------------------------------------------------------+
+   |ETrF_filtered | filtered ETrF                                                   |
+   +--------------+-----------------------------------------------------------------+
+   |ET_fill       | gridMET_ETr * ETrF_filtered (fills gaps in ET_corr)             |
+   +--------------+-----------------------------------------------------------------+
+   |ET_gap        | True on gap days in ET_corr, False otherwise                    |  
+   +--------------+-----------------------------------------------------------------+
+   |ET_fill_val   | value of ET_fill on gap days                                    |  
+   +--------------+-----------------------------------------------------------------+
+
 
 A note on units
 ---------------

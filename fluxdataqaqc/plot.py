@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
 import numpy as np
+import pandas as pd
 from bokeh import models
 from bokeh.io import reset_output
 from bokeh.palettes import Viridis256
@@ -890,17 +891,19 @@ class Plot(object):
                             fig, 'energy', v, monthly_source, colors[i], 
                             label=labels[i]
                         )
-                        if min_max is not None:
-                            mins_maxs.append(min_max)
+                        #if min_max is not None:
+                        #    mins_maxs.append(min_max)
                 mins_maxs = np.array(mins_maxs)
-                one2one_vals = np.arange(
-                    min(mins_maxs[:,0]), max(mins_maxs[:,1]), 1
-                )
-                fig.line(
-                    one2one_vals, one2one_vals, legend='1:1 line', 
-                    color='black', line_dash='dashed'
-                )
-                monthly_scatter.append(fig)
+                # check if not all pairs are empty, if not plot 1:1
+                if not pd.isna(mins_maxs).all():
+                    one2one_vals = np.arange(
+                        min(mins_maxs[:,0]), max(mins_maxs[:,1]), 1
+                    )
+                    fig.line(
+                        one2one_vals, one2one_vals, legend='1:1 line', 
+                        color='black', line_dash='dashed'
+                    )
+                    monthly_scatter.append(fig)
         else:
             print('Energy balance scatter grapths missing all variables')
 
@@ -954,14 +957,16 @@ class Plot(object):
                         )
                         mins_maxs.append(min_max)
                 mins_maxs = np.array(mins_maxs)
-                one2one_vals = np.arange(
-                    min(mins_maxs[:,0]), max(mins_maxs[:,1]), 1
-                )
-                fig.line(
-                    one2one_vals, one2one_vals, legend='1:1 line', 
-                    color='black', line_dash='dashed'
-                )
-                monthly_scatter.append(fig)
+                # check if not all pairs are empty, if not plot 1:1
+                if not pd.isna(mins_maxs).all():
+                    one2one_vals = np.arange(
+                        min(mins_maxs[:,0]), max(mins_maxs[:,1]), 1
+                    )
+                    fig.line(
+                        one2one_vals, one2one_vals, legend='1:1 line', 
+                        color='black', line_dash='dashed'
+                    )
+                    monthly_scatter.append(fig)
         else:
             print('Latent energy scatter grapths missing all variables')
 
@@ -1014,14 +1019,16 @@ class Plot(object):
                         )
                         mins_maxs.append(min_max)
                 mins_maxs = np.array(mins_maxs)
-                one2one_vals = np.arange(
-                    min(mins_maxs[:,0]), max(mins_maxs[:,1]), 1
-                )
-                fig.line(
-                    one2one_vals, one2one_vals, legend='1:1 line', 
-                    color='black', line_dash='dashed'
-                )
-                monthly_scatter.append(fig)
+                # check if not all pairs are empty, if not plot 1:1
+                if not pd.isna(mins_maxs).all():
+                    one2one_vals = np.arange(
+                        min(mins_maxs[:,0]), max(mins_maxs[:,1]), 1
+                    )
+                    fig.line(
+                        one2one_vals, one2one_vals, legend='1:1 line', 
+                        color='black', line_dash='dashed'
+                    )
+                    monthly_scatter.append(fig)
         else:
             print('Evapotranspiration scatter grapths missing all variables')
 
