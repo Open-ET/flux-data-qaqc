@@ -126,14 +126,14 @@ class Data(Plot, Convert):
         self._df = None
         self.plot_file = None
 
-    def _calc_vpd_or_vp(self):
+    def _calc_vpd_or_vp(self, df):
         """
         Based on ASCE standardized ref et eqn. 37, air temperature must be in 
         celcius and actual vapor pressure in kPa.
 
         Can also calculate VP from VPD and air temperature.
         """
-        df = self._df.rename(columns=self.inv_map)
+        df = df.rename(columns=self.inv_map)
 
         # make sure day intervals are hourly or less if not skip
         second_day = df.index.date[2]
@@ -141,6 +141,7 @@ class Data(Plot, Convert):
         # both days start at 00:00:00, don't duplicate
         times_in_day = len(df.loc[second_day:third_day].index) - 1
         if times_in_day < 24:
+            print('Temporal frequency of data > hourly cannot calculate VP/VPD')
             return
 
         for v in ['vp', 'vpd', 't_avg']:
@@ -193,8 +194,10 @@ class Data(Plot, Convert):
             df['vp'] = es - df.vpd
             self.variables['vp'] = 'vp'
             self.units['vp'] = 'kpa'
+        
+        self._df = df
 
-        return df.rename(columns=self.variables)
+        #return df.rename(columns=self.variables)
 
 
     def plot(self, ncols=1, output_type='save', out_file=None, suptitle=None, 
@@ -1006,15 +1009,14 @@ class Data(Plot, Convert):
         df.drop('date', axis=1, inplace=True)
         self._df = df # vpd calc uses attribute
         # calc vapor pressure or vapor pressure deficit if hourly or less
-        # also update units if needed for vp, vpd, t_avg
-        df = self._calc_vpd_or_vp()
-        self._df = df
+        # also converts units if needed for vp, vpd, t_avg
+        self._calc_vpd_or_vp(df)
 
         return df
 
     @df.setter
     def df(self, data_frame):
         if not isinstance(data_frame, pd.DataFrame):
-            raise TypeError("Must assign a Pandas.DataFrame object")
+            raise TypeError("Must assign a pandas.DataFrame object")
         self._df = data_frame
 
