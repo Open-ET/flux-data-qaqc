@@ -139,7 +139,7 @@ class Data(Plot, Convert):
         second_day = df.index.date[2]
         third_day = second_day + pd.Timedelta(1, unit='D')
         # both days start at 00:00:00, don't duplicate
-        times_in_day = len(df.loc[second_day:third_day].index) - 1
+        times_in_day = len(df.loc[str(second_day):str(third_day)].index) - 1
         if times_in_day < 24:
             print('Temporal frequency of data > hourly cannot calculate VP/VPD')
             return

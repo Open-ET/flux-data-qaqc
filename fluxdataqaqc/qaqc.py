@@ -509,7 +509,8 @@ class QaQc(Plot, Convert):
                 downsample = True
             elif drop_gaps:
                 # both days start at 00:00:00, don't duplicate
-                max_times_in_day = len(df.loc[second_day:third_day].index) - 1
+                max_times_in_day = len(
+                    df.loc[str(second_day):str(third_day)].index) - 1
                 n_vals_needed = max_times_in_day * daily_frac
                 # don't overwrite QC flag columns
                 data_cols = [
