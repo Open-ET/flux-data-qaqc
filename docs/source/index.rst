@@ -6,9 +6,11 @@ flux-data-qaqc - Tools for Energy Balance Closure Analysis
    :target: https://flux-data-qaqc.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
-``flux-data-qaqc`` provides a framework to create reproducible workflows for the analysis of eddy covariance time series data. In particular for performing energy balance closure analysis and correction routines which adjust turbulent fluxes.
+`View on GitHub <https://github.com/Open-ET/flux-data-qaqc>`_. 
 
-Notable tools include:
+``flux-data-qaqc`` provides a framework to create reproducible workflows for validation and analysis of eddy covariance time series data. 
+
+Notable tools:
 
 * data validation with methods for quality-based filtering
 * time series data tools, e.g. temporal aggregation and resampling
@@ -19,8 +21,6 @@ Notable tools include:
 * batch processing
 * unit conversions
 
-
-
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
@@ -30,6 +30,7 @@ Notable tools include:
    Tutorial <tutorial>
    Closure Algorithms <closure_explanation>
    api
+   contributors
 
 Indices and tables
 ==================

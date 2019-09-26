@@ -6,9 +6,9 @@
 flux-data-qaqc
 ================
 
-``flux-data-qaqc`` provides a framework to create reproducible workflows for the analysis of eddy covariance time series data. In particular for performing energy balance closure analysis and correction routines which adjust turbulent fluxes.
+``flux-data-qaqc`` provides a framework to create reproducible workflows for the validation and analysis of eddy covariance time series data.
 
-Notable tools include:
+Notable tools:
 
 * data validation with methods for quality-based filtering
 * time series data tools, e.g. temporal aggregation and resampling

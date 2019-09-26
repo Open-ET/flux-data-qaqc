@@ -9,10 +9,12 @@ with io.open("fluxdataqaqc/__init__.py", "rt", encoding="utf8") as f:
 
 requires = [
     'bokeh',
+    'netCDF4',
     'numpy>=1.15',
     'pandas',
     'refet',
-    'xlrd>=1.2.0'
+    'xlrd>=1.2.0',
+    'xarray'
 ]
 
 tests_require = ['pytest']
@@ -30,9 +32,10 @@ setup(
     name='fluxdataqaqc',
     description='Tools for QA/QC of eddy covariance station data',
     long_description=readme,
-    author='John Volk and Christian Dunkerly',
-    author_email='jmvolk@unr.edu',
+    author='John Volk',
+    author_email='john.volk@dri.edu',
     license='Apache',
+    python_requires='>=3.7',
     version=version,
     url='https://github.com/Open-ET/flux-data-qaqc',
     platforms=['Windows','Linux','Mac OS X'],
@@ -40,8 +43,9 @@ setup(
     packages=['fluxdataqaqc'],
     install_requires=requires,
     tests_require=tests_require,
-    package_data={'fluxdataqaqc': ['examples/*'],
+    package_data={
+        'fluxdataqaqc': ['examples/*'],
         '': ['environment.yml'],
-        'fluxdataqaqc': ['FLUXNET_metadata.xlsx']},
+    },
     include_package_data=True,
 )
