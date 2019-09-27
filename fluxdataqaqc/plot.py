@@ -332,6 +332,7 @@ class Plot(object):
             monthly_source = ColumnDataSource(monthly_df)
 
         # so that the correction is run, may change this
+        FluxObj.df.head(); # if Data, need to access to calc vp/vpd 
         df = FluxObj.df.rename(columns=FluxObj.inv_map) 
         variables = FluxObj.variables
         units = FluxObj.units 
@@ -705,7 +706,7 @@ class Plot(object):
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=labels
         )
-        if 'ET_fill_val' in df.columns:
+        if 'ET_fill_val' in df.columns and fig is not None:
             # make gap fill values more visible
             Plot.line_plot(
                 fig, 'date', 'ET_fill_val', daily_source, 'green', 

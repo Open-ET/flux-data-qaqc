@@ -137,9 +137,9 @@ class Data(Plot, Convert):
 
         # make sure day intervals are hourly or less if not skip
         second_day = df.index.date[2]
-        third_day = second_day + pd.Timedelta(1, unit='D')
+        #third_day = second_day + pd.Timedelta(1, unit='D')
         # both days start at 00:00:00, don't duplicate
-        times_in_day = len(df.loc[str(second_day):str(third_day)].index) - 1
+        times_in_day = len(df.loc[str(second_day)].index) 
         if times_in_day < 24:
             print('Temporal frequency of data > hourly cannot calculate VP/VPD')
             return
@@ -196,8 +196,6 @@ class Data(Plot, Convert):
             self.units['vp'] = 'kpa'
         
         self._df = df
-
-        #return df.rename(columns=self.variables)
 
 
     def plot(self, ncols=1, output_type='save', out_file=None, suptitle=None, 

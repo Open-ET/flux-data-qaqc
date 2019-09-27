@@ -225,6 +225,7 @@ class QaQc(Plot, Convert):
         if isinstance(data, Data):
             self.config_file = data.config_file
             self.config = data.config
+            data.df.head();# need to access to potentially calc vp/vpd
             self._df = data.df
             self.variables = data.variables
             self.units = data.units
@@ -508,9 +509,8 @@ class QaQc(Plot, Convert):
                     'caution!\n')
                 downsample = True
             elif drop_gaps:
-                # both days start at 00:00:00, don't duplicate
                 max_times_in_day = len(
-                    df.loc[str(second_day):str(third_day)].index) - 1
+                    df.loc[str(second_day)].index) 
                 n_vals_needed = max_times_in_day * daily_frac
                 # don't overwrite QC flag columns
                 data_cols = [
@@ -528,14 +528,7 @@ class QaQc(Plot, Convert):
             # major issue with resample sum of nans, need to drop first else 0
             sums = df.loc[:,sum_cols].dropna().apply(
                 pd.to_numeric, errors='coerce').resample('D').sum()
-            # using numpy forces nans if 1 or more sub-daily value missing
-            # having issues however creating more than expected null days
-            #means = df.loc[:,mean_cols].resample('D').apply(
-            #    lambda x: x.values.mean()
-            #)
-            #sums = df.loc[:,sum_cols].resample('D').apply(
-            #    lambda x: x.values.sum()
-            #)
+
             df = means.join(sums)
 
             if not downsample and drop_gaps:
