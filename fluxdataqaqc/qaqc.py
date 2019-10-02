@@ -595,11 +595,11 @@ class QaQc(Plot, Convert):
         # if data type has changed to 'obj' resample skips... 
         # make sure data exists
         if len(mean_cols) >= 1:
-            means = monthly_resample(df[mean_cols], mean_cols, 'mean', 0.3)
+            means = monthly_resample(df[mean_cols], mean_cols, 'mean', 0.9)
         else:
             means = None
         if len(sum_cols) >= 1:
-            sums = monthly_resample(df[sum_cols], sum_cols, 'sum', 0.3)
+            sums = monthly_resample(df[sum_cols], sum_cols, 'sum', 0.9)
         else:
             sums = None
         if isinstance(means, pd.DataFrame) and isinstance(sums, pd.DataFrame):

@@ -16,7 +16,7 @@ class Plot(object):
     """
     Container of plot routines of :mod:`fluxdataqaqc` including static methods
     that can be used to create and update interactive line and scatter plots
-    from a :obj:`pandas.DataFrame` instance.  
+    from an arbitrary :obj:`pandas.DataFrame` instance.  
     
     Note: 
         The :obj:`.Data` and :obj:`.QaQc` objects both inherit all methods of
@@ -102,6 +102,7 @@ class Plot(object):
             label=dict(value=label)
             fig.line(x,y, source=source, color=color,legend=label, **kwargs)
             fig.legend.location = "top_left"
+            fig.legend.click_policy="hide"
         # add Hover tool with additional tips if more than one line
         if len(fig.hover) == 0:
             Hover = HoverTool(
@@ -227,6 +228,7 @@ class Plot(object):
                     fig.hover[0].tooltips.append(t)
         fig.hover[0].names.append(name)
         fig.legend.location = "top_left"
+        fig.legend.click_policy="hide"
         
         if xd.size > 0:
             return xd.min(), xd.max()
@@ -871,12 +873,15 @@ class Plot(object):
         if n_vars_fnd > 0:
             # add scaled one to one line
             mins_maxs = np.array(mins_maxs)
-            one2one_vals = np.arange(min(mins_maxs[:,0]), max(mins_maxs[:,1]),1)
-            fig.line(
-                one2one_vals, one2one_vals, legend='1:1 line', color='black', 
-                line_dash='dashed'
-            )
-            daily_scatter.append(fig)
+            if not pd.isna(mins_maxs).all():
+                one2one_vals = np.arange(
+                    min(mins_maxs[:,0]), max(mins_maxs[:,1]),1
+                )
+                fig.line(
+                    one2one_vals, one2one_vals, legend='1:1 line', 
+                    color='black', line_dash='dashed'
+                )
+                daily_scatter.append(fig)
             if monthly:
                 # same for monthly fig
                 title = 'Monthly Energy Balance Closure, Energy Versus Flux '\
@@ -936,12 +941,15 @@ class Plot(object):
         if n_vars_fnd > 0:
             # add scaled one to one line
             mins_maxs = np.array(mins_maxs)
-            one2one_vals = np.arange(min(mins_maxs[:,0]), max(mins_maxs[:,1]),1)
-            fig.line(
-                one2one_vals, one2one_vals, legend='1:1 line', color='black', 
-                line_dash='dashed'
-            )
-            daily_scatter.append(fig)
+            if not pd.isna(mins_maxs).all():
+                one2one_vals = np.arange(
+                    min(mins_maxs[:,0]), max(mins_maxs[:,1]),1
+                )
+                fig.line(
+                    one2one_vals, one2one_vals, legend='1:1 line', 
+                    color='black', line_dash='dashed'
+                )
+                daily_scatter.append(fig)
             if monthly:
                 # same for monthly fig
                 title = 'Monthly Latent Energy, Initial Versus Corrected'
