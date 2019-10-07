@@ -4,7 +4,7 @@ Tools for performing energy balance correction and data validation of eddy covar
 
 __name__ = 'fluxdataqaqc'
 __author__ = 'John Volk'
-__version__ = '0.0.9.1'
+__version__ = '0.0.9.2'
 
 
 from fluxdataqaqc.data import Data
