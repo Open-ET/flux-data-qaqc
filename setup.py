@@ -20,7 +20,7 @@ requires = [
 tests_require = ['pytest']
 
 classifiers = [
-    'License :: OSI Approved :: Apache Software License',
+    'License :: OSI Approved :: BSD License',
     'Programming Language :: Python :: 3.7',
     'Environment :: Console',
     'Development Status :: 4 - Beta',
@@ -34,7 +34,7 @@ setup(
     long_description=readme,
     author='John Volk',
     author_email='john.volk@dri.edu',
-    license='Apache',
+    license='BSD3',
     python_requires='>=3.7',
     version=version,
     url='https://github.com/Open-ET/flux-data-qaqc',
@@ -43,9 +43,5 @@ setup(
     packages=['fluxdataqaqc'],
     install_requires=requires,
     tests_require=tests_require,
-    package_data={
-        'fluxdataqaqc': ['examples/*'],
-        '': ['environment.yml'],
-    },
     include_package_data=True,
 )

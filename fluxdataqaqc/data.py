@@ -83,6 +83,7 @@ class Data(Plot, Convert):
         'vpd' : 'vap_press_def_col',
         't_avg' : 'avg_temp_col',
         'ppt' : 'precip_col',
+        'wd' : 'wind_dir_col',
         'ws' : 'wind_spd_col'
     }
 
