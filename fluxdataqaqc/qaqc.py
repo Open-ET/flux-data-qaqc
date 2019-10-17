@@ -511,7 +511,8 @@ class QaQc(Plot, Convert):
             elif drop_gaps:
                 max_times_in_day = len(
                     df.loc[str(second_day)].index) 
-                n_vals_needed = max_times_in_day * daily_frac
+                # make sure round errors do not affect this value
+                n_vals_needed = int(round(max_times_in_day * daily_frac))
                 # don't overwrite QC flag columns
                 data_cols = [
                     c for c in df.columns if not c.endswith('_qc_flag')
@@ -520,7 +521,7 @@ class QaQc(Plot, Convert):
                     df.index.date).count() < n_vals_needed
 
             print('Data is being resampled to daily temporal frequency.')
-            sum_cols = [k for k,v in QaQc.agg_dict.items() if v == 'sum']
+            sum_cols = [k for k,v in self.agg_dict.items() if v == 'sum']
             sum_cols = list(set(sum_cols).intersection(df.columns))
             mean_cols = set(df.columns) - set(sum_cols)
             means = df.loc[:,mean_cols].apply(
@@ -535,7 +536,7 @@ class QaQc(Plot, Convert):
                 print(
                     'Filtering days with less then {}% or {}/{} sub-daily '
                     'measurements'.format(
-                        daily_frac * 100, int(n_vals_needed), max_times_in_day
+                        daily_frac * 100, n_vals_needed, max_times_in_day
                     )
                 )
                 df[days_with_gaps] = np.nan
@@ -580,6 +581,12 @@ class QaQc(Plot, Convert):
         Utilize the :attr:`QaQc.monthly_df` property the same way as the 
         :attr:`fluxdataqaqc.Data.df`, see it's API documentation for examples.
 
+        Tip:
+            If you have additional variables in :attr:`QaQc.df` or would like
+            to change the aggregation method for the monthly time series,
+            adjust the instance attribute :attr:`QaQc.agg_dict` before 
+            accessing the :attr:`QaQc.monthly_df`.
+
         """
         if not self.corrected and self._has_eb_vars:
             self.correct_data()
@@ -588,7 +595,7 @@ class QaQc(Plot, Convert):
         df = self._df.rename(columns=self.inv_map).copy()
         # avoid including string QC flags because of float forcing on resample
         numeric_cols = [c for c in df.columns if not '_qc_flag' in c]
-        sum_cols = [k for k,v in QaQc.agg_dict.items() if v == 'sum']
+        sum_cols = [k for k,v in self.agg_dict.items() if v == 'sum']
         # to avoid warning/error of missing columns 
         sum_cols = list(set(sum_cols).intersection(df.columns))
         mean_cols = list(set(numeric_cols) - set(sum_cols))

@@ -1,3 +1,2 @@
-graft examples
 include environment.yml
 include LICENSE.txt
