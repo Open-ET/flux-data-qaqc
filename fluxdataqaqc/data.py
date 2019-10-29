@@ -234,7 +234,10 @@ class Data(Plot, Convert):
         Keyword Arguments:
             ncols (int): default 1. Number of columns of subplots.
             output_type (str): default "save". How to output plots, "save", 
-                "show", or "notebook" for Jupyter Notebooks.
+                "show" in browser, "notebook" for Jupyter Notebooks, 
+                "return_figs" to return a list of Bokeh 
+                :obj:`bokeh.plotting.figure.Figure`s, or "return_grid" to 
+                return the :obj:`bokeh.layouts.gridplot`.
             out_file (str or None): default :obj:`None`. Path to save output 
                 file, if :obj:`None` save output to :attr:`Data.out_dir` with 
                 the name [site_id]_input_plots.html where [site_id] is 
@@ -306,7 +309,7 @@ class Data(Plot, Convert):
                 out_dir.mkdir(parents=True, exist_ok=True)
         
         # create aggregrated plot structure from fluxdataqaqc.Plot._plot() 
-        self._plot(
+        ret = self._plot(
             self, ncols=ncols, output_type=output_type, out_file=out_file,
             suptitle=suptitle, plot_width=plot_width, plot_height=plot_height,
             sizing_mode=sizing_mode, merge_tools=merge_tools, link_x=link_x,
@@ -314,6 +317,9 @@ class Data(Plot, Convert):
         )
 
         self.plot_file = out_file
+
+        if ret:
+            return ret
 
     def _load_config(self, config_file):
         if not config_file.is_file():
