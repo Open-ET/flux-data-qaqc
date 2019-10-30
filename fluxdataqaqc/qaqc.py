@@ -123,14 +123,18 @@ class QaQc(Plot, Convert):
         'ppt': 'sum',
         'ws': 'mean',
         'Rn': 'mean',
+        'Rn_subday_gaps': 'sum',
         'sw_out': 'mean',
         'lw_out': 'mean',
         'G': 'mean',
+        'G_subday_gaps': 'sum',
         'LE': 'mean',
         'LE_corr': 'mean',
+        'LE_subday_gaps': 'sum',
         'LE_user_corr': 'mean',
         'H': 'mean',
         'H_corr': 'mean',
+        'H_subday_gaps': 'sum',
         'H_user_corr': 'mean',
     }
 
@@ -220,7 +224,8 @@ class QaQc(Plot, Convert):
         'ET_user_corr'
     )
 
-    def __init__(self, data=None, drop_gaps=True, daily_frac=1.00):
+    def __init__(self, data=None, drop_gaps=True, daily_frac=1.00, 
+            max_interp_hours=2, max_interp_hours_night=4):
         
         if isinstance(data, Data):
             self.config_file = data.config_file
@@ -248,7 +253,7 @@ class QaQc(Plot, Convert):
 
             # data will be loaded if it has not yet via Data.df
             self.temporal_freq = self._check_daily_freq(
-                drop_gaps=drop_gaps, daily_frac=daily_frac
+                drop_gaps, daily_frac, max_interp_hours, max_interp_hours_night
             )
             # check units, convert if possible for energy balance, ppt, Rs, vp,
             self._check_convert_units()
@@ -460,7 +465,8 @@ class QaQc(Plot, Convert):
         self.gridMET_exists = True
     
         
-    def _check_daily_freq(self, drop_gaps, daily_frac):
+    def _check_daily_freq(self, drop_gaps, daily_frac, max_interp_hours,
+            max_interp_hours_night):
         """
         Check temporal frequency of input Data, resample to daily if not already
 
@@ -496,6 +502,8 @@ class QaQc(Plot, Convert):
             # see if two adj. dates exist, skip first day in case it is not full
             second_day = df.index.date[2]
             third_day = second_day + pd.Timedelta(1, unit='D')
+            max_times_in_day = len(df.loc[str(second_day)].index) 
+            self.n_samples_per_day = max_times_in_day
             downsample = False
             if daily_frac > 1:
                 print('ERROR: daily_frac must be between 0 and 1, using 1')
@@ -508,30 +516,67 @@ class QaQc(Plot, Convert):
                     'is greater than daily, downsampling, proceed with' ,
                     'caution!\n')
                 downsample = True
-            elif drop_gaps:
-                max_times_in_day = len(
-                    df.loc[str(second_day)].index) 
+
+            energy_bal_vars = ['LE', 'H', 'Rn', 'G']
+            # add subday gap col for energy balance comps to sum daily gap count
+            for v in energy_bal_vars:
+                df['{}_subday_gaps'.format(v)] = False
+                df.loc[df[v].isna(), '{}_subday_gaps'.format(v)] = True
+
+            print('Data is being resampled to daily temporal frequency.')
+            sum_cols = [k for k,v in self.agg_dict.items() if v == 'sum']
+            sum_cols = list(set(sum_cols).intersection(df.columns))
+            mean_cols = set(df.columns) - set(sum_cols)
+
+            means = df.loc[:,mean_cols].apply(
+                pd.to_numeric, errors='coerce').resample('D').mean()
+            # issue with resample sum of nans, need to drop first else 0
+            sums = df.loc[:,sum_cols].dropna().apply(
+                pd.to_numeric, errors='coerce').resample('D').sum()
+
+            if max_interp_hours is not None:
+                # linearly interpolate energy balance components only
+                max_gap = int(round(max_interp_hours/24 * max_times_in_day))
+                max_night_gap = int(
+                    round(max_interp_hours_night/24 * max_times_in_day)
+                )
+                print(
+                    'Linearly interpolating gaps in energy balance components '
+                    'up to {} hours when Rn < 0 and up to {} hours when '
+                    'Rn >= 0.'.format(max_night_gap, max_gap)
+                )
+
+                tmp = df[['LE', 'H', 'Rn', 'G']].apply(
+                    pd.to_numeric, errors='coerce'
+                ).copy()
+
+                for v in energy_bal_vars:
+                    # interpolate optionally longer during neg. Rn periods
+                    tmp.loc[tmp.Rn < 0, v] = tmp.loc[tmp.Rn < 0, v].interpolate(
+                        limit=max_night_gap
+                    )
+                    # shorter length daytime interpolation
+                    tmp.loc[tmp.Rn >=0 , v] =\
+                        tmp.loc[tmp.Rn >= 0, v].interpolate(limit=max_gap)
+                    # overwrite non-interpolated daily means
+                    means[v] = tmp[v].resample('D').mean()
+
+            if drop_gaps:
                 # make sure round errors do not affect this value
                 n_vals_needed = int(round(max_times_in_day * daily_frac))
                 # don't overwrite QC flag columns
                 data_cols = [
                     c for c in df.columns if not c.endswith('_qc_flag')
                 ]
+                # interpolate energy balance vars first before looking for gaps
+                if max_interp_hours is not None:
+                    df[energy_bal_vars] = tmp[energy_bal_vars]
                 days_with_gaps = df[data_cols].groupby(
                     df.index.date).count() < n_vals_needed
 
-            print('Data is being resampled to daily temporal frequency.')
-            sum_cols = [k for k,v in self.agg_dict.items() if v == 'sum']
-            sum_cols = list(set(sum_cols).intersection(df.columns))
-            mean_cols = set(df.columns) - set(sum_cols)
-            means = df.loc[:,mean_cols].apply(
-                pd.to_numeric, errors='coerce').resample('D').mean()
-            # major issue with resample sum of nans, need to drop first else 0
-            sums = df.loc[:,sum_cols].dropna().apply(
-                pd.to_numeric, errors='coerce').resample('D').sum()
-
             df = means.join(sums)
 
+            # drop days based on fraction of missing subday samples
             if not downsample and drop_gaps:
                 print(
                     'Filtering days with less then {}% or {}/{} sub-daily '
@@ -540,6 +585,8 @@ class QaQc(Plot, Convert):
                     )
                 )
                 df[days_with_gaps] = np.nan
+        else:
+            self.n_samples_per_day = 1
 
         self._df = df.rename(self.variables)
         return freq

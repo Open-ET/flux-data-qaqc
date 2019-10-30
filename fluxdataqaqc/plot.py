@@ -455,7 +455,7 @@ class Plot(object):
         # multiple soil heat flux sensor time series plots
         #### 
         # keep user names for these in hover 
-        g_re = re.compile('g_\d+|G')
+        g_re = re.compile('^[gG]_[\d+mean]|G$')
         g_vars = [
             v for v in variables if g_re.match(v) and v in df.columns
         ]
