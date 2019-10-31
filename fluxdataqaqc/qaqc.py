@@ -48,6 +48,15 @@ class QaQc(Plot, Convert):
             systematic diurnal gaps will affect the autmoatic resampling that
             occurs when creating a :obj:`QaQc` instance and the daily data is 
             used in closure corrections, other calculations, and plots. 
+        max_interp_hours (None or float): default 2. Length of largest gap to 
+            fill with linear interpolation in energy balance variables if 
+            input datas temporal frequency is less than daily. This value will
+            be used to fill gaps when :math:`Rn > 0`.
+        max_interp_hours_night (None or float): default 4. Length of largest gap
+            to fill with linear interpolation in energy balance variables if 
+            input datas temporal frequency is less than daily when 
+            :math:`Rn < 0`.
+
     
     Attributes:
         agg_dict (dict): Dictionary with internal variable names as keys and
@@ -76,6 +85,10 @@ class QaQc(Plot, Convert):
         longitude (float): Site longitude in decimal degrees.
         out_dir (pathlib.Path): Default directory to save output of 
             :meth:`QaQc.write` or :meth:`QaQc.plot` methods.
+        n_samples_per_day (int): If initial time series temporal frequency is
+            less than 0 then this value will be updated to the number of samples
+            detected per day, useful for post-processing based on the count of
+            sub-daily gaps in energy balance variables, e.g. "LE_subday_gaps".
         plot_file (pathlib.Path or None): path to plot file once it is 
             created/saved by :meth:`QaQc.plot`. 
         site_id (str): Site ID.
@@ -518,6 +531,10 @@ class QaQc(Plot, Convert):
                 downsample = True
 
             energy_bal_vars = ['LE', 'H', 'Rn', 'G']
+            # for interpolation of energy balance variables if they exist
+            energy_bal_vars = list(
+                set(energy_bal_vars).intersection(df.columns)
+            )
             # add subday gap col for energy balance comps to sum daily gap count
             for v in energy_bal_vars:
                 df['{}_subday_gaps'.format(v)] = False
@@ -543,21 +560,27 @@ class QaQc(Plot, Convert):
                 print(
                     'Linearly interpolating gaps in energy balance components '
                     'up to {} hours when Rn < 0 and up to {} hours when '
-                    'Rn >= 0.'.format(max_night_gap, max_gap)
+                    'Rn >= 0.'.format(max_interp_hours_night, max_interp_hours)
                 )
 
-                tmp = df[['LE', 'H', 'Rn', 'G']].apply(
+                tmp = df[energy_bal_vars].apply(
                     pd.to_numeric, errors='coerce'
                 ).copy()
 
                 for v in energy_bal_vars:
-                    # interpolate optionally longer during neg. Rn periods
-                    tmp.loc[tmp.Rn < 0, v] = tmp.loc[tmp.Rn < 0, v].interpolate(
-                        limit=max_night_gap
-                    )
-                    # shorter length daytime interpolation
-                    tmp.loc[tmp.Rn >=0 , v] =\
-                        tmp.loc[tmp.Rn >= 0, v].interpolate(limit=max_gap)
+                    if 'Rn' in tmp.columns:
+                        # optionally interpolate longer during neg. Rn periods
+                        tmp.loc[tmp.Rn < 0, v] =\
+                            tmp.loc[tmp.Rn < 0, v].interpolate(
+                            limit=max_night_gap
+                        )
+                        # shorter length daytime interpolation
+                        tmp.loc[tmp.Rn >=0 , v] =\
+                            tmp.loc[tmp.Rn >= 0, v].interpolate(limit=max_gap)
+
+                    else:
+                        tmp[v] = tmp[v].interpolate(limit=max_gap)
+
                     # overwrite non-interpolated daily means
                     means[v] = tmp[v].resample('D').mean()
 

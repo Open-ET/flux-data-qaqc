@@ -32,6 +32,11 @@ Notable tools:
    api
    contributors
 
+.. toctree::
+   :maxdepth: 1
+   
+   changelog
+
 Indices and tables
 ==================
 
