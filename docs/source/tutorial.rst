@@ -733,35 +733,49 @@ access the inferred initial temporal frequency of the data view the
 If the inferred input frequency was accurate you will see a `Pandas datetime
 alias
 <https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases>`__,
-in this case ‘30T’ is thirty minutes.
+in this case ‘30T’ is thirty minutes. If the temporal frequency is not automatically detected you should be able to rely on the ``n_samples_per_day`` instance attribute that is manually estimated by the ``QaQc`` constructor:
+
+    >>> q.n_samples_per_day
+        48
 
 Filter days with sub-daily gaps
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``drop_gaps`` and ``daily_frac`` keyword arguments to :obj:`.QaQc` allow
-you to control how days with sub-daily measurement gaps will or will not
-be filtered out when resampling to daily frequency.
+The ``drop_gaps`` and ``daily_frac`` keyword arguments used when creating a :obj:`.QaQc` instance allow you to control how days with sub-daily measurement gaps will or will not be filtered out when resampling to daily frequency.
 
-By default the :obj:`.QaQc` constructor will drop days for all numeric data
-columns (not QC flag columns) where any of the sub-daily data are
-missing. In other words, if you have hourly input data for latent energy
-and one hour was missing on a given day, by default that days value will
-become null (gap) in the daily time series which is used in the energy
-balance closure corrections. To change this percentage use the
-``daily_frac`` argument (fraction of sub-daily measurements that need to
-exist):
+Sub-daily gaps in energy balance variables :math:`LE`, :math:`H`, :math:`Rn`, and :math:`G` can be linearly interpolated up to a certain gap length measured in hours, with options to control the longest length of gap to interpolate when :math:`Rn \ge 0` controlled by the :obj:`.QaQc` keyword argument ``max_interp_hours`` (default 2 hours) and the longest gap to interpolate when :math:`Rn < 0` set by the ``max_interp_hours_night`` (default 4 hours).:math:`
 
-    >>> # filter out all days with > 80% sub-daily measurements missing: 
-    >>> q = QaQc(d, daily_frac=0.8)
+.. Important:: 
+
+   By default the :obj:`.QaQc` constructor will first linearly interpolate
+   energy balance variables (:math:`LE`, :math:`H`, :math:`Rn`, and :math:`G`)
+   according to the maximum gap lengths (``max_interp_hours`` and
+   ``max_interp_hours_night``) and then count sub-daily gaps and drop days (set
+   values to null) for all climate data columns (not QC flag or sub-daily gap
+   count columns) where any of the sub-daily data are missing because by
+   default ``drop_gaps=True`` and ``daily_frac=1.0``. In other words, if you
+   have hourly input data for(:math:`LE` and one hour was missing on a given
+   day, by default that hour will be linearly interpolated before calculating
+   the daily time series and the daily mean will be calculated after. On the
+   other hand, if other climate variables had a single hour missing on a given
+   day, e.g. wind direction or air temperature, this day would be filtered out
+   by the :obj:`.QaQc` constructor.  This is important because the daily time
+   series is what is used in all energy balance closure correction algorithms.
+
+The percentage of sub-daily samples to require set by the ``daily_frac`` argument and the maximum length of gaps to linearly interpolate set by ``max_interp_hours`` and ``max_interp_hours_night`` complement each other and are used in tandem. For example, if the input data is half-hourly and you only want a maximum of 4 hours to be interpolated on any given day and gap lengths to interpolate should be no more than 2 hours each then you would pass the following parameters to the :obj:`.QaQc` constructor:
+
+
+    >>> q = QaQc(d, daily_frac=20/24, max_interp_hours=2, max_interp_hours_night=2)
         The input data temporal frequency appears to be less than daily.
         Data is being resampled to daily temporal frequency.
-        Filtering days with less then 80.0% or 38/48 sub-daily measurements
+        Linearly interpolating gaps in energy balance components up to 2 hours when Rn < 0 and up to 2 hours when Rn >= 0.
+        Filtering days with less then 83.33333333333334% or 40/48 sub-daily measurements    
 
+In this case we set ``daily_frac=20/24`` because we are only allowing a maximum of 4 hours of total gaps in the day in other words we are requiring 40 of the 48 half hourly samples to exist before we filter out a day. Remember, because linear interpolation of gaps is done before counting sub-daily gaps, this could result in retaining days with more than 4 hours of gaps in the original time series of energy balance components. You may also pass the ``daily_frac`` arugment as a decimal fraction, e.g. :math:`0.8333 \approx 20/24`.
 
-To not drop any days and take daily means/sums based on whatever data
-exists in a given day,
+To not drop any days and take daily means/sums based on whatever data exists in a given day *without* any interpolation of energy balance variables,
 
-    >>> q = QaQc(d, drop_gaps=False)
+    >>> q = QaQc(d, drop_gaps=False, max_interp_hours=None)
         The input data temporal frequency appears to be less than daily.
         Data is being resampled to daily temporal frequency.
 
@@ -774,32 +788,117 @@ daily mean :math:`Rn` if not filtered carefully:
     >>> # make an empty pandas dataframe for Rn series
     >>> Rn_df = pd.DataFrame()
     >>> # recreate multiplt QaQc instances using different sub-day gap filters
+    >>> q = QaQc(d, drop_gaps=False, max_interp_hours=None)
+    >>> Rn_df['sub_day_gaps'] = q.df.Rn_subday_gaps
+    >>> Rn_df['no_filter_no_interp'] = q.df.rename(columns=q.inv_map).Rn
     >>> q = QaQc(d, drop_gaps=False)
-    >>> Rn_df['no_filter'] = q.df.rename(columns=q.inv_map).Rn
+    >>> Rn_df['no_filter_with_interp'] = q.df.rename(columns=q.inv_map).Rn
     >>> q = QaQc(d, daily_frac=0.5) # filter days with less than 50% data
     >>> Rn_df['require_50'] = q.df.rename(columns=q.inv_map).Rn
     >>> q = QaQc(d, daily_frac=0.75)
     >>> Rn_df['require_75'] = q.df.rename(columns=q.inv_map).Rn
-    >>> q = QaQc(d, daily_frac=1) 
-    >>> Rn_df['require_100'] = q.df.rename(columns=q.inv_map).Rn
+    >>> q = QaQc(d, daily_frac=1, max_interp_hours=24, max_interp_hours_night=24) 
+    >>> Rn_df['require_100_with_interp'] = q.df.rename(columns=q.inv_map).Rn
+    >>> q = QaQc(d, daily_frac=1, max_interp_hours=None) 
+    >>> Rn_df['require_100_no_interp'] = q.df.rename(columns=q.inv_map).Rn
     >>> # plot to compare results of day-gap filter
     >>> fig = figure(x_axis_label='date', y_axis_label='mean daily net radiation (w/m2), filtered based on sub-daily gaps')
     >>> # arguments needed for creating interactive line plots
-    >>> colors = ['red', 'orange', 'blue', 'black']
-    >>> plt_vars = ['no_filter', 'require_50', 'require_75', 'require_100']
-    >>> labels = ['no filter', 'require > 50%', 'require > 75%', 'require 100%']
+    >>> colors = ['red', 'darkred','orange', 'blue', 'black', 'tan']
+    >>> plt_vars = ['no_filter_no_interp', 'no_filter_with_interp', 'require_50', 'require_75', 'require_100_with_interp', 'require_100_no_interp']
+    >>> labels = ['no filter wout/interp.', 'no filter w/interp.', 'require > 50% w/interp.', 'require > 75% w/interp.', 'require 100% w/interp.', 'require 100% wout/interp.']
     >>> x_name = 'date'
     >>> source = ColumnDataSource(Rn_df)
     >>> Plot.add_lines(fig, Rn_df, plt_vars, colors, x_name, source, labels=labels) 
+    >>> # add daily gap counts to secondary y
+    >>> fig.extra_y_ranges['gap_counts'] = Range1d(start=0, end=48)
+    >>> fig.add_layout(LinearAxis(y_range_name='gap_counts', axis_label='number of sub-daily gaps'), 'right')
+    >>> fig.circle('date', 'sub_day_gaps', legend='n sub-day gaps', y_range_name='gap_counts',
+    >>>     color='silver', source=source
+    >>> )
+    >>> fig.hover[0].tooltips.append(('sub_day_gaps','@{}'.format('sub_day_gaps')))
     >>> fig.legend.location = 'top_right'
     >>> show(fig)
+
 
 .. raw:: html 
     :file: _static/tutorial/filter_subday.html 
 
+Try zooming in on the gaps filled by the "no filter wout/interp." line to compare which days are retained/filtered by different options, also remove lines by clicking on them in the legend to compare subsets of options.
 
-Try zooming in on the gaps filled by the “no filter” line to compare
-which days are retained/filtered by different options.
+.. Tip:: 
+   For a more fine-grained approach to filtering out days where perhaps
+   multiple 2 hour gaps were filled use the newly created daily gap count
+   columns: "LE_subday_gaps", "H_subday_gaps", "Rn_subday_gaps", and
+   "G_subday_gaps":
+
+      >>> q = QaQc(d)
+      >>> df = q.df.rename(columns=q.inv_map)
+
+   For example, you could post-filter out days in any given energy balance
+   variable, in this case :math:`Rn` where sub-daily gaps exceed a threshold:
+
+      >>> df.loc[(df.Rn_subday_gaps > 4) & (df.Rn.notna()), ['Rn','Rn_subday_gaps']]
+
+        .. raw:: html
+
+            <div>
+            <style scoped>
+                .dataframe tbody tr th:only-of-type {
+                    vertical-align: middle;
+                }
+            
+                .dataframe tbody tr th {
+                    vertical-align: top;
+                }
+            
+                .dataframe thead th {
+                    text-align: right;
+                }
+            </style>
+            <table border="1" class="dataframe">
+              <thead>
+                <tr style="text-align: right;">
+                  <th></th>
+                  <th>Rn</th>
+                  <th>Rn_subday_gaps</th>
+                </tr>
+                <tr>
+                  <th>date</th>
+                  <th></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>2015-06-09</td>
+                  <td>101.710194</td>
+                  <td>5.0</td>
+                </tr>
+                <tr>
+                  <td>2015-11-20</td>
+                  <td>47.990988</td>
+                  <td>5.0</td>
+                </tr>
+                <tr>
+                  <td>2016-01-15</td>
+                  <td>72.495973</td>
+                  <td>8.0</td>
+                </tr>
+                <tr>
+                  <td>2018-01-06</td>
+                  <td>79.507008</td>
+                  <td>7.0</td>
+                </tr>
+                <tr>
+                  <td>2018-05-10</td>
+                  <td>160.997332</td>
+                  <td>6.0</td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+          </br>
 
 Monthly time series
 ^^^^^^^^^^^^^^^^^^^
@@ -1031,7 +1130,7 @@ The :obj:`.Data` object will attempt to calculate vapor pressure or vapor
 pressure deficit if one exists but not the other and average air
 temperature time series also exists with the input data at hourly or
 shorter temporal frequency. The Magnus equation (eqn. 37 in the ASCE report) 
-states that the saturation vapor pressure ($es$) in kPa relates to air temperature,
+states that the saturation vapor pressure (:math:`es`) in kPa relates to air temperature,
 
 .. math::  es = 0.6108  e^{\left(\frac{17.27 \cdot T}{(T + 237.3)}\right)} 
 
