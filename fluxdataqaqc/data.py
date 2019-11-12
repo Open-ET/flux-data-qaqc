@@ -138,9 +138,9 @@ class Data(Plot, Convert):
 
         # make sure day intervals are hourly or less if not skip
         second_day = df.index.date[2]
-        #third_day = second_day + pd.Timedelta(1, unit='D')
+        third_day = second_day + pd.Timedelta(1, unit='D')
         # both days start at 00:00:00, don't duplicate
-        times_in_day = len(df.loc[str(second_day)].index) 
+        times_in_day = len(df.loc[str(third_day)].index) 
         if times_in_day < 24:
             print('Temporal frequency of data > hourly cannot calculate VP/VPD')
             return
@@ -353,14 +353,21 @@ class Data(Plot, Convert):
             header = header.columns
         
         else: # assume CSV
-            header = np.genfromtxt(
-                climate_file, 
-                dtype='U', 
-                delimiter=',', 
-                max_rows=1, 
-                autostrip=True,                             
-                case_sensitive='lower'
-            )
+            skiprows=None
+            if 'skiprows' in dict(self.config.items('METADATA')):
+                val = self.config.get('METADATA','skiprows')
+                if val and val.startswith('[') and val.endswith(']'):
+                    skiprows = val.replace(' ','')
+                    skiprows = [
+                        int(el) for el in skiprows.strip('][').split(',')
+                    ] 
+                else:
+                    skiprows = int(val)
+
+            header = pd.read_csv(
+                climate_file, skiprows=skiprows, nrows=0
+            ).columns
+
         return header
 
     def _get_soil_var_avg_weights(self):
@@ -828,8 +835,18 @@ class Data(Plot, Convert):
             except:
                 pass
             kwargs['na_values'] =  [self.na_val]
+
         if 'skiprows' in dict(self.config.items('METADATA')):
-            kwargs['skiprows'] = int(self.config.get('METADATA','skiprows'))
+            val = self.config.get('METADATA','skiprows')
+            if val and val.startswith('[') and val.endswith(']'):
+                skiprows = val.replace(' ','')
+                kwargs['skiprows'] = [
+                    int(el) for el in skiprows.strip('][').split(',')
+                ] 
+                 
+            else:
+                kwargs['skiprows'] = int(val)
+
         if 'date_parser' in dict(self.config.items('METADATA')):
             date_parse_str = self.config.get('METADATA','date_parser')
             date_parser = lambda x: pd.datetime.strptime(x, date_parse_str)

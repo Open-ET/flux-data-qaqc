@@ -58,10 +58,7 @@ class QaQc(Plot, Convert):
         max_interp_hours_night (None or float): default 4. Length of largest gap
             to fill with linear interpolation in energy balance variables if 
             input datas temporal frequency is less than daily when 
-            :math:`Rn < 0` or :math:`Rn` is null within 12:00PM-12:00PM daily 
-            intervals. Note, if :math:`Rn` does not exist for the site then
-            night-time will be from 6:00 PM to 6:00 AM the following day.
-
+            :math:`Rn < 0` within 12:00PM-12:00PM daily intervals. 
     
     Attributes:
         agg_dict (dict): Dictionary with internal variable names as keys and
@@ -520,7 +517,7 @@ class QaQc(Plot, Convert):
             # see if two adj. dates exist, skip first day in case it is not full
             second_day = df.index.date[2]
             third_day = second_day + pd.Timedelta(1, unit='D')
-            max_times_in_day = len(df.loc[str(second_day)].index) 
+            max_times_in_day = len(df.loc[str(third_day)].index) 
             self.n_samples_per_day = max_times_in_day
             downsample = False
             if daily_frac > 1:
