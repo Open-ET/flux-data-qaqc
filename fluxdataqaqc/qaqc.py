@@ -139,6 +139,7 @@ class QaQc(Plot, Convert):
         'ws': 'mean',
         'Rn': 'mean',
         'Rn_subday_gaps': 'sum',
+        'rh' : 'mean',
         'sw_out': 'mean',
         'lw_out': 'mean',
         'G': 'mean',

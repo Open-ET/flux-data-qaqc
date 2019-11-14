@@ -79,6 +79,7 @@ class Data(Plot, Convert):
         'sw_pot' : 'shortwave_pot_col',
         'lw_in' : 'longwave_in_col',
         'lw_out' : 'longwave_out_col',
+        'rh' : 'rel_humidity_col',
         'vp' : 'vap_press_col',
         'vpd' : 'vap_press_def_col',
         't_avg' : 'avg_temp_col',
