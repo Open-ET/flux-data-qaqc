@@ -110,6 +110,8 @@ class QaQc(Plot, Convert):
     """
     # dictionary used for temporally aggregating variables
     agg_dict = {
+        'ASCE_ETo': 'sum',
+        'ASCE_ETr': 'sum',
         'energy': 'mean',
         'flux': 'mean',
         'flux_corr': 'mean',

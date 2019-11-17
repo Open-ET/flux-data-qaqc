@@ -25,7 +25,8 @@ class Convert(object):
         'ppt': ['mm', 'in'],
         'vp': ['kpa', 'hpa'],
         'vpd': ['kpa', 'hpa'],
-        't_avg': ['c', 'f']
+        't_avg': ['c', 'f'],
+        'ws': ['m/s', 'mph']
     }
 
     # for printing and plotting purposes
@@ -51,7 +52,8 @@ class Convert(object):
         'ppt': 'mm',
         'vp': 'kpa',
         'vpd': 'kpa',
-        't_avg': 'c'
+        't_avg': 'c',
+        'ws': 'm/s'
     }
 
     def __init__(self):
@@ -59,7 +61,8 @@ class Convert(object):
         self._conversion_map = {
             'hpa_to_kpa': self._hpa_to_kpa,
             'in_to_mm': self._in_to_mm,
-            'f_to_c': self._f_to_c
+            'f_to_c': self._f_to_c,
+            'mph_to_m/s': self._mph_to_m_per_s # miles/hr to meters/sec
         }
 
     @classmethod
@@ -109,7 +112,7 @@ class Convert(object):
         return df
 
     def _in_to_mm(self, df, var_name):
-        df[var_name] = df[var_name] * 25.4
+        df[var_name] *= 25.4
         return df
 
     def _f_to_c(self, df, var_name):
@@ -119,6 +122,11 @@ class Convert(object):
     def _hpa_to_kpa(self, df, var_name):
         df[var_name] /= 10
         return df
+
+    def _mph_to_m_per_s(self, df, var_name):
+        df[var_name] *= 0.44704 
+        return df
+
 
 def monthly_resample(df, cols, agg_str, thresh=0.75):
     """

@@ -6,6 +6,7 @@ Read and manage time series and metadata within ``flux-data-qaqc`` module
 import configparser as cp
 import numpy as np
 import pandas as pd
+import refet
 from pathlib import Path
 from .plot import Plot
 from .util import Convert
@@ -126,6 +127,127 @@ class Data(Plot, Convert):
         self.out_dir = self.config_file.parent / 'output'
         self._df = None
         self.plot_file = None
+
+
+    def hourly_ASCE_refET(self, reference='tall', anemometer_height=None):
+
+        self.df.head(); # creates vp/vpd
+        df = self.df.rename(columns=self.inv_map)
+
+        req_vars = ['vp', 'ws', 'sw_in', 't_avg']
+
+        if not set(req_vars).issubset(df.columns):
+            print('Missing one or more required variables, cannot compute')
+            return
+
+        second_day = df.index.date[2]
+        third_day = second_day + pd.Timedelta(1, unit='D')
+        n_samples_per_day = len(df.loc[str(second_day)].index) 
+
+        if n_samples_per_day < 24:
+            print('Temporal frequency greater than hourly, not downsampling.')
+            return
+
+        if anemometer_height is None:
+            anemometer_height = self.config.get(
+                'METADATA', 'anemometer_height', fallback=None
+            )
+            if anemometer_height is None:
+                print(
+                    'WARNING: anemometer height was not given and not found in '
+                    'the config files metadata, proceeding with height of 2 m'
+                )
+                anemometer_height = 2
+
+        for v, u in self.units.items():
+            if not v in req_vars:
+                continue
+            if not v in Convert.required_units.keys():
+                # variable is not required to have any particular unit, skip
+                continue
+            elif not u in Convert.allowable_units[v]:
+                print('ERROR: {} units are not recognizable for var: {}\n'
+                    'allowable input units are: {}\nNot converting.'.format(
+                        u, v, ','.join(Convert.allowable_units[v])
+                    )
+                )
+            elif not u == Convert.required_units[v]:
+                # do conversion, update units
+                # pass variable, initial unit, unit to be converted to, df
+                df = Convert.convert(v, u, Convert.required_units[v], df)
+                self.units[v] = Convert.required_units[v]
+
+        # RefET will convert to MJ-m2-hr
+        input_units = {
+            'rs': 'w/m2'
+        }
+
+        if n_samples_per_day == 24:
+            length = len(df.t_avg)
+            tmean = df.t_avg
+            rs = df.sw_in
+            ea = df.vp
+            uz = df.ws
+            zw = anemometer_height
+            lat = np.full(length, self.latitude)
+            lon = np.full(length, self.longitude)
+            doy = df.index.dayofyear
+            elev = np.full(length, self.elevation)
+            time = df.index.hour
+
+        elif n_samples_per_day > 24:
+            print(
+                'Resampling ASCE reference ET input variables to hourly means'
+            )
+            tmean = df.t_avg.resample('H').mean()
+            length = len(tmean)
+            rs = df.sw_in.resample('H').mean()
+            ea = df.vp.resample('H').mean()
+            uz = df.ws.resample('H').mean()
+            zw = anemometer_height
+            lat = np.full(length, self.latitude)
+            lon = np.full(length, self.longitude)
+            doy = tmean.index.dayofyear
+            elev = np.full(length, self.elevation)
+            time = tmean.index.hour
+
+        REF = refet.Hourly(
+            tmean,
+            ea,
+            rs,
+            uz,
+            zw,
+            elev,
+            lat,
+            lon,
+            doy,
+            time,
+            method='asce',
+            input_units=input_units,
+        )
+
+        if reference == 'short':
+            ret = REF.eto()
+            name = 'ASCE_ETo'
+        elif reference == 'tall':
+            ret = REF.etr()
+            name = 'ASCE_ETr'
+
+        if n_samples_per_day == 24:
+            # can add directly into Data.df
+            df[name] = ret
+            self._df = df.rename(columns=self.variables)
+            self.variables[name] = name
+            self.units[name] = 'mm'
+
+        else:
+            print(
+                'WARNING: cannot merge {} into the dataframe because the '
+                'input temporal frequency is < hourly, returning it as an '
+                'hourly, datetime-index Pandas Series'.format(name)
+            )
+            return pd.Series(index=tmean.index, data=ret, name=name)
+
 
     def _calc_vpd_or_vp(self, df):
         """
