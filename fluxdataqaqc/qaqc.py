@@ -883,6 +883,14 @@ class QaQc(Plot, Convert):
             _corr uses adjusted LE, H, etc. from the correction method used 
             _user_corr uses corrected LE, H, etc. found in data file (if provided)
 
+        Arguments:
+            y (str): name of dependent variable for regression, must be in 
+                :attr:`QaQc.variables` keys, or a user-added variable.
+                Only used if ``meth='lin_regress'``.
+            x (str or list): name or list of independent variables for 
+                regression, names must be in :attr:`QaQc.variables` keys, or a 
+                user-added variable. Only used if ``meth='lin_regress'``.
+
         Keyword Arguments:
             meth (str): default 'ebr'. Method to correct energy balance.
             etr_gap_fill (bool): default True. If true fill any remaining gaps
@@ -891,6 +899,11 @@ class QaQc(Plot, Convert):
                 min 2 days) and linearly interpolated crop coefficient. The 
                 number of days in each month that corrected ET are filled will 
                 is provided in :attr:`QaQc.monthly_df` as the column "ET_gap".
+            fit_intercept (bool): default False. Fit intercept for regression or
+                set to zero if False. Only used if ``meth='lin_regress'``.
+            apply_coefs (bool): default False. If :obj:`True` then apply fitted
+                coefficients to their respective variables for linear regression
+                correction method, rename the variables with the suffix "_corr".
         
         Returns:
             :obj:`None`
@@ -925,6 +938,14 @@ class QaQc(Plot, Convert):
             of the method. When using the 'ebr' method the energy balance 
             correction factor (what is applied to the raw H and LE) is left as 
             calculated (inverse of ebr) and saved as *ebc_cf*. 
+
+        See Also:
+            For explanation of the linear regression method see the
+            :meth:`QaQc.lin_regress` method, calling that method with the
+            keyword argument ``apply_coefs=True`` and :math:`Rn` as the y
+            variable and the other energy balance components as the x variables
+            will give the same result as the default inputs to this function
+            when ``meth='lin_regress``.  
         """
 
         # in case starting in Python and no df assigned yet
@@ -1242,7 +1263,7 @@ class QaQc(Plot, Convert):
                 user-added variable.
 
         Keyword Arguments:
-            fit_intercept (bool): default False. Fit intercept for regreesion or
+            fit_intercept (bool): default False. Fit intercept for regression or
                 set to zero if False.
             apply_coefs (bool): default False. If :obj:`True` then apply fitted
                 coefficients to their respective variables, rename the variables
