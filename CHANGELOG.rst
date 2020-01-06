@@ -1,6 +1,17 @@
 Change Log
 ==========
 
+Version 0.1.1
+-------------
+
+Add least squares linear regression method for single or multivariate input; specifically the ``QaQc.lin_regress()`` method. It can be used to correct energy balance components or for any arbitrary time series data loaded in a ``QaQc`` instance. It produces and returns a readable table with regression results (fitted coefficients, root-mean-square-error, etc.) which can be accessed from ``QaQc.lin_regress_results`` after calling the method. The default regression if used to correct energy balance components assumes net radiation is accurate (as the dependent variable):
+
+:math:`Rn = c_0 - c_1 G - c_2 LE c_3 H`
+
+where :math:`c_0 = 0`.
+
+This regression utilizes the scikit-learn Python module and therefore it was added to the environment and setup files as a dependency.
+
 Version 0.1.0
 -------------
 

@@ -1178,6 +1178,77 @@ class QaQc(Plot, Convert):
         """
         Least squares linear regression on single or multiple independent 
         variables.
+
+        For example, if the dependent variable (``y``) is :math:`Rn` and the
+        independent variables (``x``) are :math:`LE` and :math:`H`, then the
+        linear regression will solve for the best fit coefficients of :math:`Rn
+        = c_0 + c_1 LE + c_2 H`. Any number of variables in the
+        :attr:`QaQc.variables` can be used for ``x`` and one for ``y``. 
+        
+        If the variables chosen for regression are part of the energy balance
+        components, i.e. :math:`Rn, G, LE, H` and ``apply_coefs=True``, then
+        the best fit coefficients will be applied to their respecitive
+        variables with consideration of the energy balance equation, i.e. the
+        signs of the coefficients will be corrected according to :math:`Rn - G
+        = LE + H`, for example if ``y=H`` and ``x=['Rn','G','LE]``. i.e.
+        solving :math:`H = c_0 + c_1 Rn + c_2 G + c_3 LE` then the coefficients
+        :math:`c_2` and :math:`c_3` will be multiplied by -1 before applying
+        them to correct :math:`G` and :math:`LE` according to the energy
+        balance equation. 
+
+        This method returns an :obj:`pandas.DataFrame` object containing
+        results of the linear regression including the coefficient values,
+        number of data pairs used in the, the root-mean-square-error, and
+        coefficient of determination. This table can also be retrieved from the
+        :attr:`QaQc.lin_regress_results` instance attribute.
+
+        Arguments:
+            y (str): name of dependent variable for regression, must be in 
+                :attr:`QaQc.variables` keys, or a user-added variable.
+            x (str or list): name or list of independent variables for 
+                regression, names must be in :attr:`QaQc.variables` keys, or a 
+                user-added variable.
+
+        Keyword Arguments:
+            fit_intercept (bool): default False. Fit intercept for regreesion or
+                set to zero if False.
+            apply_coefs (bool): default False. If :obj:`True` then apply fitted
+                coefficients to their respective variables, rename the variables
+                with the suffix "_corr".
+
+        Returns:
+            :obj:`pandas.DataFrame` 
+
+        Example:
+            Let's say we wanted to compute the linear relationship between net
+            radiation to the other energy balance components which may be
+            useful if we have strong confidence in net radiation measurements
+            for example. The resulting coefficients of regression would give us
+            an idea of whether the other components were "under-measured" or
+            "over-measured". Then, starting with a :obj:`.Data` instance:
+
+            >>> Q = QaQc(Data_instance)
+            >>> Q.lin_regress(y='Rn', x=['G','H','LE'], fit_intercept=True)
+            >>> Q.lin_regress_result
+
+            This would produce something like the following,
+
+======= ================== ================ ============== =============== ============== =========== =============== ================ 
+SITE_ID Y (dependent var.) c0 (intercept)   c1 (coef on G) c2 (coef on LE) c3 (coef on H) RMSE (w/m2) r2 (coef. det.) n (sample count) 
+======= ================== ================ ============== =============== ============== =========== =============== ================ 
+a_site  Rn                 6.99350781229883 1.552          1.054           0.943          18.25       0.91            3386             
+======= ================== ================ ============== =============== ============== =========== =============== ================
+
+            In this case the intercept is telling us that there may be a systematic
+            or constant error in the independent variables and that :math:`G` is
+            "under-measured" at the sensor by over 50 precent, etc. if we assume
+            daily :math:`Rn` is accurate as measured.
+
+        Tip:
+            You may also use multiple linear regression to correct energy
+            balance components using the :meth:`QaQc.correct_data` method
+            by passing the ``meth='lin_regress'`` keyword argument. 
+
         """
         # drop relavant calculated variables if they exist
         self._df = _drop_cols(self.df, self._eb_calc_vars)
@@ -1602,7 +1673,6 @@ class QaQc(Plot, Convert):
                 also be of the same length.
 
         Example:
-            
             Starting from a correctly formatted config.ini and climate time
             series file, this example shows how to read in the data and produce
             the default series of plots for viewing with the addition of text

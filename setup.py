@@ -13,6 +13,7 @@ requires = [
     'numpy>=1.15',
     'pandas',
     'refet',
+    'scikit-learn',
     'xlrd>=1.2.0',
     'xarray'
 ]
