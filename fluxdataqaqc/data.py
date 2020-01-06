@@ -956,6 +956,9 @@ class Data(Plot, Convert):
             date_parse_str = self.config.get('METADATA','date_parser')
             date_parser = lambda x: pd.datetime.strptime(x, date_parse_str)
             kwargs['date_parser'] = date_parser
+        if 'load_all_vars' in dict(self.config.items('METADATA')):
+            # if this option is listed (with any value) read all columns into df
+            cols = self.header
 
         # load data file depending on file format
         if self.climate_file.suffix in ('.xlsx', '.xls'):
@@ -1063,6 +1066,13 @@ class Data(Plot, Convert):
                     'WARNING: Insufficient data to calculate mean for multiple '
                     '{} measurements'.format(pref.replace('_','').upper())
                 )
+                # remove from var name dict if G to avoid inv_map overwrite
+                # i.e. only one G recording but listed twice in config 
+                if pref == 'g_':
+                    to_drop = [i for i in d.keys() if i.startswith('g_')][0]
+                    self.variables.pop(to_drop)
+                    self.units.pop(to_drop)
+
 
         # check if any of multiple soil vars time series are all null and remove
         del_keys = []

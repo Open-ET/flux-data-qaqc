@@ -455,7 +455,7 @@ class Plot(object):
         # multiple soil heat flux sensor time series plots
         #### 
         # keep user names for these in hover 
-        g_re = re.compile('^[gG]_[\d+mean]|G$')
+        g_re = re.compile('^[gG]_[\d+mean|corr]|G$')
         g_vars = [
             v for v in variables if g_re.match(v) and v in df.columns
         ]
@@ -868,8 +868,12 @@ class Plot(object):
         for i, v in enumerate(y_vars):
             if v in df.columns and not df[v].isna().all():
                 n_vars_fnd += 1
+                if v == 'flux_corr' and 'energy_corr' in df.columns:
+                    x_var = 'energy_corr'
+                else:
+                    x_var = 'energy'
                 min_max = Plot.scatter_plot(
-                    fig, 'energy', v, daily_source, colors[i], label=labels[i]
+                    fig, x_var, v, daily_source, colors[i], label=labels[i]
                 )
                 if min_max is not None:
                     mins_maxs.append(min_max)

@@ -9,6 +9,8 @@ from pathlib import Path
 import xarray
 import numpy as np
 import pandas as pd
+from sklearn import linear_model
+from sklearn.metrics import mean_squared_error
 from refet.calcs import _ra_daily, _rso_simple
 
 from .data import Data
@@ -136,6 +138,7 @@ class QaQc(Plot, Convert):
         'vp': 'mean',
         'vpd': 'mean',
         'ppt': 'sum',
+        'ppt_corr': 'sum',
         'ws': 'mean',
         'Rn': 'mean',
         'Rn_subday_gaps': 'sum',
@@ -156,7 +159,8 @@ class QaQc(Plot, Convert):
     # EBR correction methods available
     corr_methods = (
         'ebr',
-        'br'
+        'br',
+        'lin_regress'
     )
 
     # gridMET dict, keys are names which can be passed to download_gridMET
@@ -216,6 +220,7 @@ class QaQc(Plot, Convert):
         'br',
         'br_user_corr',
         'energy',
+        'energy_corr',
         'ebr',
         'ebr_corr',
         'ebr_user_corr',
@@ -224,13 +229,15 @@ class QaQc(Plot, Convert):
         'ET_gap',
         'ET_fill',
         'ET_fill_val',
+        'ETrF',
+        'ETrF_filtered',
         'flux',
         'flux_corr',
         'flux_user_corr',
-        'ETrF',
-        'ETrF_filtered',
+        'G_corr',
+        'H_corr',
         'LE_corr',
-        'H_corr'
+        'Rn_corr'
     )
     # potentially calculated variables for ET
     _et_calc_vars = (
@@ -815,16 +822,18 @@ class QaQc(Plot, Convert):
 
         return qaqc
 
-    def correct_data(self, meth='ebr', etr_gap_fill=True):
+    def correct_data(self, meth='ebr', etr_gap_fill=True, y='Rn', 
+            x=['G','LE','H'], fit_intercept=False):
         """
         Correct turblent fluxes to improve energy balance closure using an
         Energy Balance Ratio method modified from `FLUXNET
         <https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`__. 
 
-        Currently two correction options are available: 'ebr' (Energy Balance
-        Ratio) and 'br' (Bowen Ratio). If you use one method followed by
-        another corrected,the corrected versions of LE, H, ET, ebr, etc. will
-        be overwritten with the most recently used approach. 
+        Currently three correction options are available: 'ebr' (Energy Balance
+        Ratio), 'br' (Bowen Ratio), and 'lin_regress' (least squares linear
+        regression). If you use one method followed by another corrected,the
+        corrected versions of LE, H, ET, ebr, etc. will be overwritten with the
+        most recently used approach. 
         
         This method also computes potential clear sky radiation 
         (saved as "rso") using an ASCE approach based on station elevation and 
@@ -901,9 +910,10 @@ class QaQc(Plot, Convert):
         self._calc_rso()
 
         # energy balance corrections
-        if not set(['Rn','LE','H','G']).issubset(self.variables.keys()) or\
-                not set(['Rn','LE','H','G']).issubset(
-                    self.df.rename(columns=self.inv_map).columns):
+        eb_vars = {'Rn','LE','H','G'}
+        if not eb_vars.issubset(self.variables.keys()) or\
+                not eb_vars.issubset(
+                        self.df.rename(columns=self.inv_map).columns):
             print(
                 '\nMissing one or more energy balance variables, cannot perform'
                 ' energy balance correction.'
@@ -918,8 +928,20 @@ class QaQc(Plot, Convert):
 
         if meth == 'ebr':
             self._ebr_correction()
-        if meth == 'br':
+        elif meth == 'br':
             self._bowen_ratio_correction()
+        elif meth == 'lin_regress':
+            if y not in eb_vars or len(set(x).difference(eb_vars)) > 0:
+                print(
+                    'WARNING: correcting energy balance variables using '
+                    'depedendent or independent variables that are not '
+                    'energy balance components will cause undesired results!'
+                    '\nIt is recommended to use only Rn, G, LE, and H for '
+                    'dependent (y) and independent (x) variables.'
+                )
+            self.lin_regress(
+                y=y, x=x, fit_intercept=fit_intercept, apply_coefs=True
+            )
 
         self.corr_meth = meth
         # calculate raw, corrected ET 
@@ -1151,6 +1173,130 @@ class QaQc(Plot, Convert):
             rso = 'rso'
         )
         self.units['rso'] = 'w/m2'
+
+    def lin_regress(self, y, x, fit_intercept=False, apply_coefs=False):
+        """
+        Least squares linear regression on single or multiple independent 
+        variables.
+        """
+        # drop relavant calculated variables if they exist
+        self._df = _drop_cols(self.df, self._eb_calc_vars)
+        df = self._df.rename(columns=self.inv_map)
+        if not y in df.columns:
+            print(
+                'ERROR: the dependent variable ({}) was not '
+                'found in the dataframe.\nHere are all available variable '
+                'names:\n{}\n'.format(y, ', '.join(df.columns))
+            )
+            return
+        if not isinstance(x, list) and not x in df.columns:
+            print(
+                'ERROR: the dependent variable ({}) was not '
+                'found in the dataframe.\nHere are all available variable '
+                'names:\n{}\n'.format(x, ', '.join(df.columns))
+            )
+            return
+
+        # get n X vars, names if more than 1
+        n_x = 1
+        if isinstance(x, list):
+            n_x = len(x)
+            if not set(x).issubset(df.columns):
+                print(
+                    'ERROR: one or more independent variables ({}) were not '
+                    'found in the dataframe.\nHere are all available variable '
+                    'names:\n{}'.format(','.join(x), ', '.join(df.columns))
+                )
+                return
+            if n_x > 1:
+                cols = x + [y] 
+                tmp = df[cols].copy()
+        if n_x == 1:
+            tmp = df[[x,y]].copy()
+        # drop timestamps with any missing variables
+        tmp = tmp.dropna()
+        X = tmp[x]
+        Y = tmp[y]
+        # create model, fit, and predict Y for RMSE/R2 calcs 
+        model = linear_model.LinearRegression(fit_intercept=fit_intercept)
+        model.fit(X, Y)
+        pred = model.predict(X)
+        r2 = model.score(X,Y).round(2)
+        rmse = (np.sqrt(mean_squared_error(Y, pred))).round(2)
+
+        eb_vars = ['LE','H','Rn','G']
+        if apply_coefs and set(tmp.columns).intersection(eb_vars):
+            # calc initial energy balance if regression applied to EB vars
+            df['ebr'] = (df.H + df.LE) / (df.Rn - df.G)
+            df['flux'] = df.H + df.LE
+            df['energy'] = df.Rn - df.G
+
+        # dataframe of results in nice/readable format
+        results = pd.Series()
+        results.loc['Y (dependent var.)'] = y
+        results.loc['c0 (intercept)'] = model.intercept_
+        for i, c in enumerate(X.columns):
+            results.loc['c{} (coef on {})'.format(i+1, c)] =\
+                model.coef_[i].round(3)
+            if apply_coefs:
+                new_var = '{}_corr'.format(c)
+                # ensure correct sign of coef. if applied to EB vars
+                if y in ['G','H','LE'] and c in ['G','H','LE']:
+                    coef = -1 * model.coef_[i]
+                else:
+                    coef = model.coef_[i]
+                print(
+                    'Applying correction factor ({}) to '
+                    'variable: {} (renamed as {})'.format(
+                        coef.round(3), c, new_var
+                    )
+                )
+
+                df[new_var] = df[c] * coef
+                self.variables[new_var] = new_var
+                self.units[new_var] = self.units.get(c) # already have units
+
+        results.loc[
+            'RMSE ({})'.format(self.units.get(y,'na'))
+        ] = rmse
+        results.loc['r2 (coef. det.)'] = r2
+        results.loc['n (sample count)'] = len(Y)
+        results = results.to_frame().T
+        results.index= [self.site_id]
+        results.index.name = 'SITE_ID'
+        # add as instance variable
+        self.lin_regress_results = results
+
+        # depending on independent vars, calc. corrected flux, ebr, energy
+        if apply_coefs and set(X.columns).intersection(eb_vars):
+            corr = pd.DataFrame()
+            for v in eb_vars:
+                cv = '{}_corr'.format(v)
+                if cv in df:
+                    corr[v] = df[cv] 
+                else:
+                    corr[v] = df[v]
+
+            # not all vars are necessarily different than initial
+            df['ebr_corr'] = (corr.H + corr.LE) / (corr.Rn - corr.G)
+            df['flux_corr'] = corr.H + corr.LE
+            df['energy_corr'] = corr.Rn + corr.G
+            del corr
+
+            self.variables.update(
+                energy = 'energy',
+                flux = 'flux',
+                flux_corr = 'flux_corr',
+                energy_corr = 'energy_corr',
+                ebr = 'ebr',
+                ebr_corr = 'ebr_corr'
+            )
+            self.corrected = True
+            self.corr_meth = 'lin_regress'
+
+        self._df = df.rename(columns=self.variables)
+
+        return results
 
     def _ebr_correction(self):
         """
