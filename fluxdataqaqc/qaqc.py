@@ -42,23 +42,25 @@ class QaQc(Plot, Convert):
         drop_gaps (bool): default :obj:`True`. If :obj:`True` automatically 
             filter variables on days with sub-daily measurement gaps less than
             ``daily_frac``.
-        daily_frac (float): default 0.75. Fraction of sub-daily data required
+        daily_frac (float): default 1.00. Fraction of sub-daily data required
             otherwise the daily value will be filtered out if ``drop_gaps`` is
             :obj:`True`. E.g. if ``daily_frac = 0.5`` and the input data is
             hourly, then data on days with less than 12 hours of data will be
             forced to null within :attr:`QaQc.df`. This is important because 
             systematic diurnal gaps will affect the autmoatic resampling that
             occurs when creating a :obj:`QaQc` instance and the daily data is 
-            used in closure corrections, other calculations, and plots. 
+            used in closure corrections, other calculations, and plots. If 
+            sub-daily linear interpolation is applied to energy balance 
+            variables the gaps are counted *after* the interpolation.
         max_interp_hours (None or float): default 2. Length of largest gap to 
             fill with linear interpolation in energy balance variables if 
             input datas temporal frequency is less than daily. This value will
-            be used to fill gaps when :math:`Rn > 0`.
+            be used to fill gaps when :math:`Rn > 0` or :math:`Rn` is missing
+            during each day.
         max_interp_hours_night (None or float): default 4. Length of largest gap
             to fill with linear interpolation in energy balance variables if 
             input datas temporal frequency is less than daily when 
-            :math:`Rn < 0`.
-
+            :math:`Rn < 0` within 12:00PM-12:00PM daily intervals. 
     
     Attributes:
         agg_dict (dict): Dictionary with internal variable names as keys and
@@ -142,6 +144,7 @@ class QaQc(Plot, Convert):
         'ws': 'mean',
         'Rn': 'mean',
         'Rn_subday_gaps': 'sum',
+        'rh' : 'mean',
         'sw_out': 'mean',
         'lw_out': 'mean',
         'G': 'mean',
@@ -513,10 +516,10 @@ class QaQc(Plot, Convert):
         if freq and freq > 'D':
             pass
         elif freq and freq < 'D':
-            print('The input data temporal frequency appears to be less than',
-                'daily.\n')
+            print('\nThe input data temporal frequency appears to be less than',
+                'daily.')
         elif freq is None:
-            print('The input data temporal frequency was not detected.')
+            print('\nThe input data temporal frequency was not detected.')
             freq = 'na'
 
         if not freq == 'D':
@@ -524,7 +527,7 @@ class QaQc(Plot, Convert):
             # see if two adj. dates exist, skip first day in case it is not full
             second_day = df.index.date[2]
             third_day = second_day + pd.Timedelta(1, unit='D')
-            max_times_in_day = len(df.loc[str(second_day)].index) 
+            max_times_in_day = len(df.loc[str(third_day)].index) 
             self.n_samples_per_day = max_times_in_day
             downsample = False
             if daily_frac > 1:
@@ -555,7 +558,7 @@ class QaQc(Plot, Convert):
             mean_cols = set(df.columns) - set(sum_cols)
 
             means = df.loc[:,mean_cols].apply(
-                pd.to_numeric, errors='coerce').resample('D').mean()
+                pd.to_numeric, errors='coerce').resample('D').mean().copy()
             # issue with resample sum of nans, need to drop first else 0
             sums = df.loc[:,sum_cols].dropna().apply(
                 pd.to_numeric, errors='coerce').resample('D').sum()
@@ -574,24 +577,53 @@ class QaQc(Plot, Convert):
 
                 tmp = df[energy_bal_vars].apply(
                     pd.to_numeric, errors='coerce'
-                ).copy()
+                )
 
-                for v in energy_bal_vars:
-                    if 'Rn' in tmp.columns:
-                        # optionally interpolate longer during neg. Rn periods
-                        tmp.loc[tmp.Rn < 0, v] =\
-                            tmp.loc[tmp.Rn < 0, v].interpolate(
-                            limit=max_night_gap
+                if 'Rn' in energy_bal_vars:
+                    grped_night = tmp.loc[
+                        (tmp.Rn < 0) & (tmp.Rn.notna())
+                    ].copy()
+                    grped_night = grped_night.groupby(
+                        pd.Grouper(freq='24H', base=12)).apply(
+                            lambda x: x.interpolate(
+                                method='linear', limit=max_night_gap, 
+                                limit_direction='both', limit_area='inside'
+                            )
                         )
-                        # shorter length daytime interpolation
-                        tmp.loc[tmp.Rn >=0 , v] =\
-                            tmp.loc[tmp.Rn >= 0, v].interpolate(limit=max_gap)
+                    grped_day = tmp.loc[(tmp.Rn >= 0) | (tmp.Rn.isna())].copy()
+                    grped_day = grped_day.groupby(
+                        pd.Grouper(freq='24H')).apply(
+                            lambda x: x.interpolate(
+                                method='linear', limit=max_gap, 
+                                limit_direction='both', limit_area='inside'
+                            )
+                        )
+                else:
+                    grped_night = tmp.copy()
+                    grped_night = grped_night.groupby(
+                        pd.Grouper(freq='24H', base=12)).apply(
+                            lambda x: x.interpolate(
+                                method='linear', limit=max_night_gap, 
+                                limit_direction='both', limit_area='inside'
+                            )
+                        )
+                    grped_day = tmp.copy()
+                    grped_day = grped_day.groupby(
+                        pd.Grouper(freq='24H')).apply(
+                            lambda x: x.interpolate(
+                                method='linear', limit=max_gap, 
+                                limit_direction='both', limit_area='inside'
+                            )
+                        )
 
-                    else:
-                        tmp[v] = tmp[v].interpolate(limit=max_gap)
-
-                    # overwrite non-interpolated daily means
-                    means[v] = tmp[v].resample('D').mean()
+                interped = pd.concat([grped_day, grped_night])
+                if interped.index.duplicated().any():
+                    interped = interped.loc[
+                        ~interped.index.duplicated(keep='first')
+                    ]
+                # overwrite non-interpolated daily means
+                means[energy_bal_vars] =\
+                    interped[energy_bal_vars].resample('D').mean().copy()
 
             if drop_gaps:
                 # make sure round errors do not affect this value
@@ -600,9 +632,9 @@ class QaQc(Plot, Convert):
                 data_cols = [
                     c for c in df.columns if not c.endswith('_qc_flag')
                 ]
-                # interpolate energy balance vars first before looking for gaps
-                if max_interp_hours is not None:
-                    df[energy_bal_vars] = tmp[energy_bal_vars]
+                # interpolate energy balance vars first before counting gaps
+                if max_interp_hours:
+                    df[energy_bal_vars] = interped[energy_bal_vars].copy()
                 days_with_gaps = df[data_cols].groupby(
                     df.index.date).count() < n_vals_needed
 
