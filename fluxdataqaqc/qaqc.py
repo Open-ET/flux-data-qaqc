@@ -734,18 +734,11 @@ class QaQc(Plot, Convert):
         if set(['LE_user_corr','H_user_corr','Rn','G']).issubset(df.columns):
             df['ebr_user_corr']=(df.H_user_corr+df.LE_user_corr) / (df.Rn-df.G)
         
-        #elif how == 'aggregate':
-        #    # for monthly stats not time series
-        #    df = df.groupby(df.index.month).agg(self.agg_dict)
-        #else:
-        #    err_msg='Invalid "how" option, use "time_series" or "aggregate"'
-        #    raise ValueError(err_msg)
-
         df.replace([np.inf, -np.inf], np.nan, inplace=True)
 
         return df.rename(columns=self.variables)
 
-    def write(self, out_dir=None):
+    def write(self, out_dir=None, use_input_names=False):
         """
         Save daily and monthly time series of initial and "corrected" data in 
         CSV format.
@@ -760,11 +753,16 @@ class QaQc(Plot, Convert):
         and :obj:`QaQc` objects, the names of the files will start with the
         site_id and have either the "daily_data" or "monthly_data" suffix. 
 
-        Arguments:
+        Keyword Arguments:
             out_dir (str or :obj:`None`): default :obj:`None`. Directory to 
                 save CSVs, if :obj:`None` save to :attr:`out_dir` instance 
                 variable (typically "output" directory where config.ini file 
                 exists).
+            use_input_names (bool): default :obj:`False`. If :obj:`False` use 
+                ``flux-data-qaqc`` variable names as in output file header,
+                or if :obj:`True` use the user's input variable names where
+                possible (for variables that were read in and not modified or
+                calculated by ``flux-data-qaqc``).
 
         Returns:
             :obj:`None`
@@ -810,8 +808,12 @@ class QaQc(Plot, Convert):
         daily_outf = out_dir / '{}_daily_data.csv'.format(self.site_id)
         monthly_outf = out_dir / '{}_monthly_data.csv'.format(self.site_id)
 
-        self.df.to_csv(daily_outf)
-        self.monthly_df.to_csv(monthly_outf)
+        if use_input_names:
+            self.df.to_csv(daily_outf)
+            self.monthly_df.to_csv(monthly_outf)
+        else:
+            self.df.rename(columns=self.inv_map).to_csv(daily_outf)
+            self.monthly_df.rename(columns=self.inv_map).to_csv(monthly_outf)
 
     @classmethod
     def from_dataframe(cls, df, site_id, elev_m, lat_dec_deg, var_dict):

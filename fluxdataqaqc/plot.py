@@ -196,20 +196,22 @@ class Plot(object):
             return
         xd = xd[mask]
         yd = yd[mask]
+
+        # allow modification of inner marker alpha, fallback on 0.2
+        in_a = kwargs.pop('fill_alpha', 0.2)
         # ordinary least squares linear regression slope through zero
         if lsrl:
             #source.data.update(ColumnDataSource({x: xd, y: yd}).data)
             # plot scatter and linear regression line slope for y=mx
             m = np.linalg.lstsq(xd.reshape(-1,1),yd,rcond=None)[0][0]
-            fig.circle(
-                x, y, source=source, color=color, line_width=1, fill_alpha=0.2,
-                legend='{lab}, slope={s:.2f}'.format(lab=label, s=m), name=name,
+            fig.scatter(
+                x, y, source=source, color=color, line_width=1, fill_alpha=in_a,                legend='{lab}, slope={s:.2f}'.format(lab=label, s=m), name=name,
                 size=10, **kwargs
             )
             fig.line(xd, m * xd, color=color)
         else:
-            fig.circle(
-                x, y, source=source, color=color, line_width=1, fill_alpha=0.5,
+            fig.scatter(
+                x, y, source=source, color=color, line_width=1, fill_alpha=in_a,
                 legend=dict(value=label), name=name, size=10, **kwargs
             )
         if len(fig.hover) == 0:

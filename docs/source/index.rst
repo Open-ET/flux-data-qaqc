@@ -2,9 +2,11 @@
 flux-data-qaqc - Tools for Energy Balance Closure Analysis
 ==========================================================
 
-.. image:: https://readthedocs.org/projects/flux-data-qaqc/badge/?version=latest
-   :target: https://flux-data-qaqc.readthedocs.io/en/latest/?badge=latest
-   :alt: Documentation Status
+
+
+|Docs| |Downloads per month| |PyPI version| 
+
+-----------
 
 `View on GitHub <https://github.com/Open-ET/flux-data-qaqc>`_. 
 
@@ -43,3 +45,14 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+
+.. |Docs| image:: https://readthedocs.org/projects/flux-data-qaqc/badge/?version=latest
+   :target: https://flux-data-qaqc.readthedocs.io/en/latest/?badge=latest
+   :alt: Documentation Status
+
+.. |Downloads per month| image:: https://img.shields.io/pypi/dm/fluxdataqaqc.svg
+   :target: https://pypi.python.org/pypi/fluxdataqaqc/
+
+.. |PyPI version| image:: https://img.shields.io/pypi/v/fluxdataqaqc.svg
+   :target: https://pypi.python.org/pypi/fluxdataqaqc/

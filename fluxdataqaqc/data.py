@@ -131,6 +131,34 @@ class Data(Plot, Convert):
 
 
     def hourly_ASCE_refET(self, reference='tall', anemometer_height=None):
+        """
+        Calculate hourly ASCE standardized short (ETo) or tall (ETr) reference 
+        ET from input data and wind measurement height.
+
+        If input data's time frequency is < hourly the input data will be 
+        resampled to hourly and the output reference ET time series will be 
+        returned as a datetime :obj:`pandas.Series` object, if the input data
+        is already hourly then the resulting time series will automatically
+        be merged into the :attr:`.Data.df` dataframe named "ASCE_ETo" or 
+        "ASCE_ETr" respectively.
+
+        Keyword Arguments:
+            reference (str): default "tall", calculate tall or short ASCE
+                reference ET.
+            anemometer_height (float or None): wind measurement height in meters
+                , default :obj:`None`. If :obj:`None` then look for the
+                "anemometer_height" entry in the **METADATA** section of the
+                config.ini, if not there then print a warning and use 2 meters.
+
+        Returns:
+            :obj:`None` or :obj:`pandas.Series`
+
+        Hint:
+            The input variables needed to run this method are: vapor pressure,
+            wind speed, incoming shortwave radiation, and average air 
+            temperature. If vapor pressure deficit and average air temperature
+            exist, the actual vapor pressure will automatically be calculated.
+        """
 
         self.df.head(); # creates vp/vpd
         df = self.df.rename(columns=self.inv_map)
@@ -1088,8 +1116,8 @@ class Data(Plot, Convert):
                 # i.e. only one G recording but listed twice in config 
                 if pref == 'g_':
                     to_drop = [i for i in d.keys() if i.startswith('g_')][0]
-                    self.variables.pop(to_drop)
-                    self.units.pop(to_drop)
+                    self.variables.pop(to_drop, None)
+                    self.units.pop(to_drop, None)
 
 
         # check if any of multiple soil vars time series are all null and remove
