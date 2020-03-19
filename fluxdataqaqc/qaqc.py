@@ -131,6 +131,7 @@ class QaQc(Plot, Convert):
         'ebr_user_corr': 'mean',
         'ebr_5day_clim': 'mean',
         'gridMET_ETr': 'sum',
+        'gridMET_ETo': 'sum',
         'gridMET_prcp': 'sum',
         'lw_in': 'mean',
         't_avg': 'mean',
@@ -183,7 +184,7 @@ class QaQc(Plot, Convert):
         'pet': {
             'nc_suffix': 'agg_met_pet_1979_CurrentYear_CONUS.nc#fillmismatch',
             'name': 'daily_mean_reference_evapotranspiration_grass',
-            'rename': 'gridMET_eto',
+            'rename': 'gridMET_ETo',
             'units': 'mm'
         },
         'sph': {
@@ -229,11 +230,6 @@ class QaQc(Plot, Convert):
         'ebr_user_corr',
         'ebc_cf',
         'ebr_5day_clim',
-        'ET_gap',
-        'ET_fill',
-        'ET_fill_val',
-        'ETrF',
-        'ETrF_filtered',
         'flux',
         'flux_corr',
         'flux_user_corr',
@@ -247,6 +243,16 @@ class QaQc(Plot, Convert):
         'ET',
         'ET_corr',
         'ET_user_corr'
+    )
+    # potentially calculated ET gap fill variables
+    _et_gap_fill_vars = (
+        'ET_gap',
+        'ET_fill',
+        'ET_fill_val',
+        'ETrF',
+        'ETrF_filtered',
+        'EToF',
+        'EToF_filtered'
     )
 
     def __init__(self, data=None, drop_gaps=True, daily_frac=1.00, 
@@ -361,7 +367,7 @@ class QaQc(Plot, Convert):
                     self.variables[meta['rename']] = meta['rename']
                     self.units[meta['rename']] = meta['units']
                 # flag False if ETr was not downloaded for our purposes
-                if not 'gridMET_ETr' in grid_df.columns:
+                if not {'gridMET_ETr','gridMET_ETo'}.issubset(grid_df.columns):
                     self.gridMET_exists = False
                 elif station_dates.isin(gridMET_dates).all():
                     self.gridMET_exists = True
@@ -376,8 +382,8 @@ class QaQc(Plot, Convert):
 
     def download_gridMET(self, variables=None):
         """
-        Download reference ET (alfalfa) and precipitation from gridMET for
-        all days in flux station time series by default. 
+        Download reference ET (alfalfa and grass) and precipitation from
+        gridMET for all days in flux station time series by default. 
         
         Also has ability to download other specific gridMET variables by
         passing a list of gridMET variable names. Possible variables and their
@@ -418,7 +424,7 @@ class QaQc(Plot, Convert):
             'http://thredds.northwestknowledge.net:8080/thredds/dodsC/'
 
         if variables is None:
-            variables = ['ETr', 'pr']
+            variables = ['ETr', 'pet', 'pr']
 
         elif not isinstance(variables, (str,list,tuple)):
             print(
@@ -482,8 +488,6 @@ class QaQc(Plot, Convert):
         # rewrite config with updated gridMET file path
         with open(str(self.config_file), 'w') as outf:
             self.config.write(outf)
-        # keep in memory to merge with df during correction
-        #self._gridMET_df = df
         # drop previously calced vars for replacement, no join duplicates
         self._df = _drop_cols(self._df, variables)
         self._df = self._df.join(df)
@@ -803,6 +807,10 @@ class QaQc(Plot, Convert):
             out_dir.mkdir(parents=True, exist_ok=True)
 
         if not self.corrected and self._has_eb_vars:
+            print(
+                'WARNING: energy balance closure corrections have not yet been'
+                'run. Using default options before writing output time series.'
+            )
             self.correct_data()
 
         daily_outf = out_dir / '{}_daily_data.csv'.format(self.site_id)
@@ -856,7 +864,7 @@ class QaQc(Plot, Convert):
 
         return qaqc
 
-    def correct_data(self, meth='ebr', etr_gap_fill=True, y='Rn', 
+    def correct_data(self, meth='ebr', et_gap_fill=True, y='Rn', refET='ETr',
             x=['G','LE','H'], fit_intercept=False):
         """
         Correct turblent fluxes to improve energy balance closure using an
@@ -895,12 +903,15 @@ class QaQc(Plot, Convert):
 
         Keyword Arguments:
             meth (str): default 'ebr'. Method to correct energy balance.
-            etr_gap_fill (bool): default True. If true fill any remaining gaps
-                in corrected ET with ETr * ETrF, where ETr is reference ET from
-                gridMET and ETrF is the filtered, smoothed (7 day moving avg. 
-                min 2 days) and linearly interpolated crop coefficient. The 
-                number of days in each month that corrected ET are filled will 
-                is provided in :attr:`QaQc.monthly_df` as the column "ET_gap".
+            et_gap_fill (bool): default True. If true fill any remaining gaps
+                in corrected ET with ETr * ETrF, where ETr is alfalfa reference
+                ET from gridMET and ETrF is the filtered, smoothed (7 day
+                moving avg.  min 2 days) and linearly interpolated crop
+                coefficient. The number of days in each month that corrected ET
+                are filled will is provided in :attr:`QaQc.monthly_df` as the
+                column "ET_gap". 
+            refET (str): default "ETr". Which gridMET reference product to use
+                for ET gap filling, "ETr" or "ETo" are valid options.
             fit_intercept (bool): default False. Fit intercept for regression or
                 set to zero if False. Only used if ``meth='lin_regress'``.
             apply_coefs (bool): default False. If :obj:`True` then apply fitted
@@ -914,7 +925,7 @@ class QaQc(Plot, Convert):
             Starting from a correctly formatted config.ini and climate time
             series file, this example shows how to read in the data and apply
             the energy balance ratio correction without gap-filling with 
-            reference ET.
+            gridMET ETr x ETrF.
 
             >>> from fluxdataqaqc import Data, QaQc
             >>> d = Data('path/to/config.ini')
@@ -924,12 +935,12 @@ class QaQc(Plot, Convert):
 
             Now apply the energy balance closure correction 
 
-            >>> q.correct_data(meth='ebr', etr_gap_fill=False)
+            >>> q.correct_data(meth='ebr', et_gap_fill=False)
             >>> q.corrected
                 True
 
         Note:
-            If ``etr_gap_fill`` is set to :obj:`True` (default) the gap filled
+            If ``et_gap_fill`` is set to :obj:`True` (default) the gap filled
             days of corrected ET will be used to recalculate LE_corr for those
             days with the gap filled values, i.e. LE_corr will also be
             gap-filled.
@@ -977,8 +988,8 @@ class QaQc(Plot, Convert):
             # calculate raw (from input LE) ET 
             self._calc_et()
             # fill gaps of raw ET with ET from smoothed and gap filled ETrF*ETr
-            if etr_gap_fill:
-                self._ETr_gap_fill(et_name='ET')
+            if et_gap_fill:
+                self._ET_gap_fill(et_name='ET', refET=refET)
             return
 
         if meth == 'ebr':
@@ -1002,8 +1013,8 @@ class QaQc(Plot, Convert):
         # calculate raw, corrected ET 
         self._calc_et()
         # fill gaps of corr ET with ET from smoothed and gap filled ETrF*ETr
-        if etr_gap_fill:
-            self._ETr_gap_fill()
+        if et_gap_fill:
+            self._ET_gap_fill(et_name='ET_corr', refET=refET)
 
         # update inv map for naming
         self.inv_map = {
@@ -1051,10 +1062,10 @@ class QaQc(Plot, Convert):
 
         self._df = df
 
-    def _ETr_gap_fill(self, et_name='ET_corr'):
+    def _ET_gap_fill(self, et_name='ET_corr', refET='ETr'):
         """
-        Use gridMET reference ET to calculate ET from ETrF, smooth and gap fill
-        calced ET and then use to fill gaps in corrected ET. Keeps tabs on 
+        Use gridMET reference ET to calculate ET from ETrF/EToF, smooth and gap
+        fill calced ET and then use to fill gaps in corrected ET. Keeps tabs on
         number of days in ET that were filled in each month.
         
         Keyword Arguments:
@@ -1066,6 +1077,8 @@ class QaQc(Plot, Convert):
             :obj:`None`
 
         """
+        # drop relavant calculated variables if they exist
+        self._df = _drop_cols(self._df, self._et_gap_fill_vars)
         # get ETr if not on disk
         if not self.gridMET_exists:
             self.download_gridMET()
@@ -1095,29 +1108,56 @@ class QaQc(Plot, Convert):
 
         # calc ETrF 7 day moving average, min vals in window = 2, linear interp
         print(
-            'Gap filling {} with filtered ETrF x ETr (gridMET)'\
-                .format(et_name)
+            f'Gap filling {et_name} with filtered {refET}F x {refET} (gridMET)'
         )
-        df['ETrF'] = df[et_name].astype(float) / df.gridMET_ETr.astype(float)
-        df['ETrF_filtered'] = df['ETrF']
-        # filter out extremes of ETrF
-        Q1 = df['ETrF_filtered'].quantile(0.25)
-        Q3 = df['ETrF_filtered'].quantile(0.75)
-        IQR = Q3 - Q1
-        to_filter = df.query(
-            'ETrF_filtered < (@Q1-1.5*@IQR) or ETrF_filtered > (@Q3+1.5*@IQR)'
-        )
-        df.loc[to_filter.index, 'ETrF_filtered'] = np.nan
-        df['ETrF_filtered'] = df.ETrF_filtered.rolling(
-            7, min_periods=2, center=True
-        ).mean()
-        df.ETrF_filtered = df.ETrF_filtered.interpolate(method='linear')
-        # calc ET from ETrF_filtered and ETr
-        df['ET_fill'] = df.gridMET_ETr * df.ETrF_filtered
-        # flag days in corrected ET that are missing and sum for each month
-        df['ET_gap'] = False
-        df.loc[(df[et_name].isna() & df.ET_fill.notna()), 'ET_gap'] = True
-        df.loc[df.ET_gap, et_name] = df.loc[df.ET_gap, 'ET_fill']
+        if refET == 'ETr':
+            df['ETrF'] = df[et_name].astype(float)/df.gridMET_ETr.astype(float)
+            df['ETrF_filtered'] = df['ETrF']
+            # filter out extremes of ETrF
+            Q1 = df['ETrF_filtered'].quantile(0.25)
+            Q3 = df['ETrF_filtered'].quantile(0.75)
+            IQR = Q3 - Q1
+            to_filter = df.query(
+                'ETrF_filtered<(@Q1-1.5*@IQR) or ETrF_filtered>(@Q3+1.5*@IQR)'
+            )
+            df.loc[to_filter.index, 'ETrF_filtered'] = np.nan
+            df['ETrF_filtered'] = df.ETrF_filtered.rolling(
+                7, min_periods=2, center=True
+            ).mean()
+            df.ETrF_filtered = df.ETrF_filtered.interpolate(method='linear')
+            # calc ET from ETrF_filtered and ETr
+            df['ET_fill'] = df.gridMET_ETr * df.ETrF_filtered
+            # flag days in corrected ET that are missing and sum for each month
+            df['ET_gap'] = False
+            df.loc[(df[et_name].isna() & df.ET_fill.notna()), 'ET_gap'] = True
+            df.loc[df.ET_gap, et_name] = df.loc[df.ET_gap, 'ET_fill']
+            self.units['ETrF'] = 'unitless'
+            self.units['ETrF_filtered'] = 'unitless'
+        elif refET == 'ETo':
+            df['EToF'] = df[et_name].astype(float)/df.gridMET_ETo.astype(float)
+            df['EToF_filtered'] = df['EToF']
+            # filter out extremes of EToF
+            Q1 = df['EToF_filtered'].quantile(0.25)
+            Q3 = df['EToF_filtered'].quantile(0.75)
+            IQR = Q3 - Q1
+            to_filter = df.query(
+                'EToF_filtered<(@Q1-1.5*@IQR) or EToF_filtered>(@Q3+1.5*@IQR)'
+            )
+            df.loc[to_filter.index, 'EToF_filtered'] = np.nan
+            df['EToF_filtered'] = df.EToF_filtered.rolling(
+                7, min_periods=2, center=True
+            ).mean()
+            df.EToF_filtered = df.EToF_filtered.interpolate(method='linear')
+            # calc ET from EToF_filtered and ETo
+            df['ET_fill'] = df.gridMET_ETo * df.EToF_filtered
+            # flag days in corrected ET that are missing and sum for each month
+            df['ET_gap'] = False
+            df.loc[(df[et_name].isna() & df.ET_fill.notna()), 'ET_gap'] = True
+            df.loc[df.ET_gap, et_name] = df.loc[df.ET_gap, 'ET_fill']
+            self.units['EToF'] = 'unitless'
+            self.units['EToF_filtered'] = 'unitless'
+            
+
         # backcalculate LE_corr and flux_corr with gap filled et_corr
         if et_name == 'ET_corr' and 't_avg' in self.variables:
             df['LE_corr'] =\
@@ -1135,8 +1175,6 @@ class QaQc(Plot, Convert):
         new_cols = set(df.columns) - set(self.variables)
         for el in new_cols:
             self.variables[el] = el
-        self.units['ETrF'] = 'unitless'
-        self.units['ETrF_filtered'] = 'unitless'
         self.units['ET_fill'] = 'mm'
         self.units['ET_fill_val'] = 'mm'
         self.units['ET_gap'] = 'unitless'
@@ -1765,7 +1803,6 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
             out_dir = out_file.parent
             if not out_dir.is_dir():
                 out_dir.mkdir(parents=True, exist_ok=True)
-        # to allow making any subdir that does not yet exist
         # if out_file is to a non-existent directory create parents
         elif out_file is not None and output_type == 'save':
             out_dir = Path(out_file).parent

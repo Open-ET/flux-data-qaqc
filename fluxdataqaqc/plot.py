@@ -700,8 +700,9 @@ class Plot(object):
         #### 
         # ET time series plots
         #### 
-        plt_vars = ['ET', 'ET_corr', 'ET_user_corr', 'gridMET_ETr']
-        labels = plt_vars[0:3] + ['ETr']
+        refET = 'ETr' if 'ETrF' in df.columns else 'ETo'
+        plt_vars = ['ET', 'ET_corr', 'ET_user_corr', f'gridMET_{refET}']
+        labels = plt_vars[0:3] + [refET]
         colors = ['black', 'red', 'darkorange', 'blue']
         title = 'Daily Evapotranspiration'
         x_label = 'date'
@@ -763,15 +764,15 @@ class Plot(object):
 
         #### 
         # ETrF time series plots
-        #### 
-        plt_vars = ['ETrF', 'ETrF_filtered']
+        ####
+        plt_vars = [f'{refET}F', f'{refET}F_filtered']
         colors = ['black', 'red']
-        title = 'Daily Fraction of Reference ET (ETrF)'
+        title = f'Daily Fraction of Reference ET ({refET}F)'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_height, name='ETrF_daily'
+            width=plot_width, height=plot_height, name=f'{refET}F_daily'
         )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
@@ -785,10 +786,10 @@ class Plot(object):
             )
         if fig is not None and monthly:
             # same for monthly fig
-            title = 'Monthly Fraction of Reference ET (ETrF)'
+            title = f'Monthly Fraction of Reference ET ({refET}F)'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
-                width=plot_width, height=plot_height, name='ETrF_monthly'
+                width=plot_width, height=plot_height, name=f'{refET}F_monthly'
             )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,

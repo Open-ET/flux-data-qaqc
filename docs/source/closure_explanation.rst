@@ -95,8 +95,8 @@ using average air temperature to adjust the latent heat of vaporization.
 
 **Step 9 (optional):** if desired, fill remaining gaps in the corrected
 :math:`ET` time series with :math:`ET` that is calculated by gridMET
-reference :math:`ET` (:math:`ETr`) multiplied by the filtered and smoothed
-fraction of reference ET (:math:`ET_{rF}`).
+reference :math:`ET` (:math:`ETr` or :math:`ETo`) multiplied by the filtered and smoothed
+fraction of reference ET (:math:`ETrF` or :math:`EToF`).
 
 
 Step 0, manual cleaning of poor quality data
@@ -298,8 +298,8 @@ methodology
 Step 9, optionally gap fill corrected ET using gridMET reference ET and reference ET fraction
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This is done by downloading :math:`ETr` for the overlapping gridMET cell
-(site must be in CONUS) and then calculating,
+This is done by downloading :math:`ETr` or :math:`ETo` (default is :math:`ETr`)
+for the overlapping gridMET cell (site must be in CONUS) and then calculating,
 
 .. math:: ET_{fill} = ETrF \times ET_r,
 
@@ -313,11 +313,13 @@ outliers outside of 1.5 times the interquartile range, it is then smoothed with
 a 7 day moving average (minimum of 2 days must exist in window) and lastly it
 is linearly interpolated to fill any remaining gaps. 
 
+The same gap filling procedure can easily be done using gridMET grass reference ET (:math:`ETo`) as opposed to alfalfa reference ET (:math:`ETr`).
+
 .. Tip:: 
-   The filtered and raw versions of :math:`ETrF`, gridMET :math:`ETr`, gap
-   days, and monthly total number of gap filled days are tracked for
-   post-processing and visualized by the :meth:`.QaQc.plot` and
-   :meth:`.QaQc.write` methods.
+   The filtered and raw versions of :math:`ETrF`/:math:`EToF`, gridMET
+   :math:`ETr`, gridMET :math:`ETo`, gap days, and monthly total number of gap
+   filled days are tracked for post-processing and visualized by the
+   :meth:`.QaQc.plot` and :meth:`.QaQc.write` methods.
 
 Since the data used in this example does not have gaps, for illustration we have created the following large gap in the measured energy balance components from May through August, 2014:
 

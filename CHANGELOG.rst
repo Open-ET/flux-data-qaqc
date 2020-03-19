@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+Version 0.1.3
+-------------
+
+Add option to use gridMET grass reference ET (ETo) and EToF for gap filling daily ET. The default behavior still uses alfalfa reference ET, to use ETo assign the ``refET="ETo"`` keyword argument to :meth:`.QaQc.correct_data` or directly to :meth:`.QaQc._ET_gap_fill`. The ET and ET reference fraction plot labels are updated to show the correct reference ET variable used.
+
 Version 0.1.2
 -------------
 
