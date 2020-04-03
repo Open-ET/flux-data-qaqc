@@ -7,7 +7,7 @@ from bokeh.io import reset_output
 from bokeh.palettes import Viridis256
 from bokeh.layouts import gridplot, column
 from bokeh.plotting import figure, ColumnDataSource, output_file, show, save
-from bokeh.models import HoverTool, Div
+from bokeh.models import HoverTool, Div, Range1d
 from bokeh.models.formatters import DatetimeTickFormatter
 from pathlib import Path
 
