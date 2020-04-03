@@ -134,7 +134,7 @@ class Plot(object):
         to the figure. 
         
         Returns:
-            (tuple): minimum and maximum ``x`` value of paired data which can be used for adding a one to one line to the figure later.
+            (tuple): minimum and maximum ``x`` and minimum and maximum ``y`` values of paired data which can be used for adding a one to one line to the figure or other uses.
 
         Example:
 
@@ -233,7 +233,7 @@ class Plot(object):
         fig.legend.click_policy="hide"
         
         if xd.size > 0:
-            return xd.min(), xd.max()
+            return xd.min(), xd.max(), yd.min(), yd.max()
 
     @staticmethod
     def add_lines(fig, df, plt_vars, colors, x_name, source, 
@@ -884,9 +884,16 @@ class Plot(object):
             # add scaled one to one line
             mins_maxs = np.array(mins_maxs)
             if not pd.isna(mins_maxs).all():
-                one2one_vals = np.arange(
-                    min(mins_maxs[:,0]), max(mins_maxs[:,1]),1
-                )
+                x_min = min(mins_maxs[:,0])
+                x_max = max(mins_maxs[:,1])
+                y_min = min(mins_maxs[:,2])
+                y_max = max(mins_maxs[:,3])
+                ax_min, ax_max = min([x_min,y_min]), max([x_max,y_max])
+                ax_min -= 0.02*abs(ax_max-ax_min)
+                ax_max += 0.02*abs(ax_max-ax_min)
+                fig.x_range=Range1d(ax_min, ax_max)
+                fig.y_range=Range1d(ax_min, ax_max)
+                one2one_vals = np.arange(ax_min, ax_max,1)
                 fig.line(
                     one2one_vals, one2one_vals, legend='1:1 line', 
                     color='black', line_dash='dashed'
@@ -913,9 +920,16 @@ class Plot(object):
                 mins_maxs = np.array(mins_maxs)
                 # check if not all pairs are empty, if not plot 1:1
                 if not pd.isna(mins_maxs).all():
-                    one2one_vals = np.arange(
-                        min(mins_maxs[:,0]), max(mins_maxs[:,1]), 1
-                    )
+                    x_min = min(mins_maxs[:,0])
+                    x_max = max(mins_maxs[:,1])
+                    y_min = min(mins_maxs[:,2])
+                    y_max = max(mins_maxs[:,3])
+                    ax_min, ax_max = min([x_min,y_min]), max([x_max,y_max])
+                    ax_min -= 0.02*abs(ax_max-ax_min)
+                    ax_max += 0.02*abs(ax_max-ax_min)
+                    fig.x_range=Range1d(ax_min, ax_max)
+                    fig.y_range=Range1d(ax_min, ax_max)
+                    one2one_vals = np.arange(ax_min, ax_max,1)
                     fig.line(
                         one2one_vals, one2one_vals, legend='1:1 line', 
                         color='black', line_dash='dashed'
@@ -953,9 +967,16 @@ class Plot(object):
             # add scaled one to one line
             mins_maxs = np.array(mins_maxs)
             if not pd.isna(mins_maxs).all():
-                one2one_vals = np.arange(
-                    min(mins_maxs[:,0]), max(mins_maxs[:,1]),1
-                )
+                x_min = min(mins_maxs[:,0])
+                x_max = max(mins_maxs[:,1])
+                y_min = min(mins_maxs[:,2])
+                y_max = max(mins_maxs[:,3])
+                ax_min, ax_max = min([x_min,y_min]), max([x_max,y_max])
+                ax_min -= 0.02*abs(ax_max-ax_min)
+                ax_max += 0.02*abs(ax_max-ax_min)
+                fig.x_range=Range1d(ax_min, ax_max)
+                fig.y_range=Range1d(ax_min, ax_max)
+                one2one_vals = np.arange(ax_min, ax_max,1)
                 fig.line(
                     one2one_vals, one2one_vals, legend='1:1 line', 
                     color='black', line_dash='dashed'
@@ -980,9 +1001,16 @@ class Plot(object):
                 mins_maxs = np.array(mins_maxs)
                 # check if not all pairs are empty, if not plot 1:1
                 if not pd.isna(mins_maxs).all():
-                    one2one_vals = np.arange(
-                        min(mins_maxs[:,0]), max(mins_maxs[:,1]), 1
-                    )
+                    x_min = min(mins_maxs[:,0])
+                    x_max = max(mins_maxs[:,1])
+                    y_min = min(mins_maxs[:,2])
+                    y_max = max(mins_maxs[:,3])
+                    ax_min, ax_max = min([x_min,y_min]), max([x_max,y_max])
+                    ax_min -= 0.02*abs(ax_max-ax_min)
+                    ax_max += 0.02*abs(ax_max-ax_min)
+                    fig.x_range=Range1d(ax_min, ax_max)
+                    fig.y_range=Range1d(ax_min, ax_max)
+                    one2one_vals = np.arange(ax_min, ax_max,1)
                     fig.line(
                         one2one_vals, one2one_vals, legend='1:1 line', 
                         color='black', line_dash='dashed'
@@ -1018,7 +1046,16 @@ class Plot(object):
         if n_vars_fnd > 0:
             # add scaled one to one line
             mins_maxs = np.array(mins_maxs)
-            one2one_vals = np.arange(min(mins_maxs[:,0]), max(mins_maxs[:,1]),1)
+            x_min = min(mins_maxs[:,0])
+            x_max = max(mins_maxs[:,1])
+            y_min = min(mins_maxs[:,2])
+            y_max = max(mins_maxs[:,3])
+            ax_min, ax_max = min([x_min,y_min]), max([x_max,y_max])
+            ax_min -= 0.02*abs(ax_max-ax_min)
+            ax_max += 0.02*abs(ax_max-ax_min)
+            fig.x_range=Range1d(ax_min, ax_max)
+            fig.y_range=Range1d(ax_min, ax_max)
+            one2one_vals = np.arange(ax_min, ax_max,1)
             fig.line(
                 one2one_vals, one2one_vals, legend='1:1 line', color='black', 
                 line_dash='dashed'
@@ -1043,9 +1080,16 @@ class Plot(object):
                 mins_maxs = np.array(mins_maxs)
                 # check if not all pairs are empty, if not plot 1:1
                 if not pd.isna(mins_maxs).all():
-                    one2one_vals = np.arange(
-                        min(mins_maxs[:,0]), max(mins_maxs[:,1]), 1
-                    )
+                    x_min = min(mins_maxs[:,0])
+                    x_max = max(mins_maxs[:,1])
+                    y_min = min(mins_maxs[:,2])
+                    y_max = max(mins_maxs[:,3])
+                    ax_min, ax_max = min([x_min,y_min]), max([x_max,y_max])
+                    ax_min -= 0.02*abs(ax_max-ax_min)
+                    ax_max += 0.02*abs(ax_max-ax_min)
+                    fig.x_range=Range1d(ax_min, ax_max)
+                    fig.y_range=Range1d(ax_min, ax_max)
+                    one2one_vals = np.arange(ax_min, ax_max,1)
                     fig.line(
                         one2one_vals, one2one_vals, legend='1:1 line', 
                         color='black', line_dash='dashed'
