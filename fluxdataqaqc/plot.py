@@ -188,12 +188,22 @@ class Plot(object):
         """
         name = '{}_vs_{}'.format(x,y)
         # remove pairs where one or both are nans, for LSRL and min/max-1:1
+        
+        if not y in source.data:
+            print(f'WARNING: {y} not in ColumnDataSource, cannot plot.')
+            return
+
+        if not x in source.data:
+            print(f'WARNING: {x} not in ColumnDataSource, cannot plot.')
+            return
+
         xd = source.data[x].astype(float)
         yd = source.data[y].astype(float)
         mask = (~np.isnan(xd) & ~np.isnan(yd))
         if not mask.any():
-            print('WARNING: cannot plot {} because no paired data'.format(name))
+            print(f'WARNING: cannot plot {name} because no paired data')
             return
+
         xd = xd[mask]
         yd = yd[mask]
 
@@ -333,6 +343,10 @@ class Plot(object):
             # will run correction as of now if it is a QaQc
             monthly = True
             monthly_df = FluxObj.monthly_df.rename(columns=FluxObj.inv_map) 
+            # avoid plotting single point- errors out bokeh datetime axis, etc.
+            for c in monthly_df.columns:
+                if monthly_df[c].notna().sum() <= 1:
+                    monthly_df.drop(c, axis=1, inplace=True)
             monthly_source = ColumnDataSource(monthly_df)
 
         # so that the correction is run, may change this
@@ -833,7 +847,7 @@ class Plot(object):
             # add mean for monthly EBRs to legend
             labels = []
             for i, v in enumerate(plt_vars):
-                if v in df.columns:
+                if v in monthly_df.columns:
                     added_text = ': {}'.format(
                         str(round(monthly_df[v].mean(),2))
                     )
@@ -915,8 +929,8 @@ class Plot(object):
                             fig, 'energy', v, monthly_source, colors[i], 
                             label=labels[i]
                         )
-                        #if min_max is not None:
-                        #    mins_maxs.append(min_max)
+                        if min_max is not None:
+                            mins_maxs.append(min_max)
                 mins_maxs = np.array(mins_maxs)
                 # check if not all pairs are empty, if not plot 1:1
                 if not pd.isna(mins_maxs).all():
@@ -997,7 +1011,8 @@ class Plot(object):
                             fig, 'LE', v, monthly_source, colors[i], 
                             label=labels[i]
                         )
-                        mins_maxs.append(min_max)
+                        if min_max is not None:
+                            mins_maxs.append(min_max)
                 mins_maxs = np.array(mins_maxs)
                 # check if not all pairs are empty, if not plot 1:1
                 if not pd.isna(mins_maxs).all():
@@ -1107,7 +1122,7 @@ class Plot(object):
             v for v in variables if theta_re.match(v) and v in df.columns
         ]
         num_lines = len(theta_vars)
-        if num_lines > 0:
+        if num_lines > 0 and not df[theta_vars].isna().all().all():
             rename_dict = {k:variables[k] for k in theta_vars}
             tmp_df = df[theta_vars].rename(columns=rename_dict)
             tmp_source = ColumnDataSource(tmp_df)
@@ -1127,7 +1142,11 @@ class Plot(object):
             )
             if fig is not None:
                 daily_line.append(fig)
-            if fig is not None and monthly:
+            theta_vars = [
+                v for v in variables if theta_re.match(v) and v in\
+                    monthly_df.columns
+            ]
+            if fig is not None and monthly and len(theta_vars) > 0:
                 # same for monthly fig
                 tmp_df = monthly_df[theta_vars].rename(columns=rename_dict)
                 tmp_source = ColumnDataSource(tmp_df)
