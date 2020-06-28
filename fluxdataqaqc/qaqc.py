@@ -515,6 +515,8 @@ class QaQc(Plot, Convert):
             return
 
         freq = pd.infer_freq(df.index)
+        second_day = df.index.date[2]
+        third_day = second_day + pd.Timedelta(1, unit='D')
 
         # pd.infer_freq does not always work and may return None
         if freq and freq > 'D':
@@ -522,15 +524,22 @@ class QaQc(Plot, Convert):
         elif freq and freq < 'D':
             print('\nThe input data temporal frequency appears to be less than',
                 'daily.')
+
+        # slice is transposed if only one date entry
+        elif (df.loc[str(third_day)].index == df.columns).all():
+            print('\nInput temporal frequency is already daily.')
+            freq = 'D'
+            # add missing dates (if exist) for full time series records/plots
+            idx = pd.date_range(df.index.min(), df.index.max())
+            df = df.reindex(idx)
+            df.index.name = 'date'
+
         elif freq is None:
-            print('\nThe input data temporal frequency was not detected.')
             freq = 'na'
 
         if not freq == 'D':
             # find frequency manually, optionally drop days with subdaily gaps
             # see if two adj. dates exist, skip first day in case it is not full
-            second_day = df.index.date[2]
-            third_day = second_day + pd.Timedelta(1, unit='D')
             max_times_in_day = len(df.loc[str(third_day)].index) 
             self.n_samples_per_day = max_times_in_day
             downsample = False

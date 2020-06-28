@@ -14,14 +14,14 @@ class Convert(object):
     # this is a work in progress, add more as needed/conversions are handled
     # input unit strings are not case sensitive, they will be forced to lower
     allowable_units = {
-        'LE': ['w/m2'],
-        'H': ['w/m2'],
-        'Rn': ['w/m2'],
-        'G': ['w/m2'],
-        'lw_in': ['w/m2'],
-        'lw_out': ['w/m2'],
-        'sw_in': ['w/m2'],
-        'sw_out': ['w/m2'],
+        'LE': ['w/m2','mj/m2'],
+        'H': ['w/m2','mj/m2'],
+        'Rn': ['w/m2','mj/m2'],
+        'G': ['w/m2','mj/m2'],
+        'lw_in': ['w/m2','mj/m2'],
+        'lw_out': ['w/m2','mj/m2'],
+        'sw_in': ['w/m2'], 
+        'sw_out': ['w/m2','mj/m2'],
         'ppt': ['mm', 'in'],
         'vp': ['kpa', 'hpa'],
         'vpd': ['kpa', 'hpa'],
@@ -62,6 +62,7 @@ class Convert(object):
             'hpa_to_kpa': self._hpa_to_kpa,
             'in_to_mm': self._in_to_mm,
             'f_to_c': self._f_to_c,
+            'mj/m2_to_w/m2': self._mj_per_m2_to_watts_per_m2,
             'mph_to_m/s': self._mph_to_m_per_s # miles/hr to meters/sec
         }
 
@@ -91,11 +92,11 @@ class Convert(object):
 
         Note:
             Many potential dimensions may not be provided for automatic
-            conversion, if so you may need update your variable dimensions
+            conversion, if so you may need to update your variable dimensions
             manually, e.g. within a :attr:`.Data.df` before creating a
             :obj:`.QaQc` instance. Unit conversions are required for
             variables that can potentially be used in calculations within
-            :obj:`.QaQc`.
+            :obj:`.Data` or :obj:`.QaQc`.
 
         """
         conv = cls() 
@@ -125,6 +126,12 @@ class Convert(object):
 
     def _mph_to_m_per_s(self, df, var_name):
         df[var_name] *= 0.44704 
+        return df
+    def _mj_per_m2_to_watts_per_m2(self, df, var_name):
+        # assumes average mj per day is correct- only valid daily
+        # because shortwate rad may be used in data (before daily) it is
+        # not covered for automatic conversion because time period is unknown
+        df[var_name] *= 11.574074074074074
         return df
 
 

@@ -106,10 +106,12 @@ class Plot(object):
         # add Hover tool with additional tips if more than one line
         if len(fig.hover) == 0:
             Hover = HoverTool(
-                    tooltips=[
-                        (x,'@{}{}'.format(x,'{%F}')), 
-                        (y,'@{}'.format(y))
-                    ], formatters={x: 'datetime'}
+                tooltips=[
+                    (x,'@{}{}'.format(x,'{%F}')), 
+                    (y,'@{}'.format(y))
+                ], 
+                formatters={x: 'datetime'},
+                mode = kwargs.pop('mode','vline')
             )
             fig.add_tools(Hover)
         else:
@@ -215,7 +217,8 @@ class Plot(object):
             # plot scatter and linear regression line slope for y=mx
             m = np.linalg.lstsq(xd.reshape(-1,1),yd,rcond=None)[0][0]
             fig.scatter(
-                x, y, source=source, color=color, line_width=1, fill_alpha=in_a,                legend='{lab}, slope={s:.2f}'.format(lab=label, s=m), name=name,
+                x, y, source=source, color=color, line_width=1, fill_alpha=in_a,                
+                legend='{lab}, slope={s:.2f}'.format(lab=label, s=m), name=name,
                 size=10, **kwargs
             )
             fig.line(xd, m * xd, color=color)

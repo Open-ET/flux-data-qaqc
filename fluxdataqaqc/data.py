@@ -189,6 +189,7 @@ class Data(Plot, Convert):
                 anemometer_height = 2
 
         for v, u in self.units.items():
+            # only converting variables needed for ref ET
             if not v in req_vars:
                 continue
             if not v in Convert.required_units.keys():
