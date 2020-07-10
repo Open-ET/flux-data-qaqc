@@ -526,7 +526,8 @@ class QaQc(Plot, Convert):
                 'daily.')
 
         # slice is transposed if only one date entry
-        elif (df.loc[str(third_day)].index == df.columns).all():
+        elif len(df.loc[str(third_day)].index) == len(df.columns) and \
+                (df.loc[str(third_day)].index == df.columns).all():
             print('\nInput temporal frequency is already daily.')
             freq = 'D'
             # add missing dates (if exist) for full time series records/plots
@@ -596,6 +597,7 @@ class QaQc(Plot, Convert):
                     grped_night = tmp.loc[
                         (tmp.Rn < 0) & (tmp.Rn.notna())
                     ].copy()
+                    grped_night.drop_duplicates(inplace=True)
                     grped_night = grped_night.groupby(
                         pd.Grouper(freq='24H', base=12)).apply(
                             lambda x: x.interpolate(
@@ -604,6 +606,7 @@ class QaQc(Plot, Convert):
                             )
                         )
                     grped_day = tmp.loc[(tmp.Rn >= 0) | (tmp.Rn.isna())].copy()
+                    grped_day.drop_duplicates(inplace=True)
                     grped_day = grped_day.groupby(
                         pd.Grouper(freq='24H')).apply(
                             lambda x: x.interpolate(
@@ -613,6 +616,7 @@ class QaQc(Plot, Convert):
                         )
                 else:
                     grped_night = tmp.copy()
+                    grped_night.drop_duplicates(inplace=True)
                     grped_night = grped_night.groupby(
                         pd.Grouper(freq='24H', base=12)).apply(
                             lambda x: x.interpolate(
@@ -621,6 +625,7 @@ class QaQc(Plot, Convert):
                             )
                         )
                     grped_day = tmp.copy()
+                    grped_day.drop_duplicates(inplace=True)
                     grped_day = grped_day.groupby(
                         pd.Grouper(freq='24H')).apply(
                             lambda x: x.interpolate(
