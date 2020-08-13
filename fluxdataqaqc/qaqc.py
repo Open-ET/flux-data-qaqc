@@ -838,7 +838,9 @@ class QaQc(Plot, Convert):
             self.monthly_df.rename(columns=self.inv_map).to_csv(monthly_outf)
 
     @classmethod
-    def from_dataframe(cls, df, site_id, elev_m, lat_dec_deg, var_dict):
+    def from_dataframe(cls, df, site_id, elev_m, lat_dec_deg, var_dict,
+            drop_gaps=True, daily_frac=1.00, max_interp_hours=2, 
+            max_interp_hours_night=4):
         """
         Create a :obj:`QaQc` object from a :obj:`pandas.DataFrame` object.
         
@@ -871,7 +873,9 @@ class QaQc(Plot, Convert):
         qaqc.variables = var_dict
         # TODO handle assigned units 
         qaqc.inv_map = {v: k for k, v in var_dict.items()}
-        qaqc.temporal_freq = qaqc._check_daily_freq()
+        qaqc.temporal_freq = qaqc._check_daily_freq(
+            drop_gaps, daily_frac, max_interp_hours, max_interp_hours_night
+        )
         qaqc.corrected = False 
         qaqc.corr_meth = None
         qaqc._has_eb_vars = True

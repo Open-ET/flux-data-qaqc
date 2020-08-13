@@ -1190,6 +1190,7 @@ class Data(Plot, Convert):
         
         # date index
         df.index = df.date
+        df = df[df.index.notnull()]
         df.drop('date', axis=1, inplace=True)
         self._df = df # vpd calc uses attribute
         # calc vapor pressure or vapor pressure deficit if hourly or less
