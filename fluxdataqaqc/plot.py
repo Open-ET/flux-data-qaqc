@@ -96,6 +96,7 @@ class Plot(object):
             This method is also available from the :obj:`.Data` and :obj:`.QaQc`
             objects.
         """
+        hover_mode = kwargs.pop('mode','vline')
         if label is None:
             fig.line(x,y, source=source, color=color, **kwargs)
         else:
@@ -111,7 +112,7 @@ class Plot(object):
                     (y,'@{}'.format(y))
                 ], 
                 formatters={x: 'datetime'},
-                mode = kwargs.pop('mode','vline')
+                mode = hover_mode 
             )
             fig.add_tools(Hover)
         else:
