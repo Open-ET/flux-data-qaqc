@@ -106,15 +106,25 @@ class Plot(object):
             fig.legend.click_policy="hide"
         # add Hover tool with additional tips if more than one line
         if len(fig.hover) == 0:
-            Hover = HoverTool(
-                tooltips=[
-                    (x,'@{}{}'.format(x,'{%F}')), 
-                    (y,'@{}'.format(y))
-                ], 
-                formatters={x: 'datetime'},
-                mode = hover_mode 
-            )
-            fig.add_tools(Hover)
+            if x_axis_type == 'date':
+                Hover = HoverTool(
+                    tooltips=[
+                        (x,'@{}{}'.format(x,'{%F}')), 
+                        (y,'@{}'.format(y))
+                    ], 
+                    formatters={x: 'datetime'},
+                    mode = hover_mode 
+                )
+                fig.add_tools(Hover)
+            else: 
+                Hover = HoverTool(
+                    tooltips=[
+                        (x,'@{}'.format(x)), 
+                        (y,'@{}'.format(y))
+                    ], 
+                    mode = hover_mode 
+                )
+                fig.add_tools(Hover)
         else:
             fig.hover[0].tooltips.append((y,'@{}'.format(y)))
         # enforce datetime x axis it date
