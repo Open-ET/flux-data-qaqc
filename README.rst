@@ -6,12 +6,12 @@
 flux-data-qaqc
 ================
 
-``flux-data-qaqc`` provides a framework to create reproducible workflows for the validation and analysis of eddy covariance time series data.
+``flux-data-qaqc`` provides a framework to create reproducible workflows for the post-processing and analysis of eddy covariance time series data.
 
 Notable uses:
 
 * data validation with methods for quality-based filtering
-* time series tools, e.g. temporal aggregation, interpolation, and resampling
+* time series tools, e.g. gap-filling and temporal aggregation
 * energy balance closure algorithms and other meterological calculations
 * data provenance, e.g. from metadata management and file structure
 * downloading and management of `gridMET <http://www.climatologylab.org/gridmet.html>`__ meterological data

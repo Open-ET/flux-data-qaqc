@@ -20,8 +20,8 @@ team members,
 Acknowledgements
 ^^^^^^^^^^^^^^^^
 
-The Energy Balance Ratio correction method was modified from the `FLUXNET
-<https://fluxnet.fluxdata.org/>`__ methodology for correcting latent energy and
+The Energy Balance Ratio correction method was modified from the `FLUXNET2015
+<https://fluxnet.fluxdata.org/>`__ methodology for correcting daily latent energy and
 sensible heat.  Additionally, FLUXNET and `AmeriFlux
 <https://ameriflux.lbl.gov/>`__ eddy covariance data was used for code
 development and we thank them for mantaining and providing eddy flux data.

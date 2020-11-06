@@ -743,24 +743,27 @@ Filter days with sub-daily gaps
 
 The ``drop_gaps`` and ``daily_frac`` keyword arguments used when creating a :obj:`.QaQc` instance allow you to control how days with sub-daily measurement gaps will or will not be filtered out when resampling to daily frequency.
 
-Sub-daily gaps in energy balance variables :math:`LE`, :math:`H`, :math:`Rn`, and :math:`G` can be linearly interpolated up to a certain gap length measured in hours, with options to control the longest length of gap to interpolate when :math:`Rn \ge 0` controlled by the :obj:`.QaQc` keyword argument ``max_interp_hours`` (default 2 hours) and the longest gap to interpolate when :math:`Rn < 0` set by the ``max_interp_hours_night`` (default 4 hours).:math:`
+Sub-daily gaps in energy balance variables :math:`LE`, :math:`H`, :math:`Rn`, and :math:`G` , and daily ASCE standaridized reference ET inputs, e.g. hourly :math:`ea` ("vp"), :math:`rs` ("sw_in"), :math:`t_min`, :math:`t_max`, and :math:`ws`, can be linearly interpolated automatically before daily aggregations. Interpolation is performed over gap lengths measured in hours, with options to control the longest length of gap to interpolate when :math:`Rn \ge 0` controlled by the :obj:`.QaQc` keyword argument ``max_interp_hours`` (default 2 hours) and the longest gap to interpolate when :math:`Rn < 0` set by the ``max_interp_hours_night`` (default 4 hours).:math:`
 
 .. Important:: 
 
    By default the :obj:`.QaQc` constructor will first linearly interpolate
-   energy balance variables (:math:`LE`, :math:`H`, :math:`Rn`, and :math:`G`)
-   according to the maximum gap lengths (``max_interp_hours`` and
-   ``max_interp_hours_night``) and then count sub-daily gaps and drop days (set
-   values to null) for all climate data columns (not QC flag or sub-daily gap
-   count columns) where any of the sub-daily data are missing because by
-   default ``drop_gaps=True`` and ``daily_frac=1.0``. In other words, if you
-   have hourly input data for(:math:`LE` and one hour was missing on a given
-   day, by default that hour will be linearly interpolated before calculating
-   the daily time series and the daily mean will be calculated after. On the
-   other hand, if other climate variables had a single hour missing on a given
-   day, e.g. wind direction or air temperature, this day would be filtered out
-   by the :obj:`.QaQc` constructor.  This is important because the daily time
-   series is what is used in all energy balance closure correction algorithms.
+   energy balance and ASCE ref. ET variables (:math:`LE`, :math:`H`,
+   :math:`Rn`, :math:`G`, :math:`ea` ("vp"), :math:`rs` ("sw_in"),
+   :math:`t_min`, :math:`t_max`, and :math:`ws`) according to the maximum gap
+   lengths (``max_interp_hours`` and ``max_interp_hours_night``) and then count
+   sub-daily gaps and drop days (set values to null) for all climate data
+   columns (not QC flag or sub-daily gap count columns) where any of the
+   sub-daily data are missing because by default ``drop_gaps=True`` and
+   ``daily_frac=1.0``. In other words, if you have hourly input data
+   for(:math:`LE` and one hour was missing on a given day, by default that hour
+   will be linearly interpolated before calculating the daily time series and
+   the daily mean will be calculated after. On the other hand, if other climate
+   variables had a single hour missing on a given day, e.g. wind direction,
+   this day would be filtered out by the :obj:`.QaQc` constructor.  This is
+   important because the daily time series is what is used in all energy
+   balance closure correction and daily ASCE standardized reference ET
+   algorithms.
 
 The percentage of sub-daily samples to require set by the ``daily_frac`` argument and the maximum length of gaps to linearly interpolate set by ``max_interp_hours`` and ``max_interp_hours_night`` complement each other and are used in tandem. For example, if the input data is half-hourly and you only want a maximum of 4 hours to be interpolated on any given day and gap lengths to interpolate should be no more than 2 hours each then you would pass the following parameters to the :obj:`.QaQc` constructor:
 
@@ -991,20 +994,21 @@ automatically
 Energy balance corrections
 --------------------------
 
-``flux-data-qaqc`` provides routines that adjust turbulent heat fluxes
-(latent and sensible) to improve surface energy balance closure of eddy
-covariance flux station data. These routines ultimately result in a
-corrected daily and monthly time series of latent energy, sensible heat,
-and evapotranspiration with the option to gap-fill days in corrected ET
-with ET calculated from gridMET reference ET and fraction of reference
-ET.
+``flux-data-qaqc`` provides routines that adjust surface energy balance fluxes
+to improve energy balance closure of eddy covariance flux station data.
+These routines ultimately result in a corrected daily and monthly time series
+of latent energy, sensible heat, and evapotranspiration with the option to
+gap-fill days in corrected ET with ET calculated from gridMET reference ET and
+fraction of reference ET.
 
 There are two methods currently implemented: 
 
 * Energy Balance Ratio method (default), modified from the `FLUXNET method <https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`__
 * Bowen Ratio approach (forces closure) 
+* Multiple least squares regression
+  - user defines LHS and RHS from :math:`LE`, :math:`H`, :math:`Rn`, and :math:`G`,
 
-Detailed descriptions of both methods including ET gap-filling methods
+Detailed descriptions of methods including daily ET gap-filling methods
 can be found in the online documentation :ref:`Closure Methodologies`
 page. A few important notes on the API of these methods and other
 hydro-climatic statistical variables that are calculated are shown
@@ -1019,7 +1023,7 @@ corrections. Here are a few tips on using them,
 
     >>> # potential correction options
     >>> q.corr_methods
-        ('ebr', 'br')
+        ('ebr', 'br', 'lin_regress')
 
 
     >>> # to specify the Bowen Raito method:
@@ -1112,7 +1116,7 @@ of the American Society of Civil Engineers January, 2005
 `here <https://www.mesonet.org/images/site/ASCE_Evapotranspiration_Formula.pdf>`__.
 This calculation is a simple method based primarily on elevation and
 latitude which results in a theoretical envelope of :math:`R_{so}` as a
-function of the day of the year,
+function of the day of year,
 
 .. math::  R_{so} = \left(5 + 2 \times 10^{-5} z \right) R_a 
 
@@ -1137,9 +1141,7 @@ states that the saturation vapor pressure (:math:`es`) in kPa relates to air tem
 where :math:`T` is average hourly air temperature in degrees celcius.
 Vapor pressure deficit (:math:`vpd`) is,
 
-.. math::  vpd = es - ea
-
-,
+.. math::  vpd = es - ea,
 
 where :math:`ea` is actual vapor pressure in kPa. **Note,** The
 equations above are defined for hourly measurements however they are used for
@@ -1156,8 +1158,18 @@ if given :math:`T` and :math:`vpd`, then to get actual vapor pressure
 
 .. math::  ea = es - vpd. 
 
-In ``flux-data-qaqc`` actual vapor pressure is named "vp" not "ea".
+In ``flux-data-qaqc`` actual vapor pressure is named "vp" not "ea". Also, during these calculations, if relative humidity is not found in the input dataset then it will subsequently be estimated as 
 
+.. math:: rh = 100 \times \frac{ea}{es}.
+
+.. hint:: 
+   The same calculations are available at the daily timestep but are not
+   automatically applied as the hourly or higher temporal frequency calculation
+   is preffered. To apply the estimates of vapor pressure or vapor pressure
+   deficit, and saturation vapor pressure, and relative humidity with daily data
+   one must call the :meth:`.QaQc._calc_vpd_from_vp` method from a :obj:`.QaQc`
+   instance. 
+   
 Calculated variable reference
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

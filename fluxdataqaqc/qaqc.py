@@ -1153,7 +1153,8 @@ class QaQc(Plot, Convert):
         Based on ASCE standardized ref et eqn. 37, air temperature must be in 
         celcius and actual vapor pressure in kPa.
 
-        Can also calculate VP from VPD and air temperature.
+        Can also calculate VP from VPD and air temperature, es and rel.
+        humidity.
         """
         df = self.df.rename(columns=self.inv_map)
         # calculate vpd from actual vapor pressure and temp
@@ -1165,9 +1166,12 @@ class QaQc(Plot, Convert):
         if has_vpd_vars and units_correct:
             # saturation vapor pressure (es)
             es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
-            df['vpd'] = df.vp - es
+            df['vpd'] = es - df.vp
+            df['es'] = es
             self.variables['vpd'] = 'vpd'
             self.units['vpd'] = 'kpa'
+            self.variables['es'] = 'es'
+            self.units['es'] = 'kpa'
 
         # same calc actual vapor pressure from vapor pressure deficit and temp
         has_vp_vars = set(['vpd','t_avg']).issubset(df.columns)
@@ -1178,9 +1182,23 @@ class QaQc(Plot, Convert):
         if has_vp_vars and units_correct:
             # saturation vapor pressure (es)
             es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
-            df['vp'] = df.vpd + es
+            df['vp'] = es - df.vpd
+            df['es'] = es
             self.variables['vp'] = 'vp'
             self.units['vp'] = 'kpa'
+            self.variables['es'] = 'es'
+            self.units['es'] = 'kpa'
+
+        if not 'rh' in self.variables and {'vp','es'}.issubset(self.variables):
+            if not self.units.get('vp') == 'kpa': pass
+            else:
+                print(
+                    'Calculating relative humidity from actual and saturation '
+                    'vapor pressure and air temperature'
+                )
+                df['rh'] = 100 * (df.vp / df.es)
+                self.variables['rh'] = 'rh'
+                self.units['rh'] = '%'
 
         self._df = df
 

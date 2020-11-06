@@ -9,6 +9,8 @@ Add daily ASCE standardized reference ET calculation option from the :meth:`.QaQ
 
 Changed default keyword argument ``reference`` to "short" of the :meth:`.Data.hourly_ASCE_refET` method.
 
+Add automatic calculations for high frequency (e.g. hourly or half hourly) data including dew temperature and relative humidity from ea and es if available. The calculations occur when first loading input data, i.e. when :obj:`.Data.df` attribute is accessed. 
+
 
 Version 0.1.3
 -------------

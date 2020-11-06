@@ -328,8 +328,11 @@ class Data(Plot, Convert):
             # saturation vapor pressure (es)
             es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
             df['vpd'] = es - df.vp
+            df['es'] = es
             self.variables['vpd'] = 'vpd'
             self.units['vpd'] = 'kpa'
+            self.variables['es'] = 'es'
+            self.units['es'] = 'kpa'
 
         # same calc actual vapor pressure from vapor pressure deficit and temp
         has_vp_vars = set(['vpd','t_avg']).issubset(df.columns)
@@ -345,9 +348,31 @@ class Data(Plot, Convert):
             # saturation vapor pressure (es)
             es = 0.6108 * np.exp(17.27 * df.t_avg / (df.t_avg + 237.3))
             df['vp'] = es - df.vpd
+            df['es'] = es
             self.variables['vp'] = 'vp'
             self.units['vp'] = 'kpa'
+            self.variables['es'] = 'es'
+            self.units['es'] = 'kpa'
+
+        if not 'rh' in self.variables and {'vp','es'}.issubset(self.variables):
+            if not self.units.get('vp') == 'kpa': pass
+            else:
+                print(
+                    'Calculating relative humidity from actual and saturation '
+                    'vapor pressure and air temperature'
+                )
+                df['rh'] = 100 * (df.vp / df.es)
+                self.variables['rh'] = 'rh'
+                self.units['rh'] = '%'
         
+        if 'vp' in self.variables and self.units.get('vp') == 'kpa':
+            print(
+                'Calculating dew point temperature from vapor pressure'
+            )
+            df['t_dew'] = (-1 / ((np.log(df.vp/.611) / 5423) - (1/273)))-273.15
+            self.variables['t_dew'] = 't_dew'
+            self.units['t_dew'] = 'c'
+
         self._df = df
 
 
