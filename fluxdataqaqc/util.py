@@ -26,6 +26,8 @@ class Convert(object):
         'vp': ['kpa', 'hpa'],
         'vpd': ['kpa', 'hpa'],
         't_avg': ['c', 'f'],
+        't_min': ['c', 'f'],
+        't_max': ['c', 'f'],
         'ws': ['m/s', 'mph']
     }
 
@@ -53,6 +55,8 @@ class Convert(object):
         'vp': 'kpa',
         'vpd': 'kpa',
         't_avg': 'c',
+        't_min': 'c',
+        't_max': 'c',
         'ws': 'm/s'
     }
 

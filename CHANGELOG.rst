@@ -1,6 +1,15 @@
 Change Log
 ==========
 
+
+Version 0.1.4
+-------------
+
+Add daily ASCE standardized reference ET calculation option from the :meth:`.QaQc.daily_ASCE_refET` method. Also added automatic estimation of daily maximum and minimum air temperature from input (e.g. hourly) data and added the input variables to the list of variables that are linearly interpolated before taking daily aggregates in the :obj:`.QaQc` constructor. In other words, the inputs to the daily ASCE reference ET formulation: ea, tmin, tmax, rs, wind speed, are interpolated over daytime and nighttime hourly gaps (2 and 4 default) before taking daily means, mins, maxs, and subsequently used in the daily ASCE calculations. 
+
+Changed default keyword argument ``reference`` to "short" of the :meth:`.Data.hourly_ASCE_refET` method.
+
+
 Version 0.1.3
 -------------
 

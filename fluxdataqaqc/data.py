@@ -130,7 +130,7 @@ class Data(Plot, Convert):
         self.plot_file = None
 
 
-    def hourly_ASCE_refET(self, reference='tall', anemometer_height=None):
+    def hourly_ASCE_refET(self, reference='short', anemometer_height=None):
         """
         Calculate hourly ASCE standardized short (ETo) or tall (ETr) reference 
         ET from input data and wind measurement height.
@@ -143,7 +143,7 @@ class Data(Plot, Convert):
         "ASCE_ETr" respectively.
 
         Keyword Arguments:
-            reference (str): default "tall", calculate tall or short ASCE
+            reference (str): default "short", calculate tall or short ASCE
                 reference ET.
             anemometer_height (float or None): wind measurement height in meters
                 , default :obj:`None`. If :obj:`None` then look for the

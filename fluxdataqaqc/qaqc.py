@@ -12,6 +12,7 @@ import pandas as pd
 from sklearn import linear_model
 from sklearn.metrics import mean_squared_error
 from refet.calcs import _ra_daily, _rso_simple
+import refet 
 
 from .data import Data
 from .plot import Plot
@@ -301,6 +302,93 @@ class QaQc(Plot, Convert):
         self.corrected = False 
         self.corr_meth = None
 
+    def daily_ASCE_refET(self, reference='short', anemometer_height=None):
+        """
+        Calculate daily ASCE standardized short (ETo) or tall (ETr) reference 
+        ET from input data and wind measurement height.
+
+        The resulting time series will automatically be merged into the
+        :attr:`.Data.df` dataframe named "ASCE_ETo" or "ASCE_ETr" respectively.
+
+        Keyword Arguments:
+            reference (str): default "short", calculate tall or short ASCE
+                reference ET.
+            anemometer_height (float or None): wind measurement height in meters
+                , default :obj:`None`. If :obj:`None` then look for the
+                "anemometer_height" entry in the **METADATA** section of the
+                config.ini, if not there then print a warning and use 2 meters.
+
+        Returns:
+            :obj:`None` 
+
+        Note:
+            If the hourly ASCE variables were prior calculated from a
+            :obj:`.Data` instance they will be overwritten as they are saved
+            with the same names. 
+        """
+
+        df = self.df.rename(columns=self.inv_map)
+
+        req_vars = ['vp', 'ws', 'sw_in', 't_min', 't_max']
+
+        if not set(req_vars).issubset(df.columns):
+            print('Missing one or more required variables, cannot compute')
+            return
+
+        if anemometer_height is None:
+            anemometer_height = self.config.get(
+                'METADATA', 'anemometer_height', fallback=None
+            )
+            if anemometer_height is None:
+                print(
+                    'WARNING: anemometer height was not given and not found in '
+                    'the config files metadata, proceeding with height of 2 m'
+                )
+                anemometer_height = 2
+
+        # RefET will convert to MJ-m2-hr
+        input_units = {
+            'rs': 'w/m2'
+        }
+
+        length = len(df.t_min)
+        tmin = df.t_min
+        tmax = df.t_max
+        rs = df.sw_in
+        ea = df.vp
+        uz = df.ws
+        zw = np.full(length, anemometer_height)
+        lat = np.full(length, self.latitude)
+        doy = df.index.dayofyear
+        elev = np.full(length, self.elevation)
+
+        REF = refet.Daily(
+            tmin,
+            tmax,
+            ea,
+            rs,
+            uz,
+            zw,
+            elev,
+            lat,
+            doy,
+            method='asce',
+            input_units=input_units,
+        )
+
+        if reference == 'short':
+            ret = REF.eto()
+            name = 'ASCE_ETo'
+        elif reference == 'tall':
+            ret = REF.etr()
+            name = 'ASCE_ETr'
+
+        # can add directly into QaQc.df
+        df[name] = ret
+        self._df = df.rename(columns=self.variables)
+        self.variables[name] = name
+        self.units[name] = 'mm'
+
     def _check_convert_units(self):
         """
         Verify if units are recognized for variables in QaQc.allowable_units,
@@ -557,10 +645,16 @@ class QaQc(Plot, Convert):
                 downsample = True
 
             energy_bal_vars = ['LE', 'H', 'Rn', 'G']
+            asce_std_interp_vars = ['t_avg','sw_in','ws','vp']
             # for interpolation of energy balance variables if they exist
             energy_bal_vars = list(
                 set(energy_bal_vars).intersection(df.columns)
             )
+            asce_std_interp_vars = list(
+                set(asce_std_interp_vars).intersection(df.columns)
+            )
+            interp_vars = asce_std_interp_vars + energy_bal_vars
+
             # add subday gap col for energy balance comps to sum daily gap count
             for v in energy_bal_vars:
                 df['{}_subday_gaps'.format(v)] = False
@@ -589,7 +683,7 @@ class QaQc(Plot, Convert):
                     'Rn >= 0.'.format(max_interp_hours_night, max_interp_hours)
                 )
 
-                tmp = df[energy_bal_vars].apply(
+                tmp = df[interp_vars].apply(
                     pd.to_numeric, errors='coerce'
                 )
 
@@ -640,8 +734,17 @@ class QaQc(Plot, Convert):
                         ~interped.index.duplicated(keep='first')
                     ]
                 # overwrite non-interpolated daily means
-                means[energy_bal_vars] =\
-                    interped[energy_bal_vars].resample('D').mean().copy()
+                means[interp_vars] =\
+                    interped[interp_vars].resample('D').mean().copy()
+                if 't_avg' in interp_vars:
+                    means['t_min'] = interped.t_avg.resample('D').min()
+                    means['t_max'] = interped.t_avg.resample('D').max()
+                    self.variables['t_min'] = 't_min'
+                    self.units['t_min'] = self.units['t_avg']
+                    self.variables['t_max'] = 't_max'
+                    self.units['t_max'] = self.units['t_avg']
+                    interp_vars = interp_vars + ['t_min','t_max']
+                    interped[['t_min','t_max']] = means[['t_min','t_max']]
 
             if drop_gaps:
                 # make sure round errors do not affect this value
@@ -650,9 +753,10 @@ class QaQc(Plot, Convert):
                 data_cols = [
                     c for c in df.columns if not c.endswith('_qc_flag')
                 ]
-                # interpolate energy balance vars first before counting gaps
+                # interpolate first before counting gaps
                 if max_interp_hours:
-                    df[energy_bal_vars] = interped[energy_bal_vars].copy()
+                    df[interp_vars] = interped[interp_vars].copy()
+                    
                 days_with_gaps = df[data_cols].groupby(
                     df.index.date).count() < n_vals_needed
 
