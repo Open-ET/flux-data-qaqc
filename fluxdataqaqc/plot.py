@@ -112,7 +112,7 @@ class Plot(object):
                         (x,'@{}{}'.format(x,'{%F}')), 
                         (y,'@{}'.format(y))
                     ], 
-                    formatters={x: 'datetime'},
+                    formatters={'@{}'.format(x): 'datetime'},
                     mode = hover_mode 
                 )
                 fig.add_tools(Hover)
