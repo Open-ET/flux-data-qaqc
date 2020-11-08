@@ -11,7 +11,7 @@ requires = [
     'bokeh',
     'netCDF4',
     'numpy>=1.15',
-    'pandas',
+    'pandas>=1.0',
     'refet',
     'scikit-learn',
     'xlrd>=1.2.0',

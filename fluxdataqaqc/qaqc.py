@@ -638,7 +638,7 @@ class QaQc(Plot, Convert):
             elif daily_frac < 0:
                 print('ERROR: daily_frac must be between 0 and 1, using 0')
                 daily_frac = 0
-            if not third_day in df.index and drop_gaps:
+            if not str(third_day) in df.index and drop_gaps:
                 print('WARNING: it looks like the input temporal frequency',
                     'is greater than daily, downsampling, proceed with' ,
                     'caution!\n')
@@ -693,7 +693,7 @@ class QaQc(Plot, Convert):
                     ].copy()
                     grped_night.drop_duplicates(inplace=True)
                     grped_night = grped_night.groupby(
-                        pd.Grouper(freq='24H', base=12)).apply(
+                        pd.Grouper(freq='24H', offset='12H')).apply(
                             lambda x: x.interpolate(
                                 method='linear', limit=max_night_gap, 
                                 limit_direction='both', limit_area='inside'
@@ -712,7 +712,7 @@ class QaQc(Plot, Convert):
                     grped_night = tmp.copy()
                     grped_night.drop_duplicates(inplace=True)
                     grped_night = grped_night.groupby(
-                        pd.Grouper(freq='24H', base=12)).apply(
+                        pd.Grouper(freq='24H', offset='12H')).apply(
                             lambda x: x.interpolate(
                                 method='linear', limit=max_night_gap, 
                                 limit_direction='both', limit_area='inside'
@@ -727,6 +727,13 @@ class QaQc(Plot, Convert):
                                 limit_direction='both', limit_area='inside'
                             )
                         )
+
+                # get full datetime index from grouper operation
+                if type(grped_night.index) is pd.MultiIndex: 
+                    grped_night.index = grped_night.index.get_level_values(1)
+
+                if type(grped_day.index) is pd.MultiIndex:
+                    grped_day.index = grped_day.index.get_level_values(1)
 
                 interped = pd.concat([grped_day, grped_night])
                 if interped.index.duplicated().any():
