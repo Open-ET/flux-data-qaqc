@@ -8,14 +8,15 @@ with io.open("fluxdataqaqc/__init__.py", "rt", encoding="utf8") as f:
     version = re.search(r"__version__ = \'(.*?)\'", f.read()).group(1)
 
 requires = [
-    'bokeh',
+    'bokeh>=2.0',
     'netCDF4',
     'numpy>=1.15',
     'pandas>=1.0',
     'refet',
     'scikit-learn',
     'xlrd>=1.2.0',
-    'xarray'
+    'xarray',
+    'openpyxl'
 ]
 
 tests_require = ['pytest']

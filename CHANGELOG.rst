@@ -9,8 +9,17 @@ Add daily ASCE standardized reference ET calculation option from the :meth:`.QaQ
 
 Changed default keyword argument ``reference`` to "short" of the :meth:`.Data.hourly_ASCE_refET` method.
 
-Add automatic calculations for high frequency (e.g. hourly or half hourly) data including dew temperature and relative humidity from ea and es if available. The calculations occur when first loading input data, i.e. when :obj:`.Data.df` attribute is accessed. 
+Add automatic calculations for high frequency (e.g. hourly or half hourly) data including dew temperature and relative humidity from ea and es if available. The calculations occur when first loading input data, i.e. when :obj:`.Data.df` attribute is accessed. Saturation vapor pressure (es) if calculated at hourly/daily frequency is now saved and added to :obj:`.Data.df` and :obj:`.QaQc.df` properties. 
 
+Require Pandas >= 1.0, changes are not backwards compatible due to internal pandas argument deprecations particularly in the ``pandas.grouper`` object. 
+
+Require Bokeh >= 2.0, changes are not backwards compatible due to legend keyword argument name changes in Bokeh 2.
+
+Minor changes to remove package deprecation warnings from ``Pandas`` and ``Bokeh`` related to their respective large changes. 
+
+Add package dependency ``openpyxl`` package as a fallback for reading in headers of Excel files when ``xlrd`` is unmaintained and failing with previously working tools for reading metadata on Excel files. 
+
+Add a requirements.txt file with package.
 
 Version 0.1.3
 -------------

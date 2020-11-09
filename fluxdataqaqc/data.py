@@ -7,7 +7,9 @@ import configparser as cp
 import numpy as np
 import pandas as pd
 import refet
+from datetime import datetime
 from pathlib import Path
+from openpyxl import load_workbook
 from .plot import Plot
 from .util import Convert
 
@@ -60,9 +62,8 @@ class Data(Plot, Convert):
             and names as found in the input data as values.
         variable_names_dict (dict): Dictionary with internal variable names
             as keys and keys in config.ini file as values.
+        xl_parser (str or None): engine for reading excel files with Pandas.
 
-    TODO:
-     * verify/update input variable units, for now input energy balance variables must be in w/m2 and temperature in degrees celcius
     """
 
     # maps internal names to config names for variables
@@ -105,6 +106,7 @@ class Data(Plot, Convert):
         self.latitude = float(self.config.get('METADATA', 'station_latitude'))
         self.longitude = float(self.config.get('METADATA', 'station_longitude'))
         self.climate_file = self._get_climate_file()
+        self.xl_parser = None
         self.header = self._get_header(self.climate_file)
         self.soil_var_weight_pairs = self._get_soil_var_avg_weights()
         self.qc_var_pairs = self._get_qc_flags()
@@ -524,10 +526,19 @@ class Data(Plot, Convert):
         Read only top line of climate time series file return header names.
         """
         if climate_file.suffix in ('.xlsx', '.xls'):
-            workbook = pd.ExcelFile(climate_file)
-            rows = workbook.book.sheet_by_index(0).nrows
-            header = pd.read_excel(workbook, skipfooter = (rows - 1))
-            header = header.columns
+            try: # using xlrd
+                workbook = pd.ExcelFile(climate_file)
+                rows = workbook.book.sheet_by_index(0).nrows
+                header = pd.read_excel(workbook, skipfooter = (rows - 1))
+                header = header.columns
+            except: # fallback openpyxl- slower
+                wb = load_workbook(climate_file, enumerate)
+                sheet = wb.worksheets[0]
+                header = sheet._shared_strings
+                self.xl_parser='openpyxl'
+                #rows = sheet.max_row
+                #header = pd.read_excel(workbook, skipfooter = (rows - 1))
+                #header = header.columns
         
         else: # assume CSV
             skiprows=None
@@ -845,7 +856,7 @@ class Data(Plot, Convert):
         # where qc value < threshold, qc_var_pairs maps var names to qc names
         if threshold:
             for var, qc in self.qc_var_pairs.items():
-                if df_types.loc[qc,'type'] is not 'string':
+                if df_types.loc[qc,'type'] != 'string':
                     df.loc[
                         (df[qc] < threshold) & (df[qc].notnull()) , var
                     ] = np.nan
@@ -853,7 +864,7 @@ class Data(Plot, Convert):
         if flag:
             if isinstance(flag, str):
                 for var, qc in self.qc_var_pairs.items():
-                    if df_types.loc[qc,'type'] is 'string':
+                    if df_types.loc[qc,'type'] == 'string':
                         df.loc[
                             (df[qc] == flag) & (df[qc].notnull()) , var
                         ] = np.nan
@@ -861,7 +872,7 @@ class Data(Plot, Convert):
             elif isinstance(flag, (list,tuple)):
                 for f in flag:
                     for var, qc in self.qc_var_pairs.items():
-                        if df_types.loc[qc,'type'] is 'string':
+                        if df_types.loc[qc,'type'] == 'string':
                             df.loc[
                                 (df[qc] == f) & (df[qc].notnull()) , var
                             ] = np.nan
@@ -1026,7 +1037,7 @@ class Data(Plot, Convert):
 
         if 'date_parser' in dict(self.config.items('METADATA')):
             date_parse_str = self.config.get('METADATA','date_parser')
-            date_parser = lambda x: pd.datetime.strptime(x, date_parse_str)
+            date_parser = lambda x: datetime.strptime(x, date_parse_str)
             kwargs['date_parser'] = date_parser
         if 'load_all_vars' in dict(self.config.items('METADATA')):
             # if this option is listed (with any value) read all columns into df
@@ -1040,6 +1051,7 @@ class Data(Plot, Convert):
                 self.climate_file,
                 parse_dates = [variables.get('date')],
                 usecols = ix,
+                engine = self.xl_parser,
                 **kwargs
             )
         else:

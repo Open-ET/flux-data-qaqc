@@ -100,8 +100,8 @@ class Plot(object):
         if label is None:
             fig.line(x,y, source=source, color=color, **kwargs)
         else:
-            label=dict(value=label)
-            fig.line(x,y, source=source, color=color,legend=label, **kwargs)
+            #label=dict(value=label) # old label requirement bokeh < 2? 
+            fig.line(x,y,source=source,color=color,legend_label=label,**kwargs)
             fig.legend.location = "top_left"
             fig.legend.click_policy="hide"
         # add Hover tool with additional tips if more than one line
@@ -228,15 +228,15 @@ class Plot(object):
             # plot scatter and linear regression line slope for y=mx
             m = np.linalg.lstsq(xd.reshape(-1,1),yd,rcond=None)[0][0]
             fig.scatter(
-                x, y, source=source, color=color, line_width=1, fill_alpha=in_a,                
-                legend='{lab}, slope={s:.2f}'.format(lab=label, s=m), name=name,
-                size=10, **kwargs
+                x, y, source=source, color=color, line_width=1, fill_alpha=in_a,
+                legend_label='{lab}, slope={s:.2f}'.format(lab=label, s=m), 
+                name=name, size=10, **kwargs
             )
             fig.line(xd, m * xd, color=color)
         else:
             fig.scatter(
                 x, y, source=source, color=color, line_width=1, fill_alpha=in_a,
-                legend=dict(value=label), name=name, size=10, **kwargs
+                legend_label=dict(value=label), name=name, size=10, **kwargs
             )
         if len(fig.hover) == 0:
             Hover = HoverTool(
@@ -923,7 +923,7 @@ class Plot(object):
                 fig.y_range=Range1d(ax_min, ax_max)
                 one2one_vals = np.arange(ax_min, ax_max,1)
                 fig.line(
-                    one2one_vals, one2one_vals, legend='1:1 line', 
+                    one2one_vals, one2one_vals, legend_label='1:1 line', 
                     color='black', line_dash='dashed'
                 )
                 daily_scatter.append(fig)
@@ -959,7 +959,7 @@ class Plot(object):
                     fig.y_range=Range1d(ax_min, ax_max)
                     one2one_vals = np.arange(ax_min, ax_max,1)
                     fig.line(
-                        one2one_vals, one2one_vals, legend='1:1 line', 
+                        one2one_vals, one2one_vals, legend_label='1:1 line', 
                         color='black', line_dash='dashed'
                     )
                     monthly_scatter.append(fig)
@@ -1006,7 +1006,7 @@ class Plot(object):
                 fig.y_range=Range1d(ax_min, ax_max)
                 one2one_vals = np.arange(ax_min, ax_max,1)
                 fig.line(
-                    one2one_vals, one2one_vals, legend='1:1 line', 
+                    one2one_vals, one2one_vals, legend_label='1:1 line', 
                     color='black', line_dash='dashed'
                 )
                 daily_scatter.append(fig)
@@ -1041,7 +1041,7 @@ class Plot(object):
                     fig.y_range=Range1d(ax_min, ax_max)
                     one2one_vals = np.arange(ax_min, ax_max,1)
                     fig.line(
-                        one2one_vals, one2one_vals, legend='1:1 line', 
+                        one2one_vals, one2one_vals, legend_label='1:1 line', 
                         color='black', line_dash='dashed'
                     )
                     monthly_scatter.append(fig)
@@ -1086,8 +1086,8 @@ class Plot(object):
             fig.y_range=Range1d(ax_min, ax_max)
             one2one_vals = np.arange(ax_min, ax_max,1)
             fig.line(
-                one2one_vals, one2one_vals, legend='1:1 line', color='black', 
-                line_dash='dashed'
+                one2one_vals, one2one_vals, legend_label='1:1 line', 
+                color='black', line_dash='dashed'
             )
             daily_scatter.append(fig)
             if monthly:
@@ -1120,7 +1120,7 @@ class Plot(object):
                     fig.y_range=Range1d(ax_min, ax_max)
                     one2one_vals = np.arange(ax_min, ax_max,1)
                     fig.line(
-                        one2one_vals, one2one_vals, legend='1:1 line', 
+                        one2one_vals, one2one_vals, legend_label='1:1 line', 
                         color='black', line_dash='dashed'
                     )
                     monthly_scatter.append(fig)
