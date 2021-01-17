@@ -811,9 +811,9 @@ class QaQc(Plot, Convert):
         as :obj:`pandas.DataFrame`. 
         
         Note that monthly means or sums are forced to null values if less than
-        30 percent of a months days are missing in the daily data
+        20 percent of a months days are missing in the daily data
         (:attr:`QaQc.df`). Also, for variables that are summed (e.g. ET or
-        precipitation) missing days (if less than 30 percent of the month) will
+        precipitation) missing days (if less than 20 percent of the month) will
         be filled with the month's daily mean value before summation.
 
         If a :obj:`QaQc` instance has not yet run an energy balance correction
@@ -845,11 +845,11 @@ class QaQc(Plot, Convert):
         # if data type has changed to 'obj' resample skips... 
         # make sure data exists
         if len(mean_cols) >= 1:
-            means = monthly_resample(df[mean_cols], mean_cols, 'mean', 0.9)
+            means = monthly_resample(df[mean_cols], mean_cols, 'mean', 0.8)
         else:
             means = None
         if len(sum_cols) >= 1:
-            sums = monthly_resample(df[sum_cols], sum_cols, 'sum', 0.9)
+            sums = monthly_resample(df[sum_cols], sum_cols, 'sum', 0.8)
         else:
             sums = None
         if isinstance(means, pd.DataFrame) and isinstance(sums, pd.DataFrame):

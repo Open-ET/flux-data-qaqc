@@ -220,8 +220,9 @@ class Plot(object):
         xd = xd[mask]
         yd = yd[mask]
 
-        # allow modification of inner marker alpha, fallback on 0.2
+        # allow modifications of styles, fallback
         in_a = kwargs.pop('fill_alpha', 0.2)
+        size = kwargs.pop('size', 10)
         # ordinary least squares linear regression slope through zero
         if lsrl:
             #source.data.update(ColumnDataSource({x: xd, y: yd}).data)
@@ -230,25 +231,39 @@ class Plot(object):
             fig.scatter(
                 x, y, source=source, color=color, line_width=1, fill_alpha=in_a,
                 legend_label='{lab}, slope={s:.2f}'.format(lab=label, s=m), 
-                name=name, size=10, **kwargs
+                name=name, size=size, **kwargs
             )
             fig.line(xd, m * xd, color=color)
         else:
             fig.scatter(
                 x, y, source=source, color=color, line_width=1, fill_alpha=in_a,
-                legend_label=dict(value=label), name=name, size=10, **kwargs
+                legend_label=label, name=name, size=size, **kwargs
             )
         if len(fig.hover) == 0:
-            Hover = HoverTool(
-                tooltips=[
-                    (date_name,'@{}{}'.format(date_name,'{%F}')),
-                    (x,'@{}'.format(x)), 
-                    (y,'@{}'.format(y))
-                ],formatters={date_name: 'datetime'}
-            )
+            if x == date_name:
+                Hover = HoverTool(
+                    tooltips=[
+                        (date_name,'@{}{}'.format(date_name,'{%F}')),
+                        (y,'@{}'.format(y))
+                    ],formatters={f'@{date_name}': 'datetime'}
+                )
+            else:
+                Hover = HoverTool(
+                    tooltips=[
+                        (date_name,'@{}{}'.format(date_name,'{%F}')),
+                        (x,'@{}'.format(x)), 
+                        (y,'@{}'.format(y))
+                    ],formatters={f'@{date_name}': 'datetime'}
+                )
+
             fig.add_tools(Hover)
         else:
-            new_tips = [(x,'@{}'.format(x)),(y,'@{}'.format(y))]
+            if x == date_name:
+                new_tips = [
+                    (y,'@{}'.format(y))
+                ]
+            else:
+                new_tips = [(x,'@{}'.format(x)),(y,'@{}'.format(y))]
             for t in new_tips:
                 if not t in fig.hover[0].tooltips:
                     fig.hover[0].tooltips.append(t)
