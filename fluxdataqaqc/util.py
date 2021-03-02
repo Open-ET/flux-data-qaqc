@@ -22,21 +22,23 @@ class Convert(object):
         'lw_out': ['w/m2','mj/m2'],
         'sw_in': ['w/m2'], 
         'sw_out': ['w/m2','mj/m2'],
-        'ppt': ['mm', 'in'],
-        'vp': ['kpa', 'hpa'],
-        'vpd': ['kpa', 'hpa'],
-        't_avg': ['c', 'f'],
-        't_min': ['c', 'f'],
-        't_max': ['c', 'f'],
+        'ppt': ['mm', 'in', 'm'],
+        'vp': ['kpa', 'hpa', 'pa'],
+        'vpd': ['kpa', 'hpa', 'pa'],
+        't_avg': ['c', 'f', 'k'],
+        't_min': ['c', 'f', 'k'],
+        't_max': ['c', 'f', 'k'],
         'ws': ['m/s', 'mph']
     }
 
     # for printing and plotting purposes
     pretty_unit_names = {
+        'pa': 'Pa',
         'hpa': 'hPa',
         'kpa': 'kPa',
         'c': 'C',
-        'f': 'F'
+        'f': 'F',
+        'k': 'K'
     }
 
     # some variables need to be in specified units for internal calculations
@@ -63,8 +65,11 @@ class Convert(object):
     def __init__(self):
 
         self._conversion_map = {
+            'k_to_c': self._k_to_c,
             'hpa_to_kpa': self._hpa_to_kpa,
+            'pa_to_kpa': self._pa_to_kpa,
             'in_to_mm': self._in_to_mm,
+            'm_to_mm': self._m_to_mm,
             'f_to_c': self._f_to_c,
             'mj/m2_to_w/m2': self._mj_per_m2_to_watts_per_m2,
             'mph_to_m/s': self._mph_to_m_per_s # miles/hr to meters/sec
@@ -119,18 +124,31 @@ class Convert(object):
     def _in_to_mm(self, df, var_name):
         df[var_name] *= 25.4
         return df
-
+        
+    def _m_to_mm(self, df, var_name):
+        df[var_name] *= 1000
+        return df
+        
     def _f_to_c(self, df, var_name):
         df[var_name] = (32 * df[var_name]) * (5/9)
         return df
-
+        
+    def _k_to_c(self, df, var_name):
+        df[var_name] -= 273.15
+        return df
+        
     def _hpa_to_kpa(self, df, var_name):
         df[var_name] /= 10
         return df
-
+        
+    def _pa_to_kpa(self, df, var_name):
+        df[var_name] /= 1000
+        return df
+        
     def _mph_to_m_per_s(self, df, var_name):
         df[var_name] *= 0.44704 
         return df
+        
     def _mj_per_m2_to_watts_per_m2(self, df, var_name):
         # assumes average mj per day is correct- only valid daily
         # because shortwate rad may be used in data (before daily) it is
