@@ -281,6 +281,54 @@ class Data(Plot, Convert):
             return pd.Series(index=tmean.index, data=ret, name=name)
 
 
+    def _calc_rn(self, df):
+        """
+        If short and longwave radiation inputs exist but Rn is not given
+        calculate it.
+        """
+
+        df = df.rename(columns=self.inv_map)
+
+        # if Rn exists skip 
+        if 'Rn' in df.columns and not df.Rn.isna().all():
+            return
+
+        rad_vars = ['sw_in', 'sw_out', 'lw_in', 'lw_out']
+
+        has_rad_vars = set(rad_vars).issubset(df.columns)
+
+        for v in rad_vars:
+            u = self.units.get(v)
+            if u:
+                self.units[v] = u = u.lower()
+
+            if u and not u in Data.allowable_units[v]:
+                print('ERROR: {} units are not recognizable for var: {}\n'
+                    'allowable input units are: {}\nNot converting.'.format(
+                        u, v, ','.join(Data.allowable_units[v])
+                    )
+                )
+            elif u and not u == Data.required_units[v]:
+                # do conversion, update units
+                df = Convert.convert(v, u, Data.required_units[v], df)
+                self.units[v] = Data.required_units[v]
+
+        units_correct = (
+            self.units.get('sw_in') == 'w/m2'  and \
+            self.units.get('sw_out') == 'w/m2' and \
+            self.units.get('lw_in') == 'w/m2'  and \
+            self.units.get('lw_out') == 'w/m2'
+        )
+
+        if has_rad_vars and units_correct:
+            print('Calculating net radiation from components.')
+            df['Rn'] = df.sw_in + df.lw_in - df.sw_out - df.lw_out
+            self.variables['Rn'] = 'Rn'
+            self.units['Rn'] = 'w/m2'
+
+        self._df = df
+
+
     def _calc_vpd_or_vp(self, df):
         """
         Based on ASCE standardized ref et eqn. 37, air temperature must be in 
@@ -1233,6 +1281,7 @@ class Data(Plot, Convert):
         # calc vapor pressure or vapor pressure deficit if hourly or less
         # also converts units if needed for vp, vpd, t_avg
         self._calc_vpd_or_vp(df)
+        self._calc_rn(df)
 
         return df
 
