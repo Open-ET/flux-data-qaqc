@@ -17,14 +17,14 @@ import sys
 sys.path.insert(0, os.path.abspath('../../'))
 
 autodoc_mock_imports = [
-    "numpy", "bokeh", "pandas", "xarray", "refet", "sklearn", "netCDF4"
+    "numpy", "bokeh", "pandas", "xarray", "refet", "sklearn", "netCDF4", "scipy"
 ]
 
 
 # -- Project information -----------------------------------------------------
 
 project = 'flux-data-qaqc'
-copyright = '2019, John Volk'
+copyright = '2019-2021, John Volk'
 author = 'John Volk'
 
 # The short X.Y version

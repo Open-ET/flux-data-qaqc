@@ -1,6 +1,12 @@
 Change Log
 ==========
 
+Version 0.1.5
+-------------
+
+Add configuration writing function :func:`.util.write_configs` to ``util`` module to facilitate batch processing os similar formatted input files via a station metadata file and data dictionary. 
+
+Update check on energy balance ratio closure correction to also check if the inverse of the energy balance ratio is greater than 0.5, in other words :math:`\frac{1}{EBR} > |0.5|` to avoid closure correction factors that are too small. This check occurs both after step 3 and 6 of the energy balance closure correction routine. 
 
 Version 0.1.4
 -------------
@@ -22,6 +28,7 @@ Minor changes to remove package deprecation warnings from ``Pandas`` and ``Bokeh
 Add package dependency ``openpyxl`` package as a fallback for reading in headers of Excel files when ``xlrd`` is unmaintained and failing with previously working tools for reading metadata on Excel files. 
 
 Add a requirements.txt file with package.
+
 
 Version 0.1.3
 -------------

@@ -1671,13 +1671,13 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
             # get median of daily window1 if half window2 or more days exist
             if count >= half_win_2:
                 val = np.nanpercentile(win_arr1, 50, axis=None)
-                if abs(1/val) >= 2:
+                if abs(1/val) >= 2 or abs(1/val) <= 0.5:
                     val = np.nan
             # if at least one day exists in window2 take mean
             elif np.count_nonzero(~np.isnan(win_arr2)) > 0:
                 #val = np.nanmean(win_arr2)
                 val = np.nanmedian(win_arr2)
-                if abs(1/val) >= 2:
+                if abs(1/val) >= 2 or abs(1/val) <= 0.5:
                     val = np.nan
             else:
                 # assign nan for now, update with 5 day climatology
@@ -1728,8 +1728,10 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         # calculated corrected EBR to assign to ebr_corr (not EBC_CF), 
         # save CFs as defined by fluxnet method, i.e. inverse of EBR
         merged['ebc_cf'] = 1/merged.ebr_corr
-        # filter out CF that are 2 or higher (absolute), from 5 day climo ebr_c
-        merged.loc[abs(merged.ebc_cf) >= 2, 'ebc_cf'] = np.nan
+        # filter out CF that are >=2 or <=0.5 (absolute)
+        merged.loc[
+            (abs(merged.ebc_cf) >= 2) | (abs(merged.ebc_cf <= 0.5)), 'ebc_cf'
+        ] = np.nan
         # apply corrections to LE and H multiply by 1/EBR
         merged['LE_corr'] = merged.LE * merged.ebc_cf
         merged['H_corr'] = merged.H * merged.ebc_cf
