@@ -86,4 +86,5 @@ This package was designed for and is being used to generate a benchmark ET datas
 
 We gratefully acknowledge support for this work from the Walton Family Foundation; Lyda Hill Philanthropies; the S.D. Bechtel, Jr. Foundation; the Gordon and Betty Moore Foundation; the Windward Fund; the Water Funder Initiative; the NASA Applied Science Program and the NASA Western Water Applications Office; the USGS Landsat Science Team; the California State University Agricultural Research Institute; and the Idaho Agricultural Experiment Station and Nebraska Agricultural Experiment Station.
 
+# References
 
