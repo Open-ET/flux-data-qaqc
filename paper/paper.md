@@ -16,13 +16,13 @@ authors:
   - name: Forrest Melton
     affiliation: "3, 4"
   - name: Martha Anderson
-    affiliation: 4
+    affiliation: 5
   - name: Ayse Kilic
-    affiliation: 2
+    affiliation: 6
 affiliations:
  - name: Desert Research Institue
    index: 1
- - name: University of Nebraska Lincoln
+ - name: University of Idaho
    index: 2
  - name: NASA Ames Research Center
    index: 3
@@ -30,6 +30,8 @@ affiliations:
    index: 4
  - name: USDA Agricultural Research Service
    index: 5
+ - name: University of Nebraska Lincoln
+   index: 6
 date: 27 April 2021
 bibliography: paper.bib
 ---
@@ -51,7 +53,7 @@ The ``flux-data-qaqc`` open-source Python package provides a standard and reprod
 * interactive visual inspection tools at pre-processed data frequency and for daily and monthly post-processed data, for both EC and meteorological data
 * management and archiving of pre- and post-processed data and metadata, including standardized naming
 * energy balance closure correction routines:  an Energy Balance Ratio method, the Bowen Ratio method, and a multiple linear regression method
-* other atmospheric calculations, including the hourly and daily the American Society of Civil Engineers standardized reference ET equation [@allen2005]
+* other atmospheric calculations, including the hourly and daily American Society of Civil Engineers standardized reference ET equation [@allen2005]
 * ability to download gridded weather data and reference ET that corresponds with the EC tower [@abatzoglou2013]
 * daily gap-filling of ET using gridded reference ET and site-based fraction of reference ET 
 
