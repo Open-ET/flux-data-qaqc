@@ -49,7 +49,10 @@ coverage.xml
 .pytest_cache/
 
 # Other testing for now
-test**
+oldtest**
+test_batch_FLUXNET**
+test_ameriflux_batch**
+test_docs**
 *_output/
 **output/
 **my_output_folder/

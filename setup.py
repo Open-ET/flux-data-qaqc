@@ -43,6 +43,11 @@ setup(
     platforms=['Windows','Linux','Mac OS X'],
     classifiers=classifiers,
     packages=['fluxdataqaqc'],
+    package_data={
+        'examples': ['Basic_usage/*'],
+    	'examples': ['Config_options/*'],
+        '': ['*.yml']
+    },
     install_requires=requires,
     tests_require=tests_require,
     include_package_data=True,

@@ -1,3 +1,9 @@
 include environment.yml
 include requirements.txt
 include LICENSE.txt
+include examples/Basic_usage/*.ini
+include examples/Basic_usage/*.csv
+include examples/Basic_usage/*.xlsx
+include examples/Config_options/*.ini
+include examples/Config_options/*.csv
+include examples/Config_options/*.xlsx
