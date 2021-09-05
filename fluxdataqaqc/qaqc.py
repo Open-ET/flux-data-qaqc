@@ -1675,7 +1675,6 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
                     val = np.nan
             # if at least one day exists in window2 take mean
             elif np.count_nonzero(~np.isnan(win_arr2)) > 0:
-                #val = np.nanmean(win_arr2)
                 val = np.nanmedian(win_arr2)
                 if abs(1/val) >= 2 or abs(1/val) <= 0.5:
                     val = np.nan
