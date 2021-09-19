@@ -1173,7 +1173,7 @@ class Plot(object):
                 daily_line.append(fig)
             theta_vars = [
                 v for v in variables if theta_re.match(v) and v in\
-                    monthly_df.columns
+                    df.columns
             ]
             if fig is not None and monthly and len(theta_vars) > 0:
                 # same for monthly fig
