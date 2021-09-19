@@ -199,7 +199,6 @@ class Plot(object):
             This method is also available from the :obj:`.Data` and :obj:`.QaQc`
             objects.
         """
-        name = '{}_vs_{}'.format(x,y)
         # remove pairs where one or both are nans, for LSRL and min/max-1:1
         
         if not y in source.data:
@@ -432,7 +431,7 @@ class Plot(object):
         y_label = _get_units(plt_vars, units)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_height, name='energy_balance_daily'
+            width=plot_width, height=plot_height, 
         )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
@@ -449,7 +448,6 @@ class Plot(object):
             title = 'Monthly Surface Energy Balance Components'
             fig = figure(x_axis_label=x_label, y_axis_label=y_label,title=title,
                 width=plot_width, height=plot_height, 
-                name='energy_balance_monthly'
             )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
@@ -472,7 +470,6 @@ class Plot(object):
             y_label = _get_units(plt_vars, units)
             fig = figure(x_axis_label=x_label, y_axis_label=y_label, 
                 title=title, width=plot_width, height=plot_height, 
-                name='Rs_daily'
             )
             fig = Plot.add_lines(
                 fig, df, plt_vars, colors, x_label, daily_source, labels=labels
@@ -516,7 +513,7 @@ class Plot(object):
             y_label = _get_units(g_vars, units)
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
-                plot_width=plot_width, plot_height=plot_height, name='G_daily'
+                plot_width=plot_width, plot_height=plot_height
             )
             fig = Plot.add_lines(
                 fig, tmp_df, plt_vars, colors, x_label, tmp_source, 
@@ -538,7 +535,6 @@ class Plot(object):
                     fig = figure(
                         x_axis_label=x_label, y_axis_label=y_label,title=title,
                         plot_width=plot_width, plot_height=plot_height, 
-                        name='G_monthly'
                     )
                     fig = Plot.add_lines(
                         fig, tmp_df, plt_vars, colors, x_label, tmp_source,
@@ -557,8 +553,7 @@ class Plot(object):
         y_label = _get_units(plt_vars, units)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_height, name='radiation_daily'
-        )
+            width=plot_width, height=plot_height)
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
         )
@@ -573,7 +568,7 @@ class Plot(object):
             title = 'Monthly Radiation Components'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
-                width=plot_width, height=plot_height, name='radiation_monthly'
+                width=plot_width, height=plot_height
             )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
@@ -592,7 +587,7 @@ class Plot(object):
         y_label = _get_units(plt_vars, units)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_height, name='temp_daily'
+            width=plot_width, height=plot_height
         )
         fig = Plot.add_lines(fig, df, plt_vars, colors, x_label, daily_source)
         if fig is not None:
@@ -607,7 +602,7 @@ class Plot(object):
             title = 'Monthly Average Air Temperature'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label,title=title,
-                width=plot_width, height=plot_height, name='temp_monthly'
+                width=plot_width, height=plot_height
             )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source
@@ -624,7 +619,7 @@ class Plot(object):
         y_label = _get_units(plt_vars, units)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_height, name='vap_press_daily'
+            width=plot_width, height=plot_height
         )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
@@ -638,7 +633,7 @@ class Plot(object):
             title = 'Monthly Average Vapor Pressure'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
-                width=plot_width, height=plot_height, name='vap_press_monthly'
+                width=plot_width, height=plot_height
             )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
@@ -656,7 +651,7 @@ class Plot(object):
         y_label = _get_units(plt_vars, units)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_height, name='wind_daily'
+            width=plot_width, height=plot_height
         )
         fig = Plot.add_lines(fig, df, plt_vars, colors, x_label, daily_source)
         if fig is not None:
@@ -668,7 +663,7 @@ class Plot(object):
             title = 'Monthly Average Windspeed'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
-                width=plot_width, height=plot_height, name='wind_monthly'
+                width=plot_width, height=plot_height
             )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source
@@ -686,7 +681,7 @@ class Plot(object):
         y_label = _get_units(plt_vars, units)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_height, name='precip_daily'
+            width=plot_width, height=plot_height
         )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=labels
@@ -700,7 +695,7 @@ class Plot(object):
             title = 'Monthly Station and gridMET Precipitation'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
-                width=plot_width, height=plot_height, name='precip_monthly'
+                width=plot_width, height=plot_height
             )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
@@ -718,7 +713,7 @@ class Plot(object):
         y_label = _get_units(plt_vars, units)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_height, name='LE_daily'
+            width=plot_width, height=plot_height
         )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
@@ -732,7 +727,7 @@ class Plot(object):
             title = 'Monthly Average Latent Energy Flux'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
-                width=plot_width, height=plot_height, name='LE_monthly'
+                width=plot_width, height=plot_height
             )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
@@ -752,7 +747,7 @@ class Plot(object):
         y_label = _get_units(plt_vars, units)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_height, name='ET_daily'
+            width=plot_width, height=plot_height
         )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=labels
@@ -775,7 +770,7 @@ class Plot(object):
             title = 'Monthly Evapotranspiration'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
-                width=plot_width, height=plot_height, name='ET_monthly'
+                width=plot_width, height=plot_height
             )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
@@ -795,7 +790,7 @@ class Plot(object):
             y_label = 'number of gap-filled days'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
-                width=plot_width, height=plot_height, name='ET_gaps'
+                width=plot_width, height=plot_height
             )
             x = 'date'
             y = 'ET_gap'
@@ -858,7 +853,7 @@ class Plot(object):
                 labels.append(None)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_height, name='EBR_daily'
+            width=plot_width, height=plot_height
         )
         fig = Plot.add_lines(
             fig, df, plt_vars, colors, x_label, daily_source, labels=labels
@@ -885,7 +880,7 @@ class Plot(object):
                     labels.append(None)
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
-                width=plot_width, height=plot_height, name='EBR_monthly'
+                width=plot_width, height=plot_height
             )
             fig = Plot.add_lines(
                 fig, monthly_df, plt_vars, colors, x_label, monthly_source,
@@ -903,7 +898,7 @@ class Plot(object):
         x_label = 'Rn - G ({})'.format(unit)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_width, name='energy_vs_flux_daily'
+            width=plot_width, height=plot_width
         )
         y_vars = ['flux', 'flux_corr', 'flux_user_corr']
         colors = ['black', 'red', 'darkorange']
@@ -949,7 +944,6 @@ class Plot(object):
                 fig = figure(
                     x_axis_label=x_label, y_axis_label=y_label, title=title,
                     width=plot_width, height=plot_width, 
-                    name='energy_vs_flux_monthly'
                 )
                 mins_maxs = []
                 for i, v in enumerate(y_vars):
@@ -991,7 +985,7 @@ class Plot(object):
         x_label = 'initial ({})'.format(unit)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_width, name='LE_scatter_daily'
+            width=plot_width, height=plot_width
         )
         y_vars = ['LE_corr', 'LE_user_corr']
         colors = ['red', 'darkorange']
@@ -1031,7 +1025,6 @@ class Plot(object):
                 fig = figure(
                     x_axis_label=x_label, y_axis_label=y_label, title=title,
                     width=plot_width, height=plot_width, 
-                    name='LE_scatter_monthly'
                 )
                 mins_maxs = []
                 for i, v in enumerate(y_vars):
@@ -1072,7 +1065,7 @@ class Plot(object):
         x_label = 'initial ({})'.format(unit)
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
-            width=plot_width, height=plot_width, name='ET_scatter_daily'
+            width=plot_width, height=plot_width
         )
         y_vars = ['ET_corr', 'ET_user_corr']
         colors = ['red', 'darkorange']
@@ -1111,7 +1104,6 @@ class Plot(object):
                 fig = figure(
                     x_axis_label=x_label, y_axis_label=y_label, title=title,
                     width=plot_width, height=plot_width, 
-                    name='ET_scatter_monthly'
                 )
                 mins_maxs = []
                 for i, v in enumerate(y_vars):
@@ -1163,7 +1155,6 @@ class Plot(object):
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
                 plot_width=plot_width, plot_height=plot_height, 
-                name='theta_daily'
             )
             fig = Plot.add_lines(
                 fig, tmp_df, plt_vars, colors, x_label, tmp_source, 
@@ -1183,7 +1174,6 @@ class Plot(object):
                 fig = figure(
                     x_axis_label=x_label, y_axis_label=y_label, title=title,
                     plot_width=plot_width, plot_height=plot_height,
-                    name='theta_monthly'
                 )
                 fig = Plot.add_lines(
                     fig, tmp_df, plt_vars, colors, x_label, tmp_source,

@@ -134,15 +134,15 @@ class TestData(object):
             f'{self.data_obj.site_id}_input_plots.html'
         assert self.data_obj.plot_file.is_file()
 
-    def test_xl_reader(self):
-        d = Data(self.fluxnet_config)
-        d.xl_parser = 'openpyxl'
-        df = d.df
-        assert isinstance(df, pd.DataFrame)
-        d = Data(self.fluxnet_config)
-        d.xl_parser = 'xlrd'
-        df = d.df
-        assert isinstance(df, pd.DataFrame)
+    #def test_xl_reader(self):
+    #    d = Data(self.fluxnet_config)
+    #    d.xl_parser = 'openpyxl'
+    #    df = d.df
+    #    assert isinstance(df, pd.DataFrame)
+    #    d = Data(self.fluxnet_config)
+    #    d.xl_parser = 'xlrd'
+    #    df = d.df
+    #    assert isinstance(df, pd.DataFrame)
 
         
     def test_input_qc_flag_filtering(self):
