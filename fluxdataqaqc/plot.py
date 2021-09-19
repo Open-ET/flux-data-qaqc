@@ -213,7 +213,7 @@ class Plot(object):
         yd = source.data[y].astype(float)
         mask = (~np.isnan(xd) & ~np.isnan(yd))
         if not mask.any():
-            print(f'WARNING: cannot plot {name} because no paired data')
+            print(f'WARNING: cannot plot {x} vs {y} because no paired data')
             return
 
         xd = xd[mask]
@@ -230,7 +230,7 @@ class Plot(object):
             fig.scatter(
                 x, y, source=source, color=color, line_width=1, fill_alpha=in_a,
                 legend_label='{lab}, slope={s:.2f}'.format(lab=label, s=m), 
-                name=name, size=size, **kwargs
+                size=size, **kwargs
             )
             fig.line(xd, m * xd, color=color)
         else:
@@ -266,7 +266,7 @@ class Plot(object):
             for t in new_tips:
                 if not t in fig.hover[0].tooltips:
                     fig.hover[0].tooltips.append(t)
-        fig.hover[0].names.append(name)
+
         fig.legend.location = "top_left"
         fig.legend.click_policy="hide"
         
