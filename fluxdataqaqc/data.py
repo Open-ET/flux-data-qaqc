@@ -62,7 +62,8 @@ class Data(Plot, Convert):
             and names as found in the input data as values.
         variable_names_dict (dict): Dictionary with internal variable names
             as keys and keys in config.ini file as values.
-        xl_parser (str or None): engine for reading excel files with Pandas.
+        xl_parser (str or None): engine for reading excel files with Pandas. If
+            :obj:`None` use 'openpyxl'.
 
     """
 
@@ -106,7 +107,7 @@ class Data(Plot, Convert):
         self.latitude = float(self.config.get('METADATA', 'station_latitude'))
         self.longitude = float(self.config.get('METADATA', 'station_longitude'))
         self.climate_file = self._get_climate_file()
-        self.xl_parser = None
+        self.xl_parser = 'openpyxl'
         self.header = self._get_header(self.climate_file)
         self.soil_var_weight_pairs = self._get_soil_var_avg_weights()
         self.qc_var_pairs = self._get_qc_flags()

@@ -14,7 +14,6 @@ requires = [
     'pandas>=1.0',
     'refet',
     'scikit-learn',
-    'xlrd>=1.2.0',
     'xarray',
     'openpyxl'
 ]

@@ -1,7 +1,6 @@
 name: fluxdataqaqc
 channels:
   - conda-forge
-  - defaults
 dependencies:
   - bokeh>=2.0
   - pandas>=1.0
@@ -9,7 +8,6 @@ dependencies:
   - refet
   - scikit-learn
   - netCDF4
-  - xlrd>=1.2.0
   - numpy>=1.15
   - xarray
   - openpyxl
