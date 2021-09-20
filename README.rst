@@ -2,6 +2,9 @@
    :target: https://flux-data-qaqc.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
+.. image:: https://github.com/Open-ET/flux-data-qaqc/actions/workflows/fluxdataqaqc_tests.yml/badge.svg
+   :target: https://github.com/Open-ET/flux-data-qaqc/actions/workflows/fluxdataqaqc_tests.yml
+   :alt: Automated tests
 
 flux-data-qaqc
 ================
