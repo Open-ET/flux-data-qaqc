@@ -427,7 +427,7 @@ class Data(Plot, Convert):
         self._df = df
 
 
-    def plot(self, ncols=1, output_type='save', out_file=None, suptitle=None, 
+    def plot(self, ncols=1, output_type='save', out_file=None, suptitle='', 
             plot_width=1000, plot_height=450, sizing_mode='scale_both', 
             merge_tools=False, link_x=True, **kwargs):
         """

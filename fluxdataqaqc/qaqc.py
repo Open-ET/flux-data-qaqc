@@ -1849,7 +1849,7 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         # update flag for other methods
         self.corrected = True
 
-    def plot(self, ncols=1, output_type='save', out_file=None, suptitle=None, 
+    def plot(self, ncols=1, output_type='save', out_file=None, suptitle='', 
             plot_width=1000, plot_height=450, sizing_mode='scale_both', 
             merge_tools=False, link_x=True, **kwargs):
         """
