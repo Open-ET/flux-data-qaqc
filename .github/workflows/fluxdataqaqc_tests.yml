@@ -1,4 +1,4 @@
-name: flux-data-qaqc github actions automated tests
+name: Automated tests
 
 on: [push]
 
