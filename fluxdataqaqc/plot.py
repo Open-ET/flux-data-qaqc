@@ -236,7 +236,7 @@ class Plot(object):
         else:
             fig.scatter(
                 x, y, source=source, color=color, line_width=1, fill_alpha=in_a,
-                legend_label=label, name=name, size=size, **kwargs
+                legend_label=label, size=size, **kwargs
             )
         if len(fig.hover) == 0:
             if x == date_name:
