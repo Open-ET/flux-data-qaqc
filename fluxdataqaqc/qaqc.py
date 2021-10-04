@@ -784,7 +784,7 @@ class QaQc(Plot, Convert):
         else:
             self.n_samples_per_day = 1
 
-        self._df = df.rename(self.variables)
+        self._df = df.rename(columns=self.variables)
         return freq
     
     @property     
