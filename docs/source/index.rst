@@ -10,9 +10,9 @@ flux-data-qaqc - Tools for Energy Balance Closure Analysis
 
 `View on GitHub <https://github.com/Open-ET/flux-data-qaqc>`_. 
 
-``flux-data-qaqc`` provides a framework to create reproducible workflows for validation and analysis of eddy covariance time series data. 
+``flux-data-qaqc`` provides a framework to create reproducible workflows for validation and analysis of eddy covariance data. The package is intended for those who need to post-process flux data, particularly for generating daily and monthly evapotransipration (ET) timeseries estimates with energy balance closure corrections applied. Applications where this software may be useful include analysis involving eddy covariance flux tower data, hydrologic or atmospehric model validation, and irrigation and water consumption studies. 
 
-Notable tools:
+Key functionalities and tools include:
 
 * data validation with methods for quality-based filtering
 * time series data tools, e.g. temporal aggregation and resampling
@@ -20,8 +20,7 @@ Notable tools:
 * energy balance closure algorithms and other meterological calculations
 * downloading and management of `gridMET <http://www.climatologylab.org/gridmet.html>`__ meterological data
 * customizable and interactive data visualizations
-* batch processing
-* unit conversions
+* batch processing and unit conversions
 
 .. toctree::
    :maxdepth: 2
@@ -32,6 +31,7 @@ Notable tools:
    Tutorial <tutorial>
    Closure Algorithms <closure_explanation>
    api
+   Tests <software_tests>
    contributors
 
 .. toctree::
