@@ -1713,7 +1713,7 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         # datetime indices of all remaining null elements
         null_dates = df.loc[df.ebr_corr.isnull(), 'ebr_corr'].index
         merged = pd.merge(
-            df, ebr_5day_clim, on='DOY', how='left', right_index=True
+            df, ebr_5day_clim, left_on='DOY', right_index=True
         )
         # assign 5 day climatology of EBR 
         merged.loc[null_dates,'ebr_corr'] =\
