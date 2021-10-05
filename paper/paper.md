@@ -66,7 +66,7 @@ Here are some capabilities and tools provided by ``flux-data-qaqc``:
 * interactive visual inspection tools at pre-processed data frequency and for daily and monthly post-processed data, for both EC and meteorological data
 * management and archiving of pre- and post-processed data and metadata, including standardized naming
 * multiple energy balance closure correction routines:  an Energy Balance Ratio method, the Bowen Ratio method, and a multiple linear regression method
-* other atmospheric calculations, including the hourly and daily forms of the American Society of Civil Engineers standardized reference ET equation [@allen2005]
+* atmospheric calculations, including the hourly and daily forms of the American Society of Civil Engineers standardized reference ET equation [@allen2005] using the [RefET](https://github.com/WSWUP/RefET) python package 
 * ability to download gridded weather data and reference ET that corresponds with the EC tower [@abatzoglou2013]
 * daily gap-filling of ET using gridded reference ET and site-based fraction of reference ET 
 
@@ -89,7 +89,7 @@ This package was designed for and is being used to generate a benchmark ET datas
 
 # Acknowledgements
 
-We gratefully acknowledge support for this work from the Walton Family Foundation; Lyda Hill Philanthropies; the S.D. Bechtel, Jr. Foundation; the Gordon and Betty Moore Foundation; the Windward Fund; the Water Funder Initiative; the NASA Applied Science Program and the NASA Western Water Applications Office; the USGS Landsat Science Team; the California State University Agricultural Research Institute; and the Idaho Agricultural Experiment Station and Nebraska Agricultural Experiment Station.
+We gratefully acknowledge support for this work from the Walton Family Foundation; Lyda Hill Philanthropies; the S.D. Bechtel, Jr. Foundation; the Gordon and Betty Moore Foundation; the Windward Fund; the Water Funder Initiative; the NASA Applied Science Program and the NASA Western Water Applications Office; the USGS Landsat Science Team; the California State University Agricultural Research Institute; and the Idaho Agricultural Experiment Station and Nebraska Agricultural Experiment Station. 
 
 # References
 
