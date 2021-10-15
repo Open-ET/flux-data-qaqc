@@ -1,6 +1,17 @@
 Change Log
 ==========
 
+Version 0.1.6
+-------------
+
+Add automated tests using GitHb Actions, `see here <https://github.com/Open-ET/flux-data-qaqc/actions/workflows/fluxdataqaqc_tests.yml>`__ and added in description of how to run tests locally on docs.
+
+Remove ``xlrd`` reader as a dependency due to outdated reading ability as a ``Pandas`` excel reader.
+
+Other minor bug fixes related to ``Plot`` class.
+
+Ass JOSS paper and publish software on Zenodo.
+
 Version 0.1.5
 -------------
 
