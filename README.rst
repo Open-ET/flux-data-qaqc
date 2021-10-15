@@ -9,7 +9,7 @@
 flux-data-qaqc
 ================
 
-``flux-data-qaqc`` provides a framework to create reproducible workflows for validation and analysis of eddy covariance data. The package is intended for those who need to post-process flux data, particularly for generating daily and monthly evapotransipration (ET) timeseries estimates with energy balance closure corrections applied. Applications where this software may be useful include analysis of eddy covariance data, hydrologic or atmospehric model validation, and irrigation and water consumption studies. 
+``flux-data-qaqc`` provides a framework to create reproducible workflows for validation and analysis of eddy covariance data. The package is intended for those who need to post-process flux data, particularly for generating daily and monthly evapotranspiration (ET) timeseries estimates with energy balance closure corrections applied. Applications where this software may be useful include analysis of eddy covariance data, hydrologic or atmospheric model validation, and irrigation and water consumption studies. 
 
 Key functionalities and tools include:
 
