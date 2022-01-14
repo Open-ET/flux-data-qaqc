@@ -583,10 +583,10 @@ class Plot(object):
 
 
         #### 
-        # average temperature time series plot
+        # temperature time series plot
         #### 
-        plt_vars = ['t_avg']
-        colors = ['black']
+        plt_vars = ['t_max','t_avg','t_min','t_dew']
+        colors = ['red','black','blue','green']
         title = 'Daily Average Air Temperature'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
@@ -594,7 +594,9 @@ class Plot(object):
             x_axis_label=x_label, y_axis_label=y_label, title=title,
             width=plot_width, height=plot_height, name='temp_daily'
         )
-        fig = Plot.add_lines(fig, df, plt_vars, colors, x_label, daily_source)
+        fig = Plot.add_lines(
+            fig, df, plt_vars, colors, x_label, daily_source, labels=plt_vars
+        )
         if fig is not None:
             daily_line.append(fig)
         else:
@@ -610,7 +612,8 @@ class Plot(object):
                 width=plot_width, height=plot_height, name='temp_monthly'
             )
             fig = Plot.add_lines(
-                fig, monthly_df, plt_vars, colors, x_label, monthly_source
+                fig, monthly_df, plt_vars, colors, x_label, monthly_source,
+                labels=plt_vars
             )
             monthly_line.append(fig)
 
