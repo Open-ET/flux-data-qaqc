@@ -32,11 +32,12 @@ Contributing
 ^^^^^^^^^^^^
 ``flux-data-qaqc`` is an open-source Python package and anyone seriously interested in contributing is encouraged to do so. Look for current issues to get started or offer direct changes with a pull request. 
 
-Report issues or problems with the software
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Please open a GitHub issue if you have a technical problem with the software. The issues page is `here <https://github.com/Open-ET/flux-data-qaqc/issues>`__. 
-
 Seek support or give feedback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Any suggestions or feedback that are nontechnical but related to software development or usage please open a `GitHub issue <https://github.com/Open-ET/flux-data-qaqc/issues>`__. Any other feedback should be sent to John.Volk@dri.edu.
+Any suggestions or feedback that are nontechnical but related to software development or usage please open a `GitHub issue <https://github.com/Open-ET/flux-data-qaqc/issues>`__. Any other feedback may be sent to John.Volk@dri.edu.
+
+How to cite
+^^^^^^^^^^^
+
+Volk et al., (2021). flux-data-qaqc: A Python Package for Energy Balance Closure and Post-Processing of Eddy Flux Data. Journal of Open Source Software, 6(66), 3418, https://doi.org/10.21105/joss.03418
 

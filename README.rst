@@ -73,3 +73,9 @@ and
 
 If everything has been installed correctly you should get no errors. 
 
+
+How to cite
+-----------
+
+Volk et al., (2021). flux-data-qaqc: A Python Package for Energy Balance Closure and Post-Processing of Eddy Flux Data. Journal of Open Source Software, 6(66), 3418, https://doi.org/10.21105/joss.03418
+

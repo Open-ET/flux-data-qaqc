@@ -258,7 +258,7 @@ Use corrected LE and H to calculate the corrected EBR,
 Calculate ET from LE using average air temperature to adjust the latent
 heat of vaporization following the method of Harrison, L.P. 1963,
 
-.. math:: ET_{mm \cdot day^{-1}} = 86400_{sec \cdot day^{-1}} \times \frac{LE_{w \cdot m^{-2}}}{2501000_{MJ \cdot kg^{-1}} - (2361 \cdot T_{C})}, 
+.. math:: ET_{mm \cdot day^{-1}} = 86400_{sec \cdot day^{-1}} \times \frac{LE_{w \cdot m^{-2}}}{2501000_{w \cdot sec \cdot kg^{-1}} - (2361 \cdot T_{C})}, 
 
 where evapotransipiration (:math:`ET`) in :math:`mm \cdot day^{-1}`,
 :math:`LE` is latent energy flux in :math:`w \cdot m^{-2}`, and
