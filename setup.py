@@ -12,7 +12,7 @@ requires = [
     'netCDF4',
     'numpy>=1.15',
     'pandas>=1.0',
-    'refet',
+    'refet==0.3.10',
     'scikit-learn',
     'xarray',
     'openpyxl'

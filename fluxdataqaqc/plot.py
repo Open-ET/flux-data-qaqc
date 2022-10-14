@@ -2,14 +2,12 @@
 import re
 import numpy as np
 import pandas as pd
-from bokeh import models
 from bokeh.io import reset_output
 from bokeh.palettes import Viridis256
 from bokeh.layouts import gridplot, column
 from bokeh.plotting import figure, ColumnDataSource, output_file, show, save
 from bokeh.models import HoverTool, Div, Range1d
 from bokeh.models.formatters import DatetimeTickFormatter
-from pathlib import Path
 
 
 class Plot(object):
@@ -18,7 +16,7 @@ class Plot(object):
     that can be used to create and update interactive line and scatter plots
     from an arbitrary :obj:`pandas.DataFrame` instance.  
     
-    Note: 
+    Note:
         The :obj:`.Data` and :obj:`.QaQc` objects both inherit all methods of
         :obj:`Plot` therefore allowing them to be easily used for custom
         interactive time series plots for data within input data (in
@@ -36,7 +34,7 @@ class Plot(object):
         """
         Add a single time series to a :obj:`bokeh.plotting.figure.Figure`
         object using data from a datetime indexed :obj:`pandas.DataFrame` with
-        an interactive hover tool. 
+        an interactive hover tool.
 
         Interactive hover shows the values of all time series data and date
         that is added to the figure.
@@ -54,7 +52,7 @@ class Plot(object):
             label (str or :obj:`None`): default :obj:`None`. Label for plot 
                 legend (for ``y``).
             x_axis_type (:obj:`str` or :obj:`None`): default 'date'. If "date" 
-                then the x-axis will be formatted as month-day-year. 
+                then the x-axis will be formatted as month-day-year.
 
         Returns:
             :obj:`None`
@@ -98,7 +96,7 @@ class Plot(object):
         """
         hover_mode = kwargs.pop('mode','vline')
         if label is None:
-            fig.line(x,y, source=source, color=color, **kwargs)
+            fig.line(x, y, source=source, color=color, **kwargs)
         else:
             #label=dict(value=label) # old label requirement bokeh < 2? 
             fig.line(x,y,source=source,color=color,legend_label=label,**kwargs)
