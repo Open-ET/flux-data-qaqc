@@ -1114,6 +1114,11 @@ class Data(Plot, Convert):
         if 'missing_data_value' in dict(self.config.items('METADATA')):
             # force na_val because sometimes with read_excel it doesn't work...
             df[df == self.na_val] = np.nan
+            
+        # force values to numeric in case of bad characters mixed in
+        non_numeric_cols = [self.variables.get('date')]+list(self.qc_var_pairs.values())
+        numeric_cols = list(set(cols).difference(non_numeric_cols))
+        df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
 
         if missing_cols:
             df = df.reindex(columns=list(cols)+list(missing_cols))
