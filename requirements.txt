@@ -26,6 +26,6 @@ six==1.15.0
 threadpoolctl==2.1.0
 tornado==6.1
 typing-extensions==3.7.4.3
-wheel==0.35.1
+wheel==0.38.1
 xarray==0.16.1
 xlrd==1.2.0
