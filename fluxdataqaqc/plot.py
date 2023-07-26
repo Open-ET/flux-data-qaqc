@@ -514,7 +514,7 @@ class Plot(object):
             y_label = _get_units(g_vars, units)
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
-                plot_width=plot_width, plot_height=plot_height, name='G_daily'
+                width=plot_width, height=plot_height, name='G_daily'
             )
             fig = Plot.add_lines(
                 fig, tmp_df, plt_vars, colors, x_label, tmp_source, 
@@ -535,7 +535,7 @@ class Plot(object):
                     title = 'Monthly Soil Heat Flux (Multiple Sensors)'
                     fig = figure(
                         x_axis_label=x_label, y_axis_label=y_label,title=title,
-                        plot_width=plot_width, plot_height=plot_height, 
+                        width=plot_width, height=plot_height, 
                         name='G_monthly'
                     )
                     fig = Plot.add_lines(
@@ -1163,7 +1163,7 @@ class Plot(object):
             y_label = _get_units(theta_vars, units)
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
-                plot_width=plot_width, plot_height=plot_height, 
+                width=plot_width, height=plot_height, 
                 name='theta_daily'
             )
             fig = Plot.add_lines(
@@ -1183,7 +1183,7 @@ class Plot(object):
                 title = 'Monthly Soil Moisture (Multiple Sensors)'
                 fig = figure(
                     x_axis_label=x_label, y_axis_label=y_label, title=title,
-                    plot_width=plot_width, plot_height=plot_height,
+                    width=plot_width, height=plot_height,
                     name='theta_monthly'
                 )
                 fig = Plot.add_lines(
@@ -1208,7 +1208,7 @@ class Plot(object):
                 each.x_range = monthly_line[0].x_range
         figs = daily_line + daily_scatter + monthly_line + monthly_scatter
         grid = gridplot(
-            figs, ncols=ncols, plot_width=None, plot_height=None, 
+            figs, ncols=ncols, width=None, height=None, 
             sizing_mode=sizing_mode, merge_tools=merge_tools, **kwargs
         )
         if output_type == 'show':
