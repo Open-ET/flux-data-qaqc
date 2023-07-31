@@ -666,7 +666,7 @@ class QaQc(Plot, Convert):
             print('Data is being resampled to daily temporal frequency.')
             sum_cols = [k for k,v in self.agg_dict.items() if v == 'sum']
             sum_cols = list(set(sum_cols).intersection(df.columns))
-            mean_cols = set(df.columns) - set(sum_cols)
+            mean_cols = list(set(df.columns) - set(sum_cols))
 
             means = df.loc[:,mean_cols].apply(
                 pd.to_numeric, errors='coerce').resample('D').mean().copy()
