@@ -428,7 +428,7 @@ class Data(Plot, Convert):
 
 
     def plot(self, ncols=1, output_type='save', out_file=None, suptitle='', 
-            plot_width=1000, plot_height=450, sizing_mode='scale_both', 
+            plot_width=1000, plot_height=450, sizing_mode='fixed', 
             merge_tools=False, link_x=True, **kwargs):
         """
         Creates a series of interactive diagnostic line and scatter 

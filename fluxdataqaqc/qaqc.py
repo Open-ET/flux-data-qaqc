@@ -696,38 +696,42 @@ class QaQc(Plot, Convert):
                     ].copy()
                     grped_night.drop_duplicates(inplace=True)
                     grped_night = grped_night.groupby(
-                        pd.Grouper(freq='24H', offset='12H')).apply(
-                            lambda x: x.interpolate(
-                                method='linear', limit=max_night_gap, 
-                                limit_direction='both', limit_area='inside'
+                        pd.Grouper(freq='24H', offset='12H'), 
+                            group_keys=True).apply(
+                                lambda x: x.interpolate(
+                                    method='linear', limit=max_night_gap, 
+                                    limit_direction='both', limit_area='inside'
                             )
                         )
                     grped_day = tmp.loc[(tmp.Rn >= 0) | (tmp.Rn.isna())].copy()
                     grped_day.drop_duplicates(inplace=True)
                     grped_day = grped_day.groupby(
-                        pd.Grouper(freq='24H')).apply(
-                            lambda x: x.interpolate(
-                                method='linear', limit=max_gap, 
-                                limit_direction='both', limit_area='inside'
+                        pd.Grouper(freq='24H'),
+                            group_keys=True).apply(
+                                lambda x: x.interpolate(
+                                    method='linear', limit=max_gap, 
+                                    limit_direction='both', limit_area='inside'
                             )
                         )
                 else:
                     grped_night = tmp.copy()
                     grped_night.drop_duplicates(inplace=True)
                     grped_night = grped_night.groupby(
-                        pd.Grouper(freq='24H', offset='12H')).apply(
-                            lambda x: x.interpolate(
-                                method='linear', limit=max_night_gap, 
-                                limit_direction='both', limit_area='inside'
+                        pd.Grouper(freq='24H', offset='12H'),
+                            group_keys=True).apply(
+                                lambda x: x.interpolate(
+                                    method='linear', limit=max_night_gap, 
+                                    limit_direction='both', limit_area='inside'
                             )
                         )
                     grped_day = tmp.copy()
                     grped_day.drop_duplicates(inplace=True)
                     grped_day = grped_day.groupby(
-                        pd.Grouper(freq='24H')).apply(
-                            lambda x: x.interpolate(
-                                method='linear', limit=max_gap, 
-                                limit_direction='both', limit_area='inside'
+                        pd.Grouper(freq='24H'),
+                            group_keys=True).apply(
+                                lambda x: x.interpolate(
+                                    method='linear', limit=max_gap, 
+                                    limit_direction='both', limit_area='inside'
                             )
                         )
 
@@ -1688,10 +1692,11 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         # so prepend and append first and last 5 days and loop...
         doy_ebr_mean=df['ebr_corr'].groupby(df.index.dayofyear).mean().copy()
         l5days = pd.Series(
-            index=np.arange(-4,1), data=doy_ebr_mean[-5:].values)
+            index=np.arange(-4,1), data=doy_ebr_mean.iloc[-5:].values)
         f5days = pd.Series(
-            index=np.arange(367,372), data=doy_ebr_mean[:5].values)
-        doy_ebr_mean = doy_ebr_mean.append(f5days)
+            index=np.arange(367,372), data=doy_ebr_mean.iloc[:5].values)
+        #doy_ebr_mean = doy_ebr_mean.append(f5days)
+        doy_ebr_mean = pd.concat([doy_ebr_mean, f5days])
         doy_ebr_mean = pd.concat([l5days, doy_ebr_mean])
         ebr_5day_clim = pd.DataFrame(
             index=np.arange(1,367), columns=['ebr_5day_clim'])
@@ -1850,7 +1855,7 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         self.corrected = True
 
     def plot(self, ncols=1, output_type='save', out_file=None, suptitle='', 
-            plot_width=1000, plot_height=450, sizing_mode='scale_both', 
+            plot_width=1000, plot_height=450, sizing_mode='fixed', 
             merge_tools=False, link_x=True, **kwargs):
         """
         Creates a series of interactive diagnostic line and scatter 

@@ -265,7 +265,7 @@ class Plot(object):
             for t in new_tips:
                 if not t in fig.hover[0].tooltips:
                     fig.hover[0].tooltips.append(t)
-        fig.hover[0].names.append(name)
+        fig.hover[0].name = name
         fig.legend.location = "top_left"
         fig.legend.click_policy="hide"
         
@@ -359,7 +359,7 @@ class Plot(object):
 
     def _plot(self, FluxObj, ncols=1, output_type='save', out_file=None, 
             suptitle='', plot_width=1000, plot_height=450, 
-            sizing_mode='scale_both', merge_tools=False, link_x=True, **kwargs): 
+            sizing_mode='fixed', merge_tools=False, link_x=True, **kwargs): 
         """ 
         Private routine for aggregated validation plots that are used by
         the :meth:`.QaQc.plot` and :meth:`.Data.plot` methods.
@@ -1208,7 +1208,7 @@ class Plot(object):
                 each.x_range = monthly_line[0].x_range
         figs = daily_line + daily_scatter + monthly_line + monthly_scatter
         grid = gridplot(
-            figs, ncols=ncols, width=None, height=None, 
+            figs, ncols=ncols, width=plot_width, height=plot_height, 
             sizing_mode=sizing_mode, merge_tools=merge_tools, **kwargs
         )
         if output_type == 'show':
