@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+Version 0.2.0
+-------------
+
+Update dependencies to major new versions. ``Pandas`` was upgraded to version 1.0 and ``Bokeh`` to version 3.0. To accomodate these major dependency releases several functions' kwargs and syntax were modified to avoid deprecation errors and warnings. Because these version changes would not be backward compatible with previous versions for ``flux-data-qaqc``, it's version was also bumped up a minor version from 0.1 to 0.2. Tests were also run using Python version 3.10, previous Python versions may be compatible but were not tested. 
+
 Version 0.1.6
 -------------
 

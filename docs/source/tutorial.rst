@@ -816,7 +816,7 @@ daily mean :math:`Rn` if not filtered carefully:
     >>> # add daily gap counts to secondary y
     >>> fig.extra_y_ranges['gap_counts'] = Range1d(start=0, end=48)
     >>> fig.add_layout(LinearAxis(y_range_name='gap_counts', axis_label='number of sub-daily gaps'), 'right')
-    >>> fig.circle('date', 'sub_day_gaps', legend='n sub-day gaps', y_range_name='gap_counts',
+    >>> fig.circle('date', 'sub_day_gaps', legend_label='n sub-day gaps', y_range_name='gap_counts',
     >>>     color='silver', source=source
     >>> )
     >>> fig.hover[0].tooltips.append(('sub_day_gaps','@{}'.format('sub_day_gaps')))
