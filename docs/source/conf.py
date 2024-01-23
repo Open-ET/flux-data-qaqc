@@ -25,7 +25,7 @@ autodoc_mock_imports = [
 # -- Project information -----------------------------------------------------
 
 project = 'flux-data-qaqc'
-copyright = '2019-2023, John Volk'
+copyright = '2019-2024, John Volk'
 author = 'John Volk'
 
 # The short X.Y version
@@ -221,7 +221,7 @@ intersphinx_mapping = {
 
 # toggle on code blocks to remove prompt ">>> "
 def setup(app):
-    app.add_javascript('copybutton.js')
-    app.add_stylesheet('custom.css')
-    app.add_javascript("custom.js")
-    app.add_javascript("https://cdn.jsdelivr.net/npm/clipboard@1/dist/clipboard.min.js")
+    app.add_js_file('copybutton.js')
+    app.add_css_file('custom.css')
+    app.add_js_file("custom.js")
+    app.add_js_file("https://cdn.jsdelivr.net/npm/clipboard@1/dist/clipboard.min.js")

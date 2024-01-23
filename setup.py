@@ -8,7 +8,7 @@ with io.open("fluxdataqaqc/__init__.py", "rt", encoding="utf8") as f:
     version = re.search(r"__version__ = \'(.*?)\'", f.read()).group(1)
 
 requires = [
-    'bokeh==2.2.3',
+    'bokeh>=3',
     'netCDF4',
     'numpy>=1.15',
     'pandas>=1.0',

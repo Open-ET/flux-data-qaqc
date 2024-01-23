@@ -1,6 +1,15 @@
 Change Log
 ==========
 
+Version 0.2.1
+-------------
+
+Added option to specify whether the threshold value used in the ``data.apply_qaqc_flags`` is to filter values that are less than or greater than the value given. Previously the function only removed data that were less than the threshold value. 
+
+Clean up dependencies in requirements.txt to match version 0.2.0 and keeping only tested and required packages. 
+
+Add new config file for ReadTheDocs, update sphinx to version 7.2.6 and fix deprecation errors.
+
 Version 0.2.0
 -------------
 

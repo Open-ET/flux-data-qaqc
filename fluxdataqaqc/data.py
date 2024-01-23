@@ -807,7 +807,8 @@ class Data(Plot, Convert):
         self.variables.update(tmp)
         return qc_var_pairs
 
-    def apply_qc_flags(self, threshold=None, flag=None):
+    def apply_qc_flags(self, threshold=None, flag=None, 
+            threshold_inequality='lt'):
         """
         Apply user-provided QC values or flags for climate variables to filter
         poor-quality data by converting them to null values, updates 
@@ -831,6 +832,9 @@ class Data(Plot, Convert):
             flag (str, list, or tuple): default :obj:`None`. Character flag 
                 signifying data to filter out. Can be list or tuple of multiple
                 flags.
+            threshold_inequality (str): default 'lt'. 'lt' for filtering 
+                values that are less than ``threshold`` value, 'gt' for 
+                filtering values that are greater.
 
         Returns:
             :obj:`None`
@@ -893,6 +897,13 @@ class Data(Plot, Convert):
             threshold = self.qc_threshold
         if not flag:
             flag = self.qc_flag
+
+        if threshold and not threshold_inequality in ('lt','gt'):
+            err_msg = ('ERROR: threshold_inequality must be "lt" or "gt", '
+                'but {} was given.'.format(
+                    climate_file
+                ))
+            raise ValueError(err_msg)
         # load dataframe if not yet accessed
         df = self.df
         # infer each columns datatype to avoid applying thresholds to strings
@@ -906,9 +917,14 @@ class Data(Plot, Convert):
         if threshold:
             for var, qc in self.qc_var_pairs.items():
                 if df_types.loc[qc,'type'] != 'string':
-                    df.loc[
-                        (df[qc] < threshold) & (df[qc].notnull()) , var
-                    ] = np.nan
+                    if threshold_inequality == 'lt':
+                        df.loc[
+                            (df[qc] < threshold) & (df[qc].notnull()) , var
+                        ] = np.nan
+                    else:
+                        df.loc[
+                            (df[qc] > threshold) & (df[qc].notnull()) , var
+                        ] = np.nan
         # set values to null where flag is a certain string
         if flag:
             if isinstance(flag, str):
@@ -1284,6 +1300,7 @@ class Data(Plot, Convert):
         # date index
         df.index = df.date
         df = df[df.index.notnull()]
+        df.index = pd.to_datetime(df.index) # ensure datetime
         df.drop('date', axis=1, inplace=True)
         self._df = df # vpd calc uses attribute
         # calc vapor pressure or vapor pressure deficit if hourly or less
