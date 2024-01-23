@@ -32,6 +32,6 @@ jobs:
         #$CONDA/bin/flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        conda install pytest
-        $CONDA/bin/pytest
+        pip install --upgrade pytest 
+        python -m pytest
 
