@@ -901,7 +901,7 @@ class Data(Plot, Convert):
         if threshold and not threshold_inequality in ('lt','gt'):
             err_msg = ('ERROR: threshold_inequality must be "lt" or "gt", '
                 'but {} was given.'.format(
-                    climate_file
+                    threshold_inequality
                 ))
             raise ValueError(err_msg)
         # load dataframe if not yet accessed
