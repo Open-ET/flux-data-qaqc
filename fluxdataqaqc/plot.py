@@ -439,7 +439,7 @@ class Plot(object):
             daily_line.append(fig)
         else:
             print(
-                'Energy balance components time series grapths missing all '
+                'Energy balance components time series graphs missing all '
                 'variables'
             )
         if fig is not None and monthly:
@@ -491,7 +491,7 @@ class Plot(object):
         else:
             print(
                 'Shortwave and potential clear sky radiation time series '
-                'grapths missing all variables'
+                'graphs missing all variables'
             )
 
         #### 
@@ -564,7 +564,7 @@ class Plot(object):
             daily_line.append(fig)
         else:
             print(
-                'Radiation components time series grapths missing all variables'
+                'Radiation components time series graphs missing all variables'
             )
         if fig is not None and monthly:
             # same for monthly fig
@@ -599,7 +599,7 @@ class Plot(object):
             daily_line.append(fig)
         else:
             print(
-                'Average air temperature time series grapths missing all '
+                'Average air temperature time series graphs missing all '
                 'variables'
             )
         if fig is not None and monthly:
@@ -633,7 +633,7 @@ class Plot(object):
         if fig is not None:
             daily_line.append(fig)
         else:
-            print('Vapor pressure time series grapths missing all variables')
+            print('Vapor pressure time series graphs missing all variables')
         if fig is not None and monthly:
             # same for monthly fig
             title = 'Monthly Average Vapor Pressure'
@@ -663,7 +663,7 @@ class Plot(object):
         if fig is not None:
             daily_line.append(fig)
         else:
-            print('Windspeed time series grapths missing all variables')
+            print('Windspeed time series graphs missing all variables')
         if fig is not None and monthly:
             # same for monthly fig
             title = 'Monthly Average Windspeed'
@@ -695,7 +695,7 @@ class Plot(object):
         if fig is not None:
             daily_line.append(fig)
         else:
-            print('Precipitation time series grapths missing all variables')
+            print('Precipitation time series graphs missing all variables')
         if fig is not None and monthly:
             # same for monthly fig
             title = 'Monthly Station and gridMET Precipitation'
@@ -727,7 +727,7 @@ class Plot(object):
         if fig is not None:
             daily_line.append(fig)
         else:
-            print('Latent energy time series grapths missing all variables')
+            print('Latent energy time series graphs missing all variables')
         if fig is not None and monthly:
             # same for monthly fig
             title = 'Monthly Average Latent Energy Flux'
@@ -769,7 +769,7 @@ class Plot(object):
             daily_line.append(fig)
         else:
             print(
-                'Evapotranspiration time series grapths missing all variables'
+                'Evapotranspiration time series graphs missing all variables'
             )
         if fig is not None and monthly:
             # same for monthly fig
@@ -825,7 +825,7 @@ class Plot(object):
             daily_line.append(fig)
         else:
             print(
-                'Fraction of reference ET time series grapths missing all '
+                'Fraction of reference ET time series graphs missing all '
                 'variables'
             )
         if fig is not None and monthly:
@@ -868,7 +868,7 @@ class Plot(object):
             daily_line.append(fig)
         else:
             print(
-                'Energy balance ratio time series grapths missing all '
+                'Energy balance ratio time series graphs missing all '
                 'variables'
             )
         if fig is not None and monthly:
@@ -980,7 +980,7 @@ class Plot(object):
                     )
                     monthly_scatter.append(fig)
         else:
-            print('Energy balance scatter grapths missing all variables')
+            print('Energy balance scatter graphs missing all variables')
 
 
         #### 
@@ -1062,7 +1062,7 @@ class Plot(object):
                     )
                     monthly_scatter.append(fig)
         else:
-            print('Latent energy scatter grapths missing all variables')
+            print('Latent energy scatter graphs missing all variables')
 
         #### 
         # ET scatter plots
@@ -1141,7 +1141,7 @@ class Plot(object):
                     )
                     monthly_scatter.append(fig)
         else:
-            print('Evapotranspiration scatter grapths missing all variables')
+            print('Evapotranspiration scatter graphs missing all variables')
 
         #### 
         # multiple soil moisture time series plots
