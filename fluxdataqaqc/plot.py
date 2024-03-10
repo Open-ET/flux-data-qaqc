@@ -498,7 +498,7 @@ class Plot(object):
         # multiple soil heat flux sensor time series plots
         #### 
         # keep user names for these in hover 
-        g_re = re.compile('^[gG]_[\d+mean|corr]|G$')
+        g_re = re.compile(r'^[gG]_[\d+mean|corr]|G$')
         g_vars = [
             v for v in variables if g_re.match(v) and v in df.columns
         ]
@@ -1147,7 +1147,7 @@ class Plot(object):
         # multiple soil moisture time series plots
         #### 
         # keep user names for these in hover 
-        theta_re = re.compile('theta_[\d+|mean]')
+        theta_re = re.compile(r'theta_[\d+|mean]')
         theta_vars = [
             v for v in variables if theta_re.match(v) and v in df.columns
         ]
