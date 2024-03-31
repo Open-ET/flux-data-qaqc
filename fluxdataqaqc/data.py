@@ -1114,7 +1114,6 @@ class Data(Plot, Convert):
             ix=[i for i, e in enumerate(self.header) if e in set(cols)]
             df = pd.read_excel(
                 self.climate_file,
-                parse_dates = [variables.get('date')],
                 usecols = ix,
                 engine = self.xl_parser,
                 **kwargs
@@ -1122,11 +1121,11 @@ class Data(Plot, Convert):
         else:
             df = pd.read_csv(
                 self.climate_file,
-                parse_dates = [variables.get('date')],
                 usecols = cols,
                 **kwargs
             )
-
+        df[variables.get('date')] = pd.to_datetime(df[variables.get('date')])
+        
         if 'missing_data_value' in dict(self.config.items('METADATA')):
             # force na_val because sometimes with read_excel it doesn't work...
             df[df == self.na_val] = np.nan
