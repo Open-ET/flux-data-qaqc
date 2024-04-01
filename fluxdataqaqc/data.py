@@ -1102,8 +1102,11 @@ class Data(Plot, Convert):
 
         if 'date_parser' in dict(self.config.items('METADATA')):
             date_parse_str = self.config.get('METADATA','date_parser')
-            date_parser = lambda x: datetime.strptime(x, date_parse_str)
-            kwargs['date_parser'] = date_parser
+            #date_parser = lambda x: datetime.strptime(x, date_parse_str)
+            #kwargs['date_parser'] = date_parser
+        else:
+            date_parse_str = None
+
         if 'load_all_vars' in dict(self.config.items('METADATA')):
             # if this option is listed (with any value) read all columns into df
             cols = self.header
@@ -1124,7 +1127,10 @@ class Data(Plot, Convert):
                 usecols = cols,
                 **kwargs
             )
-        df[variables.get('date')] = pd.to_datetime(df[variables.get('date')])
+
+        df[variables.get('date')] = pd.to_datetime(
+            df[variables.get('date')], format=date_parse_str
+        )
         
         if 'missing_data_value' in dict(self.config.items('METADATA')):
             # force na_val because sometimes with read_excel it doesn't work...
