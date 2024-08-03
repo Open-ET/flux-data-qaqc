@@ -1176,7 +1176,8 @@ class Plot(object):
                 v for v in variables if theta_re.match(v) and v in\
                     df.columns
             ]
-            if fig is not None and monthly and len(theta_vars) > 0:
+            if fig is not None and monthly and len(theta_vars) > 0\
+                    and set(theta_vars).issubset(monthly_df.columns):
                 # same for monthly fig
                 tmp_df = monthly_df[theta_vars].rename(columns=rename_dict)
                 tmp_source = ColumnDataSource(tmp_df)
