@@ -1,6 +1,15 @@
 Change Log
 ==========
 
+Version 0.2.2
+-------------
+
+Added method to write input data to a CSV file following the same standardized formatting and unit conversions that are implemented in ``qaqc.write``. This method is ``data.write``. This was done so that a user can easily rewrite the initially read data at its native time frequency that is often half-hourly or hourly as produced by eddy covariance processing software such as EddyPro. This is useful for creating input for sub-daily time series analyses that may be done in conjunction with ``flux-data-qaqc``.
+
+Bug fixes related to internal automatic calculations for vapor pressure, vapor pressure deficit, saturation vapor pressure, and dew point temperature and data assignment not persisting until two calls to ``data.df``. 
+
+Fix multiple deprecation warnings caused by ``Pandas`` version 2, tested with version 2.2.2. 
+
 Version 0.2.1
 -------------
 

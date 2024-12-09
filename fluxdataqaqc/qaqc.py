@@ -696,7 +696,7 @@ class QaQc(Plot, Convert):
                     ].copy()
                     grped_night.drop_duplicates(inplace=True)
                     grped_night = grped_night.groupby(
-                        pd.Grouper(freq='24H', offset='12H'), 
+                        pd.Grouper(freq='24h', offset='12h'), 
                             group_keys=True).apply(
                                 lambda x: x.interpolate(
                                     method='linear', limit=max_night_gap, 
@@ -706,7 +706,7 @@ class QaQc(Plot, Convert):
                     grped_day = tmp.loc[(tmp.Rn >= 0) | (tmp.Rn.isna())].copy()
                     grped_day.drop_duplicates(inplace=True)
                     grped_day = grped_day.groupby(
-                        pd.Grouper(freq='24H'),
+                        pd.Grouper(freq='24h'),
                             group_keys=True).apply(
                                 lambda x: x.interpolate(
                                     method='linear', limit=max_gap, 
@@ -717,7 +717,7 @@ class QaQc(Plot, Convert):
                     grped_night = tmp.copy()
                     grped_night.drop_duplicates(inplace=True)
                     grped_night = grped_night.groupby(
-                        pd.Grouper(freq='24H', offset='12H'),
+                        pd.Grouper(freq='24h', offset='12h'),
                             group_keys=True).apply(
                                 lambda x: x.interpolate(
                                     method='linear', limit=max_night_gap, 
@@ -727,7 +727,7 @@ class QaQc(Plot, Convert):
                     grped_day = tmp.copy()
                     grped_day.drop_duplicates(inplace=True)
                     grped_day = grped_day.groupby(
-                        pd.Grouper(freq='24H'),
+                        pd.Grouper(freq='24h'),
                             group_keys=True).apply(
                                 lambda x: x.interpolate(
                                     method='linear', limit=max_gap, 
@@ -1271,9 +1271,13 @@ class QaQc(Plot, Convert):
             Q1 = df['ETrF_filtered'].quantile(0.25)
             Q3 = df['ETrF_filtered'].quantile(0.75)
             IQR = Q3 - Q1
-            to_filter = df.query(
-                'ETrF_filtered<(@Q1-1.5*@IQR) or ETrF_filtered>(@Q3+1.5*@IQR)'
-            )
+            mask = (
+                    df['ETrF_filtered'] < (Q1 - 1.5 * IQR)
+                ) | \
+                (
+                    df['ETrF_filtered'] > (Q3 + 1.5 * IQR)
+                )
+            to_filter = df[mask]
             df.loc[to_filter.index, 'ETrF_filtered'] = np.nan
             df['ETrF_filtered'] = df.ETrF_filtered.rolling(
                 7, min_periods=2, center=True
@@ -1294,9 +1298,13 @@ class QaQc(Plot, Convert):
             Q1 = df['EToF_filtered'].quantile(0.25)
             Q3 = df['EToF_filtered'].quantile(0.75)
             IQR = Q3 - Q1
-            to_filter = df.query(
-                'EToF_filtered<(@Q1-1.5*@IQR) or EToF_filtered>(@Q3+1.5*@IQR)'
-            )
+            mask = (
+                    df['EToF_filtered'] < (Q1 - 1.5 * IQR)
+                ) | \
+                (
+                    df['EToF_filtered'] > (Q3 + 1.5 * IQR)
+                )
+            to_filter = df[mask]
             df.loc[to_filter.index, 'EToF_filtered'] = np.nan
             df['EToF_filtered'] = df.EToF_filtered.rolling(
                 7, min_periods=2, center=True
@@ -1652,13 +1660,15 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         # make copy of original data for later
         orig_df = df[['LE','H','Rn','G']].astype(float).copy()
         orig_df['ebr'] =  (orig_df.H + orig_df.LE) / (orig_df.Rn - orig_df.G)
+
         # compute IQR to filter out extreme ebrs, 
         df['ebr'] = (df.H + df.LE) / (df.Rn - df.G)
         Q1 = df['ebr'].quantile(0.25)
         Q3 = df['ebr'].quantile(0.75)
         IQR = Q3 - Q1
         # filter values between Q1-1.5IQR and Q3+1.5IQR
-        filtered = df.query('(@Q1 - 1.5 * @IQR) <= ebr <= (@Q3 + 1.5 * @IQR)')
+        mask = (df['ebr'] >= (Q1 - 1.5 * IQR)) & (df['ebr'] <= (Q3 + 1.5 * IQR))
+        filtered = df[mask]
         # apply filter
         filtered_mask = filtered.index
         removed_mask = set(df.index) - set(filtered_mask)
@@ -1717,12 +1727,13 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         df['DOY'] = df.index.dayofyear
         # datetime indices of all remaining null elements
         null_dates = df.loc[df.ebr_corr.isnull(), 'ebr_corr'].index
+
         merged = pd.merge(
             df, ebr_5day_clim, left_on='DOY', right_index=True
         )
         # assign 5 day climatology of EBR 
         merged.loc[null_dates,'ebr_corr'] =\
-            merged.loc[null_dates,'ebr_5day_clim']
+            merged.loc[null_dates,'ebr_5day_clim'].astype(float)
         # replace raw variables with unfiltered dataframe copy
         merged.LE = orig_df.LE
         merged.H = orig_df.H
@@ -1767,7 +1778,8 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         cols = list(set(merged.columns).difference(df.columns))
         # join calculated data in
         merged = df.join(merged[cols], how='outer')
-        merged.drop('DOY', axis=1, inplace=True)
+        # remove merge columns with suffix
+        merged = merged.drop(columns=['DOY_x','DOY_y'])
 
         self.variables.update(
             energy = 'energy',

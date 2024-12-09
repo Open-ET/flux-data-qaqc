@@ -181,11 +181,11 @@ def monthly_resample(df, cols, agg_str, thresh=0.75):
         with the months daily mean before summation.
     """
     if agg_str == 'sum':
-        mdf = df.loc[:,cols].apply(pd.to_numeric).resample('M').agg(
+        mdf = df.loc[:,cols].apply(pd.to_numeric).resample('ME').agg(
             [agg_str, 'count', 'mean']
         )
     else:
-        mdf = df.loc[:,cols].apply(pd.to_numeric).resample('M').agg(
+        mdf = df.loc[:,cols].apply(pd.to_numeric).resample('ME').agg(
             [agg_str, 'count']
         )
         

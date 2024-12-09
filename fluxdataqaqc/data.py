@@ -232,11 +232,11 @@ class Data(Plot, Convert):
             print(
                 'Resampling ASCE reference ET input variables to hourly means'
             )
-            tmean = df.t_avg.resample('H').mean()
+            tmean = df.t_avg.resample('h').mean()
             length = len(tmean)
-            rs = df.sw_in.resample('H').mean()
-            ea = df.vp.resample('H').mean()
-            uz = df.ws.resample('H').mean()
+            rs = df.sw_in.resample('h').mean()
+            ea = df.vp.resample('h').mean()
+            uz = df.ws.resample('h').mean()
             zw = anemometer_height
             lat = np.full(length, self.latitude)
             lon = np.full(length, self.longitude)
@@ -326,6 +326,9 @@ class Data(Plot, Convert):
             df['Rn'] = df.sw_in + df.lw_in - df.sw_out - df.lw_out
             self.variables['Rn'] = 'Rn'
             self.units['Rn'] = 'w/m2'
+            self.inv_map = {
+                v: k for k, v in self.variables.items() if not k == v
+            }
 
         self._df = df
 
@@ -367,7 +370,8 @@ class Data(Plot, Convert):
 
         # calculate vpd from actual vapor pressure and temp
         # check if needed variables exist and units are correct
-        has_vpd_vars = set(['vp','t_avg']).issubset(df.columns)
+        has_vpd_vars = set(['vp','t_avg']).issubset(df.columns) and not\
+                set(['vpd','es']).issubset(df.columns)
         units_correct = (
             self.units.get('vp') == 'kpa' and self.units.get('t_avg') == 'c'
         )
@@ -386,7 +390,9 @@ class Data(Plot, Convert):
             self.units['es'] = 'kpa'
 
         # same calc actual vapor pressure from vapor pressure deficit and temp
-        has_vp_vars = set(['vpd','t_avg']).issubset(df.columns)
+        has_vp_vars = set(['vpd','t_avg']).issubset(df.columns) and not\
+                set(['vp','es']).issubset(df.columns)
+
         units_correct = (
             self.units.get('vpd') == 'kpa' and self.units.get('t_avg') == 'c'
         )
@@ -416,13 +422,19 @@ class Data(Plot, Convert):
                 self.variables['rh'] = 'rh'
                 self.units['rh'] = '%'
         
-        if 'vp' in self.variables and self.units.get('vp') == 'kpa':
+        if 'vp' in self.variables and self.units.get('vp') == 'kpa' and not\
+                't_dew' in df.columns:
             print(
                 'Calculating dew point temperature from vapor pressure'
             )
             df['t_dew'] = (-1 / ((np.log(df.vp/.611) / 5423) - (1/273)))-273.15
             self.variables['t_dew'] = 't_dew'
             self.units['t_dew'] = 'c'
+
+
+        self.inv_map = {
+            v: k for k, v in self.variables.items() if not k == v
+        }
 
         self._df = df
 
@@ -548,6 +560,62 @@ class Data(Plot, Convert):
 
         if ret:
             return ret
+
+    def write(self, out_dir=None, use_input_names=False):
+        """
+        Save time series of initially read in data after performing default 
+        naming formatting and unit conversions, save as CSV file. File name
+        will be in the format "[site_ID]_input_data.csv".
+
+        The default location for saving output time series files is within an
+        "output" subdirectory of the parent directory containing the
+        config.ini file. 
+
+        Keyword Arguments:
+            out_dir (str or :obj:`None`): default :obj:`None`. Directory to 
+                save CSVs, if :obj:`None` save to :attr:`out_dir` instance 
+                variable (typically "output" directory where config.ini file 
+                exists).
+            use_input_names (bool): default :obj:`False`. If :obj:`False` use 
+                ``flux-data-qaqc`` variable names as in output file header,
+                or if :obj:`True` use the user's input variable names where
+                possible (for variables that were read in and not modified or
+                calculated by ``flux-data-qaqc``).
+
+        Returns:
+            :obj:`None`
+
+        Example:
+            
+            Starting from a config.ini file,
+
+            >>> from fluxdataqaqc import Data, QaQc
+            >>> d = Data('path/to/config.ini')
+            >>> d.write()
+
+        """
+
+        if out_dir is None:
+            out_dir = self.out_dir
+        else:
+            out_dir = Path(out_dir)
+            self.out_dir = out_dir.absolute()
+
+        if not out_dir.is_dir():
+            print(
+                '{} does not exist, creating directory'.format(
+                    out_dir.absolute()
+                )
+            )
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+        input_outf = out_dir / '{}_input_data.csv'.format(self.site_id)
+        #self.df.head(); # creates vp/vpd if df has not been called yet.
+
+        if use_input_names:
+            self.df.to_csv(input_outf)
+        else:
+            self.df.rename(columns=self.inv_map).to_csv(input_outf)
 
     def _load_config(self, config_file):
         if not config_file.is_file():
@@ -946,7 +1014,7 @@ class Data(Plot, Convert):
 
     @property
     def df(self):
-        """
+        r"""
         Pull variables out of the config and climate time series files load 
         them into a datetime-indexed :obj:`pandas.DataFrame`. 
 
@@ -1310,10 +1378,10 @@ class Data(Plot, Convert):
         self._df = df # vpd calc uses attribute
         # calc vapor pressure or vapor pressure deficit if hourly or less
         # also converts units if needed for vp, vpd, t_avg
-        self._calc_vpd_or_vp(df)
-        self._calc_rn(df)
+        self._calc_vpd_or_vp(self._df)
+        self._calc_rn(self._df)
 
-        return df
+        return self._df.rename(columns=self.variables)
 
     @df.setter
     def df(self, data_frame):
