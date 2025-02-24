@@ -670,7 +670,8 @@ class Data(Plot, Convert):
                     skiprows = int(val)
 
             header = pd.read_csv(
-                climate_file, skiprows=skiprows, nrows=0
+                climate_file, skiprows=skiprows, nrows=0,
+                encoding_errors="ignore"
             ).columns
 
         return header
