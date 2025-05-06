@@ -1363,6 +1363,20 @@ class Data(Plot, Convert):
             self.variables.pop(k, None)
             self.units.pop(k, None)
 
+        # check qc flags to see if they are all null (and drop)
+        del_qc_keys = []
+        for k,v in self.qc_var_pairs.items():
+            if v not in df.columns:
+                del_qc_keys.append(k)
+            elif df[v].isnull().all():
+                print(
+                    'WARNING: {} variable in column {} is missing all data '
+                    'it will be removed'.format(k, v)
+                )
+                del_qc_keys.append(k)
+        for k in del_qc_keys:
+            self.qc_var_pairs.pop(k, None)
+
         # update renaming dict with any newly created mean variables/removed
         self.inv_map = {
             v: k for k, v in self.variables.items() if not k == v
