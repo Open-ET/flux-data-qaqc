@@ -88,7 +88,21 @@ class Data(Plot, Convert):
         't_avg' : 'avg_temp_col',
         'ppt' : 'precip_col',
         'wd' : 'wind_dir_col',
-        'ws' : 'wind_spd_col'
+        'ws' : 'wind_spd_col',
+        # carbon and productivity 
+	'gpp': 'gross_primary_productivity_col',
+	'reco': 'ecosystem_respiration_col',
+	'nee': 'net_ecosystem_exchange_col',
+	'fc': 'co2_turbulent_flux_col',
+	'sc': 'co2_storage_flux_col',
+	'ppfd_in' : 'photosynthetic_photon_flux_density_in_col',
+	'co2' : 'co2_mole_fraction_col',
+	# footprint / turbulence
+	'ustar' : 'friction_velocity_col',
+	'mo_length' : 'monin_obukhov_length_col',
+	'zeta' : 'monin_obukhov_stability_parameter_col',
+	'sigmav' : 'lateral_velocity_fluctuation_std_dev_col',
+	'blh' : 'boundary_layer_height_col',
     }
 
     def __init__(self, config):

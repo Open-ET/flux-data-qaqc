@@ -16,7 +16,7 @@ import refet
 
 from .data import Data
 from .plot import Plot
-from .util import monthly_resample, Convert
+from .util import monthly_resample, Convert, get_subdaily_timestep_info
 
 class QaQc(Plot, Convert):
     """
@@ -599,29 +599,33 @@ class QaQc(Plot, Convert):
         
         """
 
-        # rename columns to internal names 
         df = self._df.rename(columns=self.inv_map)
-       
-        if not isinstance(df, pd.DataFrame):
+
+        if not isinstancetance(df, pd.DataFrame):
             return
 
         freq = pd.infer_freq(df.index)
-        second_day = df.index.date[2]
-        third_day = second_day + pd.Timedelta(1, unit='D')
+
+        third_day = None
+        max_times_in_day = None
+        try:
+            third_day, max_times_in_day, _ = get_subdaily_timestep_info(df)
+        except Exception:
+            pass
 
         # pd.infer_freq does not always work and may return None
         if freq and freq > 'D':
             pass
         elif freq and freq < 'D':
             print('\nThe input data temporal frequency appears to be less than',
-                'daily.')
+                  'daily.')
 
         # slice is transposed if only one date entry
-        elif len(df.loc[str(third_day)].index) == len(df.columns) and \
+        elif third_day is not None and \
+                len(df.loc[str(third_day)].index) == len(df.columns) and \
                 (df.loc[str(third_day)].index == df.columns).all():
             print('\nInput temporal frequency is already daily.')
             freq = 'D'
-            # add missing dates (if exist) for full time series records/plots
             idx = pd.date_range(df.index.min(), df.index.max())
             df = df.reindex(idx)
             df.index.name = 'date'
@@ -630,21 +634,20 @@ class QaQc(Plot, Convert):
             freq = 'na'
 
         if not freq == 'D':
-            # find frequency manually, optionally drop days with subdaily gaps
-            # see if two adj. dates exist, skip first day in case it is not full
-            max_times_in_day = len(df.loc[str(third_day)].index) 
             self.n_samples_per_day = max_times_in_day
             downsample = False
+
             if daily_frac > 1:
                 print('ERROR: daily_frac must be between 0 and 1, using 1')
                 daily_frac = 1
             elif daily_frac < 0:
                 print('ERROR: daily_frac must be between 0 and 1, using 0')
                 daily_frac = 0
-            if not str(third_day) in df.index and drop_gaps:
+
+            if third_day is not None and len(df.loc[str(third_day)].index) == 0 and drop_gaps:
                 print('WARNING: it looks like the input temporal frequency',
-                    'is greater than daily, downsampling, proceed with' ,
-                    'caution!\n')
+                      'is greater than daily, downsampling, proceed with',
+                      'caution!\n')
                 downsample = True
 
             energy_bal_vars = ['LE', 'H', 'Rn', 'G']

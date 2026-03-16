@@ -29,7 +29,19 @@ class Convert(object):
         't_avg': ['c', 'f', 'k'],
         't_min': ['c', 'f', 'k'],
         't_max': ['c', 'f', 'k'],
-        'ws': ['m/s', 'mph']
+        'ws': ['m/s', 'mph'],
+        'gpp': ['umolco2/m2/s'],
+        'reco': ['umolco2/m2/s'],
+        'nee': ['umolco2/m2/s'],
+        'fc': ['umolco2/m2/s'],
+        'sc': ['umolco2/m2/s'],
+        'ppfd_in': ['umolphoton/m2/s'],
+        'co2': ['umol/mol', 'ppm'],
+        'ustar': ['m/s'],
+        'mo_length': ['m'],
+        'zeta': ['dimensionless', 'nondimensional'],
+        'sigmav': ['m/s'],
+        'blh': ['m'],
     }
 
     # for printing and plotting purposes
@@ -39,7 +51,15 @@ class Convert(object):
         'kpa': 'kPa',
         'c': 'C',
         'f': 'F',
-        'k': 'K'
+        'k': 'K',
+        'umolco2/m2/s': 'μmol CO₂ m⁻² s⁻¹',
+        'umolphoton/m2/s': 'μmol photons m⁻² s⁻¹',
+        'umol/mol': 'μmol mol⁻¹',
+        'm/s': 'm s⁻¹',
+        'dimensionless': '—',
+        'j/m2': 'J m⁻²',
+        'w/m2': 'W m⁻²',
+        'umol/mol': 'μmol mol⁻¹'
     }
 
     # some variables need to be in specified units for internal calculations
@@ -60,7 +80,19 @@ class Convert(object):
         't_avg': 'c',
         't_min': 'c',
         't_max': 'c',
-        'ws': 'm/s'
+        'ws': 'm/s',
+        'gpp': 'umolco2/m2/s',
+        'reco': 'umolco2/m2/s',
+        'nee': 'umolco2/m2/s',
+        'fc': 'umolco2/m2/s',
+        'sc': 'umolco2/m2/s',
+        'ppfd_in': 'umolphoton/m2/s',
+        'co2': 'umol/mol',
+        'ustar': 'm/s',
+        'mo_length': 'm',
+        'zeta': 'dimensionless',
+        'sigmav': 'm/s',
+        'blh': 'm',
     }
 
     def __init__(self):
@@ -157,6 +189,19 @@ class Convert(object):
         df[var_name] *= 11.574074074074074
         return df
 
+def get_subdaily_timestep_info(df):
+    if len(df.index) < 3:
+        raise ValueError('Need at least 3 timestamps to determine subdaily timestep info.')
+
+    second_day = df.index.date[2]
+    third_day = second_day + pd.Timedelta(1, unit='D')
+    n_samples_per_day = len(df.loc[str(third_day)].index)
+
+    if n_samples_per_day == 0:
+        raise ValueError('Could not determine samples per day from third day.')
+
+    dt_seconds = 86400.0 / n_samples_per_day
+    return third_day, n_samples_per_day, dt_seconds
 
 def monthly_resample(df, cols, agg_str, thresh=0.75):
     """
