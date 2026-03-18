@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from openpyxl import load_workbook
 from .plot import Plot
-from .util import Convert
+from .util import Convert, get_subdaily_timestep_info
 
 class Data(Plot, Convert):
     """
@@ -145,6 +145,101 @@ class Data(Plot, Convert):
         self.out_dir = self.config_file.parent / 'output'
         self._df = None
         self.plot_file = None
+
+
+    def calc_pes(self, gpp_var='gpp', coeff_kj_per_mol=422.0,
+                 clip_negative_gpp=True, inplace=True):
+        """
+        Calculate photosynthetic energy storage (pes) and photosynthetic
+        energy storage flux term (pes_flux) from sub-daily GPP.
+
+        Simple approach based on Meyers & Hollinger (2004). By default,
+        negative GPP values are assumed invalid and are clipped to zero.
+
+        Keyword Arguments:
+            gpp_var (str): default 'gpp'. 
+                Internal variable name for gross primary productivity.
+            coeff_kj_per_mol (float): default 422.0. 
+                Energy equivalent per mol CO2 fixed, in kJ mol-1 CO2.
+            clip_negative_gpp (bool): default True
+                If True, negative GPP values are set to zero before calculating
+                photosynthetic energy storage.
+            inplace (bool): default True
+                If True, add ``pes`` and ``pes_flux`` to :attr:`Data.df`.
+                If False, return them in a new DataFrame.
+
+        Returns:
+            :obj:`pandas.DataFrame` or :obj:`None`
+                If ``inplace=False``, returns a DataFrame with ``pes`` and
+                ``pes_flux``. Otherwise returns :obj:`None`.
+        """
+        self.df.head()
+        # use internal variable names for calculations
+        df = self._df.rename(columns=self.inv_map).copy()
+
+        if not isinstance(df, pd.DataFrame):
+            return
+
+        if gpp_var not in df.columns:
+            print(f'ERROR: required variable "{gpp_var}" not found.')
+            return
+
+        if gpp_var not in self.units:
+            print(f'ERROR: units for "{gpp_var}" not found.')
+            return
+
+        gpp_units = self.units[gpp_var]
+        if gpp_units != 'umolco2/m2/s':
+            print(
+                f'ERROR: unsupported units for "{gpp_var}": {gpp_units}. '
+                'Expected "umolco2/m2/s".'
+            )
+            return
+
+        # determine nominal sub-daily timestep 
+        try:
+            _, _, dt_seconds = get_subdaily_timestep_info(df)
+        except Exception as e:
+            print(f'ERROR: could not determine sub-daily timestep: {e}')
+            return self.df
+
+        
+        # coefficient conversion kJ mol-1 to J umol-1 
+        coeff_j_per_umol = coeff_kj_per_mol / 1000.0
+
+        gpp = pd.to_numeric(df[gpp_var], errors='coerce').copy()
+
+        if clip_negative_gpp:
+            gpp[gpp < 0] = 0.0
+
+        # interval-mean energy balance term [W m-2]
+        pes_flux = gpp * coeff_j_per_umol
+
+        # energy fixed over timestep [J m-2]
+        pes = pes_flux * dt_seconds
+
+        # keep NaNs
+        pes[df[gpp_var].isna()] = np.nan
+        pes_flux[df[gpp_var].isna()] = np.nan
+
+        if inplace:
+            # store derived variables update dicts
+            self._df['pes'] = pes
+            self._df['pes_flux'] = pes_flux
+            self.variables['pes'] = 'pes'
+            self.variables['pes_flux'] = 'pes_flux'
+            self.units['pes'] = 'j/m2'
+            self.units['pes_flux'] = 'w/m2'
+
+            self.inv_map = {
+                v: k for k, v in self.variables.items() if k != v
+            }
+
+        else:
+            return pd.DataFrame(
+                {'pes': pes, 'pes_flux': pes_flux},
+                index=df.index
+            )
 
 
     def hourly_ASCE_refET(self, reference='short', anemometer_height=None):

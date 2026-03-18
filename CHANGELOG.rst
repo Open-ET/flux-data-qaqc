@@ -1,6 +1,26 @@
 Change Log
 ==========
 
+Version 0.2.3
+-------------
+
+Add optional calculation of photosynthetic energy storage from sub-daily gross
+primary productivity via :meth:`.Data.calc_pes`.
+
+Add support for new optional carbon, radiation, and turbulence-related input
+variables including gross primary productivity, ecosystem respiration, net
+ecosystem exchange, turbulent and storage CO2 fluxes, incoming photosynthetic
+photon flux density, CO2 mole fraction, friction velocity, Monin-Obukhov
+length, stability parameter, lateral velocity fluctuation standard deviation,
+and boundary layer height.
+
+Add temporal aggregation support for PES variables in :obj:`.QaQc`, where
+``pes`` is summed and ``pes_flux`` is averaged during daily and monthly
+resampling.
+
+Update documentation and tutorial materials to describe the PES calculation,
+equations, variable naming, and example plotting workflow.
+
 Version 0.2.2
 -------------
 

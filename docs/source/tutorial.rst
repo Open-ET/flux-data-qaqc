@@ -1127,6 +1127,84 @@ declination, the day of the year and the solar constant (see equations
 21-29 in the `ASCE
 report <https://www.mesonet.org/images/site/ASCE_Evapotranspiration_Formula.pdf>`__).
 
+Photosynthetic energy storage
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An optional term for photosynthetic energy storage can be
+calculated from sub-daily gross primary productivity (GPP) using a simple
+first-order approach based on Meyers and Hollinger (2004). In this
+implementation, the photosynthetic energy storage flux term is
+
+.. math::
+
+   pes\_flux = GPP \times 0.422
+
+where 0.422 is the energy equivalent in :math:`J\ \mu mol^{-1}\ CO_2`
+(equivalent to 422 :math:`kJ\ mol^{-1}\ CO_2`), GPP is in
+:math:`\mu mol\ CO_2\ m^{-2}\ s^{-1}`, and :math:`pes\_flux` is in
+:math:`W\ m^{-2}`.
+
+Energy fixed over the timestep is then
+
+.. math::
+
+   pes = pes\_flux \times \Delta t
+
+where :math:`\Delta t` is the timestep length in seconds and :math:`pes`
+is in :math:`J\ m^{-2}`.
+
+By default, negative GPP values are clipped to zero before calculating PES.
+If ``pes`` and ``pes_flux`` are added to a :obj:`.Data` object before
+creating a :obj:`.QaQc` instance, then ``pes`` is summed to daily values
+and ``pes_flux`` is averaged to daily values automatically during
+resampling.
+
+Example::
+
+   d = Data('US-Tw3_config.ini')
+   d.calc_pes()
+
+   df = d.df.rename(columns=d.inv_map).copy()
+   peak_day = df['pes_flux'].resample('D').mean().idxmax()
+   start = peak_day - pd.Timedelta(days=2)
+   end = peak_day + pd.Timedelta(days=2)
+
+   plot_df = df.loc[start:end, ['Rn', 'LE', 'H', 'G', 'pes_flux']].copy()
+
+   fig = figure(
+       x_axis_label='date',
+       y_axis_label='energy flux (W/m2)',
+       title='Half-hourly surface energy balance components with photosynthetic energy storage',
+       width=900,
+       height=400,
+       x_axis_type='datetime'
+   )
+
+   plt_vars = ['Rn', 'LE', 'H', 'G', 'pes_flux']
+   colors = ['black', 'blue', 'red', 'green', 'orange']
+   source = ColumnDataSource(plot_df)
+
+   Plot.add_lines(
+       fig,
+       plot_df,
+       plt_vars,
+       colors,
+       'date',
+       source,
+       labels=plt_vars
+   )
+
+   show(fig)
+
+.. raw:: html
+
+   <iframe
+       src="_static/tutorial/pes_flux_hh_example.html"
+       width="100%"
+       height="500"
+       style="border:none; overflow:hidden;">
+   </iframe>
+
 Vapor pressure/deficit
 ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1189,64 +1267,78 @@ daily methods for computing ASCE standardized reference ET are used and the
 required input variables exist. 
     
 
- ================= ================================================================================ ============ 
- Variable           Description                                                                     Unit         
- ================= ================================================================================ ============ 
- ASCE_ETo           short/grass ASCE standardized reference ET                                      mm time-1    
- ASCE_ETr           tall/alfalfa ASCE standardized reference ET                                     mm time-1    
- br                 bowen ratio                                                                     unitless     
- ebc_cf             energy balance closure correction factor (inverse of ebr_corr)                  unitless     
- ebr                input energy balance ratio                                                      unitless     
- ebr_5day_clim      5 day climatology of the filtered Energy Balance Ratio                          unitless     
- ebr_corr           corrected energy balance ratio                                                  unitless     
- energy             input Rn - G                                                                    w m-2        
- es                 saturation vapor pressure                                                       kPa          
- ET                 ET calculated from input LE and average air temperature                         mm time-1    
- ET_corr            ET calculated from LE_corr                                                      mm time-1    
- ET_fill            gridMET_ETr * ETrF_filtered (fills gaps in ET_corr)                             mm time-1    
- ET_fill_val        value of ET_fill on gap days                                                    mm time-1    
- ET_gap             True on gap days in ET_corr, False otherwise                                    unitless     
- ET_user_corr       corrected ET, user-provided                                                     mm time-1    
- EToF               fraction of reference ET for ET_corr, i.e. ET_corr / gridMET_ETo                unitless     
- EToF_filtered      filtered and gap-filled EToF                                                    unitless     
- ETrF               fraction of reference ET for ET_corr, i.e. ET_corr / gridMET_ETr                unitless     
- ETrF_filtered      filtered and gap-filled EtrF                                                    unitless     
- flux               input LE + H                                                                    w m-2        
- flux_corr          LE_corr + H_corr                                                                w m-2        
- G                  average or single soil heat flux                                                w m-2        
- G_[1,2,3,…]        soil heat flux at sensor                                                        w m-2        
- G_subday_gaps      number of gaps in initial G per day                                             unitless     
- gridMET_ETo        gridMET short/grass reference ET (nearest cell)                                 mm time-1    
- gridMET_ETr        gridMET tall/alfalfa reference ET (nearest cell)                                mm time-1    
- gridMET_prcp       gridMET precipitation (nearest cell)                                            mm time-1    
- gridMET_[other]    other optional gridMET variables (nearest cell)                                 NA    
- H_corr             corrected sensible heat                                                         w m-2        
- H_subday_gaps      number of gaps in initial H per day                                             unitless     
- H_user_corr        corrected sensible heat, user-provided                                          w m-2        
- LE_corr            corrected latent energy                                                         w m-2        
- LE_subday_gaps     number of gaps in initial LE per day                                            unitless     
- LE_user_corr       corrected latent energy, user-provided                                          w m-2        
- lw_in              incoming longwave radiation                                                     w m-2        
- lw_out             outgoing longwave radiation                                                     w m-2        
- ppt                precipitation                                                                   mm time-1    
- rh                 relative humidity                                                               %            
- Rn                 net radiation                                                                   w m-2        
- Rn_subday_gaps     number of gaps in initial Rn per day                                            unitless     
- rso                clear sky radiation (ASCE formulation)                                          w m-2        
- sw_in              incoming shortwave radiation                                                    w m-2        
- sw_out             outgoing shortwave radiation                                                    w m-2        
- sw_pot             potential shortwave radiation, user-provided                                    w m-2        
- t_avg              average temperature                                                             C            
- t_dew              dew point temperature                                                           C            
- t_max              maximum temperature                                                             C            
- t_min              minimum temperature                                                             C            
- theta              average or single soil moisture                                                 user defined 
- theta_[1,2,3,…]    soil moisture at sensor                                                         user defined 
- vp                 actual vapor pressure                                                           kPa          
- vpd                vapor pressure deficit                                                          kPa          
- wd                 wind direction                                                                  user defined 
- ws                 wind speed                                                                      m s-1        
- ================= ================================================================================ ============ 
+ ================= ================================================================================ =======================
+ Variable           Description                                                                     Unit
+ ================= ================================================================================ =======================
+ ASCE_ETo           short/grass ASCE standardized reference ET                                      mm time⁻¹
+ ASCE_ETr           tall/alfalfa ASCE standardized reference ET                                     mm time⁻¹
+ blh                boundary layer height                                                           m
+ br                 bowen ratio                                                                     —
+ co2                CO2 mole fraction                                                               μmol mol⁻¹
+ ebc_cf             energy balance closure correction factor (inverse of ebr_corr)                  —
+ ebr                input energy balance ratio                                                      —
+ ebr_5day_clim      5 day climatology of the filtered energy balance ratio                          —
+ ebr_corr           corrected energy balance ratio                                                  —
+ energy             input Rn - G                                                                    W m⁻²
+ es                 saturation vapor pressure                                                       kPa
+ ET                 ET calculated from input LE and average air temperature                         mm time⁻¹
+ ET_corr            ET calculated from LE_corr                                                      mm time⁻¹
+ ET_fill            gridMET_ETr * ETrF_filtered (fills gaps in ET_corr)                             mm time⁻¹
+ ET_fill_val        value of ET_fill on gap days                                                    mm time⁻¹
+ ET_gap             True on gap days in ET_corr, False otherwise                                    —
+ ET_user_corr       corrected ET, user-provided                                                     mm time⁻¹
+ EToF               fraction of reference ET for ET_corr, i.e. ET_corr / gridMET_ETo                —
+ EToF_filtered      filtered and gap-filled EToF                                                    —
+ ETrF               fraction of reference ET for ET_corr, i.e. ET_corr / gridMET_ETr                —
+ ETrF_filtered      filtered and gap-filled ETrF                                                    —
+ fc                 turbulent CO2 flux                                                              μmol CO₂ m⁻² s⁻¹
+ flux               input LE + H                                                                    W m⁻²
+ flux_corr          LE_corr + H_corr                                                                W m⁻²
+ G                  average or single soil heat flux                                                W m⁻²
+ G_[1,2,3,…]        soil heat flux at sensor                                                        W m⁻²
+ G_subday_gaps      number of gaps in initial G per day                                             —
+ gpp                gross primary productivity                                                      μmol CO₂ m⁻² s⁻¹
+ gridMET_ETo        gridMET short/grass reference ET (nearest cell)                                 mm time⁻¹
+ gridMET_ETr        gridMET tall/alfalfa reference ET (nearest cell)                                mm time⁻¹
+ gridMET_prcp       gridMET precipitation (nearest cell)                                            mm time⁻¹
+ gridMET_[other]    other optional gridMET variables (nearest cell)                                 NA
+ H_corr             corrected sensible heat                                                         W m⁻²
+ H_subday_gaps      number of gaps in initial H per day                                             —
+ H_user_corr        corrected sensible heat, user-provided                                          W m⁻²
+ LE_corr            corrected latent energy                                                         W m⁻²
+ LE_subday_gaps     number of gaps in initial LE per day                                            —
+ LE_user_corr       corrected latent energy, user-provided                                          W m⁻²
+ lw_in              incoming longwave radiation                                                     W m⁻²
+ lw_out             outgoing longwave radiation                                                     W m⁻²
+ mo_length          Monin-Obukhov length                                                            m
+ nee                net ecosystem exchange                                                          μmol CO₂ m⁻² s⁻¹
+ pes                photosynthetic energy fixed over the timestep                                   J m⁻²
+ pes_flux           photosynthetic energy storage flux-equivalent term                              W m⁻²
+ ppfd_in            incoming photosynthetic photon flux density                                     μmol photons m⁻² s⁻¹
+ ppt                precipitation                                                                   mm time⁻¹
+ reco               ecosystem respiration                                                           μmol CO₂ m⁻² s⁻¹
+ rh                 relative humidity                                                               %
+ Rn                 net radiation                                                                   W m⁻²
+ Rn_subday_gaps     number of gaps in initial Rn per day                                            —
+ rso                clear sky radiation (ASCE formulation)                                          W m⁻²
+ sc                 CO2 storage flux                                                                μmol CO₂ m⁻² s⁻¹
+ sigmav             standard deviation of lateral velocity fluctuations                             m s⁻¹
+ sw_in              incoming shortwave radiation                                                    W m⁻²
+ sw_out             outgoing shortwave radiation                                                    W m⁻²
+ sw_pot             potential shortwave radiation, user-provided                                    W m⁻²
+ t_avg              average temperature                                                             C
+ t_dew              dew point temperature                                                           C
+ t_max              maximum temperature                                                             C
+ t_min              minimum temperature                                                             C
+ theta              average or single soil moisture                                                 user defined
+ theta_[1,2,3,…]    soil moisture at sensor                                                         user defined
+ ustar              friction velocity                                                               m s⁻¹
+ vp                 actual vapor pressure                                                           kPa
+ vpd                vapor pressure deficit                                                          kPa
+ wd                 wind direction                                                                  user defined
+ ws                 wind speed                                                                      m s⁻¹
+ zeta               Monin-Obukhov stability parameter (z/L)                                         —
+ ================= ================================================================================ =======================
 
 
 A note on units

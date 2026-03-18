@@ -190,18 +190,23 @@ class Convert(object):
         return df
 
 def get_subdaily_timestep_info(df):
-    if len(df.index) < 3:
-        raise ValueError('Need at least 3 timestamps to determine subdaily timestep info.')
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError('Need a DatetimeIndex to determine subdaily timestep info.')
 
-    second_day = df.index.date[2]
-    third_day = second_day + pd.Timedelta(1, unit='D')
-    n_samples_per_day = len(df.loc[str(third_day)].index)
+    unique_days = pd.Index(df.index.normalize().unique())
+    if len(unique_days) < 2:
+        raise ValueError('Need at least 2 unique days to determine subdaily timestep info.')
 
+    # skip the first day in case it is partial
+    ref_day = unique_days[1]
+
+    n_samples_per_day = int((df.index.normalize() == ref_day).sum())
     if n_samples_per_day == 0:
-        raise ValueError('Could not determine samples per day from third day.')
+        raise ValueError('Could not determine samples per day from reference day.')
 
     dt_seconds = 86400.0 / n_samples_per_day
-    return third_day, n_samples_per_day, dt_seconds
+    return ref_day.date(), n_samples_per_day, dt_seconds
+
 
 def monthly_resample(df, cols, agg_str, thresh=0.75):
     """

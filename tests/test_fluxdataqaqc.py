@@ -102,7 +102,11 @@ class TestData(object):
         # check on loading climate timeseries input data into Pandas DataFrame
         df = self.data_obj.df
         assert isinstance(df, pd.DataFrame)
-        assert len(df.dropna()) == 68035
+        df = df.rename(columns=self.data_obj.inv_map)
+        core_cols = ['LE', 'H', 'Rn', 'G']
+        assert set(core_cols).issubset(df.columns)
+        assert len(df[core_cols].dropna()) == 73868
+
 
     def test_datetime_index(self):
         df = self.data_obj.df
@@ -169,6 +173,35 @@ class TestData(object):
         g_mean = df[['g_1', 'g_2', 'g_3','g_4']].mean(1)
         g_weighted_mean = df.G
         assert (g_mean != g_weighted_mean).any()
+
+    def test_calc_pes(self):
+        df = self.data_obj.df.rename(columns=self.data_obj.inv_map)
+        assert 'gpp' in df.columns
+
+        self.data_obj.calc_pes()
+        df = self.data_obj.df
+
+        assert {'pes', 'pes_flux'}.issubset(df.columns)
+        assert self.data_obj.units['pes'] == 'j/m2'
+        assert self.data_obj.units['pes_flux'] == 'w/m2'
+
+        _, _, dt_seconds = util.get_subdaily_timestep_info(df)
+
+        gpp = df.rename(columns=self.data_obj.inv_map)['gpp'].clip(lower=0)
+        mask = gpp.notna() & df['pes_flux'].notna() & df['pes'].notna()
+
+        assert np.allclose(
+            df.loc[mask, 'pes_flux'],
+            gpp.loc[mask] * 0.422,
+            rtol=0,
+            atol=1e-12
+        )
+        assert np.allclose(
+            df.loc[mask, 'pes'],
+            df.loc[mask, 'pes_flux'] * dt_seconds,
+            rtol=0,
+            atol=1e-9
+        )
 
 
 

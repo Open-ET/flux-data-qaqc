@@ -14,14 +14,14 @@ class Plot(object):
     """
     Container of plot routines of :mod:`fluxdataqaqc` including static methods
     that can be used to create and update interactive line and scatter plots
-    from an arbitrary :obj:`pandas.DataFrame` instance.  
-    
+    from an arbitrary :obj:`pandas.DataFrame` instance.
+
     Note:
         The :obj:`.Data` and :obj:`.QaQc` objects both inherit all methods of
         :obj:`Plot` therefore allowing them to be easily used for custom
         interactive time series plots for data within input data (in
-        :any:`fluxdataqaqc.Data.df`) and daily and monthly data in
-        :attr:`fluxdataqaqc.QaQc.df` and :attr:`.QaQc.monthly_df`.
+        :attr:`.Data.df`) and daily and monthly data in :attr:`.QaQc.df`
+        and :attr:`.QaQc.monthly_df`.
 
     """
 

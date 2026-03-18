@@ -162,6 +162,20 @@ class QaQc(Plot, Convert):
         'H_corr': 'mean',
         'H_subday_gaps': 'sum',
         'H_user_corr': 'mean',
+        'pes': 'sum',
+        'pes_flux': 'mean',
+        'gpp': 'mean',
+        'reco': 'mean',
+        'nee': 'mean',
+        'fc': 'mean',
+        'sc': 'mean',
+        'ppfd_in': 'mean',
+        'co2': 'mean',
+        'ustar': 'mean',
+        'mo_length': 'mean',
+        'zeta': 'mean',
+        'sigmav': 'mean',
+        'blh': 'mean',
     }
 
     # EBR correction methods available
@@ -482,7 +496,7 @@ class QaQc(Plot, Convert):
 
         Upon download gridMET time series for the nearest gridMET cell will be
         merged into the instances dataframe attibute :attr:`QaQc.df` and all
-        gridMET variable names will have the prefix "gridMET\_" for 
+        gridMET variable names will have the prefix ``gridMET_`` for 
         identification. 
         
         The gridMET time series file will be saved to a subdirectory called
@@ -601,7 +615,7 @@ class QaQc(Plot, Convert):
 
         df = self._df.rename(columns=self.inv_map)
 
-        if not isinstancetance(df, pd.DataFrame):
+        if not isinstance(df, pd.DataFrame):
             return
 
         freq = pd.infer_freq(df.index)
@@ -613,25 +627,26 @@ class QaQc(Plot, Convert):
         except Exception:
             pass
 
-        # pd.infer_freq does not always work and may return None
-        if freq and freq > 'D':
-            pass
-        elif freq and freq < 'D':
-            print('\nThe input data temporal frequency appears to be less than',
-                  'daily.')
+        is_daily = False
 
-        # slice is transposed if only one date entry
-        elif third_day is not None and \
-                len(df.loc[str(third_day)].index) == len(df.columns) and \
-                (df.loc[str(third_day)].index == df.columns).all():
+        if freq == 'D':
+            is_daily = True
+
+        elif third_day is not None:
+            day_slice = df.loc[str(third_day)]
+            if isinstance(day_slice, pd.Series):
+                is_daily = True
+
+        if is_daily:
             print('\nInput temporal frequency is already daily.')
             freq = 'D'
             idx = pd.date_range(df.index.min(), df.index.max())
             df = df.reindex(idx)
             df.index.name = 'date'
-
-        elif freq is None:
-            freq = 'na'
+        else:
+            if freq is None:
+                freq = 'na'
+            print('\nThe input data temporal frequency appears to be less than daily.')
 
         if not freq == 'D':
             self.n_samples_per_day = max_times_in_day

@@ -25,7 +25,7 @@ autodoc_mock_imports = [
 # -- Project information -----------------------------------------------------
 
 project = 'flux-data-qaqc'
-copyright = '2019-2024, John Volk'
+copyright = '2019-2026, John Volk'
 author = 'John Volk'
 
 # The short X.Y version
