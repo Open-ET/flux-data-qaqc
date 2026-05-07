@@ -1283,9 +1283,8 @@ required input variables exist.
  es                 saturation vapor pressure                                                       kPa
  ET                 ET calculated from input LE and average air temperature                         mm time⁻¹
  ET_corr            ET calculated from LE_corr                                                      mm time⁻¹
- ET_fill            gridMET_ETr * ETrF_filtered (fills gaps in ET_corr)                             mm time⁻¹
- ET_fill_val        value of ET_fill on gap days                                                    mm time⁻¹
- ET_gap             True on gap days in ET_corr, False otherwise                                    —
+ ET_fill            gridMET_ETr * ETrF_filtered or gridMET_ETo * ETF_filtered (fills gaps in ET)    mm time⁻¹
+ ET_gap             True on gap days in ET_corr, False otherwise (n gap-days in monthly files)      —
  ET_user_corr       corrected ET, user-provided                                                     mm time⁻¹
  EToF               fraction of reference ET for ET_corr, i.e. ET_corr / gridMET_ETo                —
  EToF_filtered      filtered and gap-filled EToF                                                    —
