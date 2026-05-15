@@ -777,20 +777,26 @@ class QaQc(Plot, Convert):
                     self.units['t_max'] = self.units['t_avg']
                     interp_vars = interp_vars + ['t_min','t_max']
                     interped[['t_min','t_max']] = means[['t_min','t_max']]
-
+                    
             if drop_gaps:
                 # make sure round errors do not affect this value
                 n_vals_needed = int(round(max_times_in_day * daily_frac))
+
                 # don't overwrite QC flag columns
                 data_cols = [
                     c for c in df.columns if not c.endswith('_qc_flag')
                 ]
+
                 # interpolate first before counting gaps
                 if max_interp_hours:
-                    df[interp_vars] = interped[interp_vars].copy()
-                    
-                days_with_gaps = df[data_cols].groupby(
-                    df.index.date).count() < n_vals_needed
+                    df.loc[:, interp_vars] = interped.reindex(df.index)[interp_vars]
+
+                subdaily_counts = (
+                    df[data_cols]
+                    .apply(pd.to_numeric, errors='coerce')
+                    .resample('D')
+                    .count()
+                )
 
             df = means.join(sums)
 
@@ -802,7 +808,15 @@ class QaQc(Plot, Convert):
                         daily_frac * 100, n_vals_needed, max_times_in_day
                     )
                 )
-                df[days_with_gaps] = np.nan
+
+                gap_filter_cols = subdaily_counts.columns.intersection(df.columns)
+
+                for col in gap_filter_cols:
+                    bad_days = subdaily_counts.index[
+                        subdaily_counts[col] < n_vals_needed
+                    ]
+                    df.loc[bad_days, col] = np.nan
+        
         else:
             self.n_samples_per_day = 1
 
