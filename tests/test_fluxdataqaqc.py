@@ -4,6 +4,7 @@ import pkg_resources
 import pytest
 from pathlib import Path
 from shutil import move, copy, rmtree
+from refet.calcs import _ra_daily, _ra_hourly
 
 import numpy as np
 import pandas as pd
@@ -13,6 +14,7 @@ from fluxdataqaqc import QaQc
 from fluxdataqaqc import Plot
 from fluxdataqaqc import Convert
 from fluxdataqaqc import util
+
 
 @pytest.fixture(scope="session")
 def data(request):
@@ -205,4 +207,314 @@ class TestData(object):
 
 
 
+class TestQaQc(object):
+
+    def _test_df(self, gap_length, sw_pot, rn=100.,
+            start='2020-06-01'):
+        index = pd.date_range(
+            start,
+            periods=gap_length + 2,
+            freq='30min'
+        )
+        vals = [0.] + [np.nan] * gap_length + [gap_length + 1.]
+
+        df = pd.DataFrame(
+            {
+                'LE': vals,
+                'Rn': [rn] * len(index),
+            },
+            index=index
+        )
+        sw_pot = pd.Series(sw_pot, index=index)
+
+        return df, sw_pot
+
+    def test_day_gap_equal_to_limit(self):
+        df, sw_pot = self._test_df(4, 500.)
+        interped = QaQc._interpolate_short_gaps(
+            df, 4, 8, sw_pot
+        )
+
+        assert interped.LE.notna().all()
+
+    def test_day_gap_larger_than_limit(self):
+        df, sw_pot = self._test_df(5, 500.)
+        interped = QaQc._interpolate_short_gaps(
+            df, 4, 8, sw_pot
+        )
+
+        assert interped.LE.iloc[1:-1].isna().all()
+
+    def test_night_gap_equal_to_limit(self):
+        df, sw_pot = self._test_df(
+            8, 0., rn=-100.,
+            start='2020-06-01 22:00'
+        )
+        interped = QaQc._interpolate_short_gaps(
+            df, 4, 8, sw_pot
+        )
+
+        assert interped.LE.notna().all()
+
+    def test_negative_rn_during_day_uses_day_limit(self):
+        df, sw_pot = self._test_df(
+            5, 500., rn=-100.
+        )
+        interped = QaQc._interpolate_short_gaps(
+            df, 4, 8, sw_pot
+        )
+
+        assert interped.LE.iloc[1:-1].isna().all()
+
+    def test_positive_rn_at_solar_night_uses_day_limit(self):
+        df, sw_pot = self._test_df(
+            5, 0., rn=25.
+        )
+        interped = QaQc._interpolate_short_gaps(
+            df, 4, 8, sw_pot
+        )
+
+        assert interped.LE.iloc[1:-1].isna().all()
+
+    def test_sunrise_gap_uses_both_endpoints(self):
+        index = pd.date_range(
+            '2020-06-01 07:30',
+            periods=3,
+            freq='30min'
+        )
+        df = pd.DataFrame(
+            {
+                'LE': [35.23, np.nan, 165.80],
+                'Rn': [-44.36, 107.82, 313.47],
+            },
+            index=index
+        )
+        sw_pot = pd.Series(
+            [0., 50., 200.],
+            index=index
+        )
+
+        interped = QaQc._interpolate_short_gaps(
+            df, 4, 8, sw_pot
+        )
+
+        assert np.isclose(
+            interped.LE.iloc[1],
+            (35.23 + 165.80) / 2
+        )
         
+    def _arm_example_df(self, data):
+        """Load US-ARM site data with real gap issues"""
+        config = (
+            data['package_root_dir'] /
+            'examples' /
+            'Config_options' /
+            'config_for_multiple_soil_vars.ini'
+        )
+
+        data_obj = Data(config)
+
+        return (
+            data_obj.df
+            .rename(columns=data_obj.inv_map)
+            .sort_index()
+        )
+
+    def test_real_sunrise_gap_uses_both_endpoints(self, data):
+        df = self._arm_example_df(data)
+
+        test_df = df.loc[
+            '2003-08-31 07:00':'2003-08-31 08:00',
+            ['LE', 'Rn']
+        ].copy()
+
+        assert test_df.loc[
+            '2003-08-31 07:30',
+            'LE'
+        ] != test_df.loc[
+            '2003-08-31 07:30',
+            'LE'
+        ]
+
+        assert test_df.loc[
+            '2003-08-31 07:00',
+            'Rn'
+        ] < 0
+
+        assert test_df.loc[
+            '2003-08-31 07:30',
+            'Rn'
+        ] > 0
+
+        interped = QaQc._interpolate_short_gaps(
+            test_df,
+            max_gap=4,
+            max_night_gap=8
+        )
+
+        expected = (
+            test_df.loc[
+                '2003-08-31 07:00',
+                'LE'
+            ] +
+            test_df.loc[
+                '2003-08-31 08:00',
+                'LE'
+            ]
+        ) / 2
+
+        assert np.isclose(
+            interped.loc[
+                '2003-08-31 07:30',
+                'LE'
+            ],
+            expected
+        )
+
+    def test_real_oversized_gap_is_not_partially_filled(self, data):
+        df = self._arm_example_df(data)
+
+        test_df = df.loc[
+            '2003-02-09 10:30':'2003-02-09 13:30',
+            ['LE', 'Rn']
+        ].copy()
+
+        gap = test_df.loc[
+            '2003-02-09 11:00':'2003-02-09 13:00',
+            'LE'
+        ]
+
+        assert len(gap) == 5
+        assert gap.isna().all()
+
+        interped = QaQc._interpolate_short_gaps(
+            test_df,
+            max_gap=4,
+            max_night_gap=8
+        )
+
+        result_gap = interped.loc[
+            '2003-02-09 11:00':'2003-02-09 13:00',
+            'LE'
+        ]
+
+        assert result_gap.isna().all()
+        
+    def test_subdaily_sw_pot_matches_refet_hourly(self):
+        latitude = 40.0
+        longitude = -75.0
+        utc_offset = -5.0
+
+        index = pd.date_range(
+            '2020-06-21 08:00',
+            periods=9,
+            freq='h'
+        )
+
+        sw_pot = QaQc._calc_subdaily_sw_pot(
+            index,
+            latitude,
+            longitude,
+            utc_offset,
+            1.0
+        )
+
+        midpoint = index + pd.Timedelta(minutes=30)
+        utc_time_mid = (
+            midpoint.hour.to_numpy()
+            + midpoint.minute.to_numpy() / 60
+            - utc_offset
+        ) % 24
+
+        expected = _ra_hourly(
+            np.full(len(index), np.deg2rad(latitude)),
+            np.full(len(index), np.deg2rad(longitude)),
+            midpoint.dayofyear.to_numpy(),
+            utc_time_mid,
+            method='asce'
+        )
+
+        assert np.allclose(
+            sw_pot.to_numpy(),
+            expected,
+            rtol=0,
+            atol=1e-10
+        )
+
+    def test_subdaily_sw_pot_sums_to_daily_ra(self):
+        latitude = 40.0
+        longitude = -75.0
+        utc_offset = -5.0
+
+        index = pd.date_range(
+            '2020-06-21 00:00',
+            periods=48,
+            freq='30min'
+        )
+
+        sw_pot = QaQc._calc_subdaily_sw_pot(
+            index,
+            latitude,
+            longitude,
+            utc_offset,
+            0.5
+        )
+
+        expected = _ra_daily(
+            np.array([np.deg2rad(latitude)]),
+            np.array([index[0].dayofyear]),
+            method='asce'
+        )[0]
+
+        assert np.isclose(
+            sw_pot.sum(),
+            expected,
+            rtol=0,
+            atol=1e-8
+        )
+
+    def test_subdaily_sw_pot_day_and_night(self):
+        latitude = 40.0
+        longitude = -75.0
+        utc_offset = -5.0
+
+        index = pd.date_range(
+            '2020-06-21 00:00',
+            periods=48,
+            freq='30min'
+        )
+
+        sw_pot = QaQc._calc_subdaily_sw_pot(
+            index,
+            latitude,
+            longitude,
+            utc_offset,
+            0.5
+        )
+
+        assert (sw_pot >= 0).all()
+        assert sw_pot.loc['2020-06-21 00:00'] == 0
+        assert sw_pot.loc['2020-06-21 12:00'] > 0
+        assert sw_pot.max() > 0
+
+
+class TestUtil(object):
+
+    @pytest.mark.parametrize(
+        'latitude, longitude, expected',
+        [
+            (40.7584, -82.5154, -5.0),
+            (39.5296, -119.8138, -8.0),
+            (33.4484, -112.0740, -7.0),
+            (28.6139, 77.2090, 5.5),
+        ]
+    )
+    def test_standard_utc_offset(
+            self, latitude, longitude, expected):
+        offset = util.standard_utc_offset(
+            latitude,
+            longitude
+        )
+
+        assert np.isclose(offset, expected)
+

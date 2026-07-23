@@ -7,6 +7,33 @@ module.
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from timezonefinder import TimezoneFinder
+
+_TIMEZONE_FINDER = TimezoneFinder()
+
+
+def standard_utc_offset(latitude, longitude):
+    """
+    Return the standard UTC offset for station coordinates.
+    """
+    timezone_name = _TIMEZONE_FINDER.timezone_at(
+        lng=longitude,
+        lat=latitude
+    )
+
+    if timezone_name is None:
+        raise ValueError(
+            'Could not determine the station time zone.'
+        )
+
+    dt = datetime(2020, 7, 1, 12, tzinfo=ZoneInfo(timezone_name))
+
+    return (
+        dt.utcoffset() - dt.dst()
+    ).total_seconds() / 3600
 
 class Convert(object):
     """
@@ -242,13 +269,17 @@ def monthly_resample(df, cols, agg_str, thresh=0.75):
     ret = pd.DataFrame()
     for c in cols:
         bad_months = mdf.loc[:,(c,'count')] <= thresh * mdf.index.days_in_month
-        if agg_str == 'sum':
-            mdf.loc[:,(c,'days_missing')] =\
-                mdf.index.days_in_month - mdf.loc[:,(c,'count')]
-            ret[c] = mdf.loc[:,(c,agg_str)] +\
-                (mdf.loc[:,(c,'days_missing')] * mdf.loc[:,(c,'mean')])
+        # do not use the mean to fill missing days and then sum for bool vars (ET_gap)
+        if agg_str == 'sum' and not pd.api.types.is_bool_dtype(df[c]):
+            mdf.loc[:, (c, 'days_missing')] = (
+                mdf.index.days_in_month - mdf.loc[:, (c, 'count')]
+            )
+            ret[c] = (
+                mdf.loc[:, (c, agg_str)] +
+                mdf.loc[:, (c, 'days_missing')] * mdf.loc[:, (c, 'mean')]
+            )
         else:
-            ret[c] = mdf.loc[:,(c, agg_str)]
+            ret[c] = mdf.loc[:, (c, agg_str)] # just sum
         ret.loc[bad_months, c] = np.nan
 
     return ret

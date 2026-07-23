@@ -15,14 +15,14 @@ requires = [
     'refet==0.3.10',
     'scikit-learn',
     'xarray',
-    'openpyxl'
+    'openpyxl',
+    'timezonefinder',
+    'tzdata'
 ]
-
-tests_require = ['pytest']
 
 classifiers = [
     'License :: OSI Approved :: BSD License',
-    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.9',
     'Environment :: Console',
     'Development Status :: 4 - Beta',
     'Topic :: Scientific/Engineering',
@@ -36,7 +36,7 @@ setup(
     author='John Volk',
     author_email='john.volk@dri.edu',
     license='BSD3',
-    python_requires='>=3.7',
+    python_requires='>=3.9',
     version=version,
     url='https://github.com/Open-ET/flux-data-qaqc',
     platforms=['Windows','Linux','Mac OS X'],
@@ -48,6 +48,5 @@ setup(
         '': ['*.yml']
     },
     install_requires=requires,
-    tests_require=tests_require,
     include_package_data=True,
 )

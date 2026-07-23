@@ -1,6 +1,53 @@
 Change Log
 ==========
 
+Version 0.3.0
+-------------
+
+Fix sub-daily linear interpolation so that the configured maximum gap length
+applies to the entire consecutive gap. Previously,
+:meth:`pandas.DataFrame.interpolate` with limits applied in both directions
+could completely fill gaps up to twice the configured length.
+
+Interpolate the original continuous time series rather than separating daytime
+and nighttime records before interpolation. This allows valid observations on
+both sides of a short gap to be used when the gap crosses sunrise or sunset.
+
+Leave gaps longer than the applicable limit entirely missing rather than
+partially filling them. Missing values at the beginning or end of a time series
+also remain unchanged because linear interpolation requires valid observations
+on both sides.
+
+Following the ONEFlux/FLUXNET2015 nighttime convention described by
+`Pastorello et al. (2020) <https://doi.org/10.1038/s41597-020-0534-3>`__, calculate sub-daily potential
+incoming shortwave radiation, `sw_pot`, to identify solar night. The
+calculation uses the ASCE-EWRI hourly extraterrestrial-radiation equations,
+generalized to the detected sub-daily period length.
+
+Determine the station standard UTC offset from its latitude and longitude so
+that timestamps recorded in local standard time can be converted to the UTC
+midpoint time required by the sub-daily solar-radiation calculation. This adds
+`timezonefinder` and `tzdata` as package dependencies.
+
+Use the longer nighttime interpolation limit only when `sw_pot` is zero
+throughout the gap and at both bounding observations. As an additional check,
+all available `Rn` values over the same period must be negative. Missing
+`Rn` values do not by themselves prevent use of the nighttime limit. Gaps
+containing daylight, crossing sunrise or sunset, or lacking sufficient solar
+information use the shorter daytime limit. If `max_interp_hours_night` is
+`None`, the daytime interpolation limit is used.
+
+Fix monthly resampling of boolean variables such as `ET_gap` so that missing
+days are not estimated from the monthly mean before summation.
+
+Raise the minimum supported Python version from 3.7 to 3.9.
+
+Add tests for gap interpolation, day-night transitions, known gaps in
+the example flux data, standard UTC offsets, agreement with RefET (ASCE) 
+hourly extraterrestrial radiation, daily radiation totals, and expected 
+daytime and nighttime behavior.
+
+
 Version 0.2.3
 -------------
 

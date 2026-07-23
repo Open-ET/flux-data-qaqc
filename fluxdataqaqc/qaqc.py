@@ -16,7 +16,12 @@ import refet
 
 from .data import Data
 from .plot import Plot
-from .util import monthly_resample, Convert, get_subdaily_timestep_info
+from .util import (
+    monthly_resample,
+    Convert,
+    get_subdaily_timestep_info,
+    standard_utc_offset
+)
 
 class QaQc(Plot, Convert):
     """
@@ -29,13 +34,26 @@ class QaQc(Plot, Convert):
     <https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`__)
     and the Bowen Ratio method. 
     
-    The :obj:`QaQc` object also has multiple tools for temporal frequency
-    aggregation and resampling, estimation of climatic and statistical
-    variables (e.g. ET and potential shortwave radiation), downloading gridMET
-    reference ET, managing data and metadata, interactive validation plots, and
-    managing a structure for input and output data files. Input data is
-    expected to be a :obj:`.Data` instance or a
+    The :obj:`QaQc` object also provides tools for temporal aggregation and
+    resampling, estimation of climatic and statistical variables such as ET and
+    potential shortwave radiation, downloading gridMET reference ET, managing data
+    and metadata, creating interactive validation plots, and managing input and
+    output files. Input data is expected to be a :obj:`.Data` instance or a
     :obj:`pandas.DataFrame`. 
+    
+    When regularly spaced sub-daily data is supplied, short gaps may be filled with
+    linear interpolation before the data is resampled to daily frequency. The
+    interpolation limits are specified in hours and converted internally to the
+    corresponding number of records for the input frequency. For example, a
+    two-hour limit corresponds to four records for half-hourly data and two records
+    for hourly data. 
+    
+    A gap is interpolated only when valid observations occur
+    immediately before and after it and its full length does not exceed the
+    applicable limit. Longer gaps remain entirely missing rather than being
+    partially filled. Interpolation may be applied to available sub-daily variables
+    including ``t_avg``, ``sw_in``, ``ws``, ``vp``, ``LE``, ``H``, ``Rn``, and
+    ``G``.
 
     Keyword Arguments:
         data (:obj:`.Data`): :obj:`.Data` instance to create :obj:`.QaQc` 
@@ -43,25 +61,30 @@ class QaQc(Plot, Convert):
         drop_gaps (bool): default :obj:`True`. If :obj:`True` automatically 
             filter variables on days with sub-daily measurement gaps less than
             ``daily_frac``.
-        daily_frac (float): default 1.00. Fraction of sub-daily data required
-            otherwise the daily value will be filtered out if ``drop_gaps`` is
-            :obj:`True`. E.g. if ``daily_frac = 0.5`` and the input data is
-            hourly, then data on days with less than 12 hours of data will be
-            forced to null within :attr:`QaQc.df`. This is important because 
-            systematic diurnal gaps will affect the autmoatic resampling that
-            occurs when creating a :obj:`QaQc` instance and the daily data is 
-            used in closure corrections, other calculations, and plots. If 
-            sub-daily linear interpolation is applied to energy balance 
-            variables the gaps are counted *after* the interpolation.
-        max_interp_hours (None or float): default 2. Length of largest gap to 
-            fill with linear interpolation in energy balance variables if 
-            input datas temporal frequency is less than daily. This value will
-            be used to fill gaps when :math:`Rn > 0` or :math:`Rn` is missing
-            during each day.
-        max_interp_hours_night (None or float): default 4. Length of largest gap
-            to fill with linear interpolation in energy balance variables if 
-            input datas temporal frequency is less than daily when 
-            :math:`Rn < 0` within 12:00PM-12:00PM daily intervals. 
+        daily_frac (float): Default 1.00. Fraction of sub-daily observations
+            required to retain a daily value when ``drop_gaps`` is
+            :obj:`True`. For example, if ``daily_frac = 0.5`` and the input
+            data is hourly, daily values with fewer than 12 observations are
+            set to null in :attr:`QaQc.df`. This is important because
+            systematic gaps within the day can bias the automatic daily
+            resampling performed during initialization. When sub-daily linear
+            interpolation is enabled, the remaining gaps are counted after
+            interpolation.
+        max_interp_hours (None or float): Default 2. Maximum gap length, in
+            hours, filled with linear interpolation for regularly spaced
+            sub-daily data. This shorter limit is used when the gap contains
+            daylight, crosses between night and day, ``sw_pot`` is
+            unavailable, or available ``Rn`` contains a nonnegative value.
+            Set to :obj:`None` to disable sub-daily interpolation. Gaps longer
+            than this limit remain entirely missing.
+        max_interp_hours_night (float): Default 4. Maximum gap length, in
+            hours, filled during confirmed nighttime conditions. The longer
+            nighttime limit is used only when ``sw_pot`` is present and less
+            than or equal to zero throughout the gap and at the observations
+            immediately before and after it. Any available ``Rn`` values over
+            the same period must also be negative. Missing ``Rn`` values do
+            not by themselves prevent use of the nighttime limit. Gaps longer
+            than this limit remain entirely missing.
     
     Attributes:
         agg_dict (dict): Dictionary with internal variable names as keys and
@@ -694,80 +717,59 @@ class QaQc(Plot, Convert):
 
             if max_interp_hours is not None:
                 # linearly interpolate energy balance components only
-                max_gap = int(round(max_interp_hours/24 * max_times_in_day))
+                max_gap = int(round(max_interp_hours / 24 * max_times_in_day))
+                
+                if max_interp_hours_night is None:
+                    max_interp_hours_night = max_interp_hours
+                    
                 max_night_gap = int(
-                    round(max_interp_hours_night/24 * max_times_in_day)
+                    round(max_interp_hours_night / 24 * max_times_in_day)
                 )
+
                 print(
-                    'Linearly interpolating gaps in energy balance components '
-                    'up to {} hours when Rn < 0 and up to {} hours when '
-                    'Rn >= 0.'.format(max_interp_hours_night, max_interp_hours)
+                    'Linearly interpolating complete internal gaps up to {} hours '
+                    'when sw_pot <= 0 and all available Rn values are < 0, and '
+                    'up to {} hours otherwise.'
+                    .format(max_interp_hours_night, max_interp_hours)
                 )
+
+                sw_pot = None
+
+                if max_night_gap > max_gap:
+                    period_hours = 24 / max_times_in_day
+
+                    utc_offset = standard_utc_offset(
+                        self.latitude,
+                        self.longitude
+                    )
+
+                    sw_pot = self._calc_subdaily_sw_pot(
+                        df.index,
+                        self.latitude,
+                        self.longitude,
+                        utc_offset,
+                        period_hours
+                    )
 
                 tmp = df[interp_vars].apply(
                     pd.to_numeric, errors='coerce'
                 )
 
-                if 'Rn' in energy_bal_vars:
-                    grped_night = tmp.loc[
-                        (tmp.Rn < 0) & (tmp.Rn.notna())
-                    ].copy()
-                    grped_night.drop_duplicates(inplace=True)
-                    grped_night = grped_night.groupby(
-                        pd.Grouper(freq='24h', offset='12h'), 
-                            group_keys=True).apply(
-                                lambda x: x.interpolate(
-                                    method='linear', limit=max_night_gap, 
-                                    limit_direction='both', limit_area='inside'
-                            )
-                        )
-                    grped_day = tmp.loc[(tmp.Rn >= 0) | (tmp.Rn.isna())].copy()
-                    grped_day.drop_duplicates(inplace=True)
-                    grped_day = grped_day.groupby(
-                        pd.Grouper(freq='24h'),
-                            group_keys=True).apply(
-                                lambda x: x.interpolate(
-                                    method='linear', limit=max_gap, 
-                                    limit_direction='both', limit_area='inside'
-                            )
-                        )
-                else:
-                    grped_night = tmp.copy()
-                    grped_night.drop_duplicates(inplace=True)
-                    grped_night = grped_night.groupby(
-                        pd.Grouper(freq='24h', offset='12h'),
-                            group_keys=True).apply(
-                                lambda x: x.interpolate(
-                                    method='linear', limit=max_night_gap, 
-                                    limit_direction='both', limit_area='inside'
-                            )
-                        )
-                    grped_day = tmp.copy()
-                    grped_day.drop_duplicates(inplace=True)
-                    grped_day = grped_day.groupby(
-                        pd.Grouper(freq='24h'),
-                            group_keys=True).apply(
-                                lambda x: x.interpolate(
-                                    method='linear', limit=max_gap, 
-                                    limit_direction='both', limit_area='inside'
-                            )
-                        )
+                interped = self._interpolate_short_gaps(
+                    tmp,
+                    max_gap,
+                    max_night_gap,
+                    sw_pot=sw_pot
+                )
 
-                # get full datetime index from grouper operation
-                if type(grped_night.index) is pd.MultiIndex: 
-                    grped_night.index = grped_night.index.get_level_values(1)
-
-                if type(grped_day.index) is pd.MultiIndex:
-                    grped_day.index = grped_day.index.get_level_values(1)
-
-                interped = pd.concat([grped_day, grped_night])
-                if interped.index.duplicated().any():
-                    interped = interped.loc[
-                        ~interped.index.duplicated(keep='first')
-                    ]
                 # overwrite non-interpolated daily means
-                means[interp_vars] =\
-                    interped[interp_vars].resample('D').mean().copy()
+                means[interp_vars] = (
+                    interped[interp_vars]
+                    .resample('D')
+                    .mean()
+                    .copy()
+                )
+
                 if 't_avg' in interp_vars:
                     means['t_min'] = interped.t_avg.resample('D').min()
                     means['t_max'] = interped.t_avg.resample('D').max()
@@ -775,8 +777,10 @@ class QaQc(Plot, Convert):
                     self.units['t_min'] = self.units['t_avg']
                     self.variables['t_max'] = 't_max'
                     self.units['t_max'] = self.units['t_avg']
-                    interp_vars = interp_vars + ['t_min','t_max']
-                    interped[['t_min','t_max']] = means[['t_min','t_max']]
+                    interp_vars = interp_vars + ['t_min', 't_max']
+                    interped[['t_min', 't_max']] = means[
+                        ['t_min', 't_max']
+                    ]
                     
             if drop_gaps:
                 # make sure round errors do not affect this value
@@ -788,7 +792,7 @@ class QaQc(Plot, Convert):
                 ]
 
                 # interpolate first before counting gaps
-                if max_interp_hours:
+                if max_interp_hours is not None:
                     df.loc[:, interp_vars] = interped.reindex(df.index)[interp_vars]
 
                 subdaily_counts = (
@@ -2021,6 +2025,221 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
 
         if ret:
             return ret
+
+    @staticmethod
+    def _calc_subdaily_sw_pot(
+            index, latitude, longitude, utc_offset, period_hours):
+        """Calculate extraterrestrial radiation for sub-daily periods.
+
+        Uses the ASCE-EWRI (2005) hourly extraterrestrial-radiation
+        equations, generalized to the detected period length following
+        FAO-56 equations 28-30 for hourly or shorter periods.
+
+        The datetime index is assumed to represent the beginning of each
+        interval and to use local standard time.
+        """
+        midpoint = index + pd.to_timedelta(
+            period_hours / 2,
+            unit='h'
+        )
+
+        doy = midpoint.dayofyear.to_numpy()
+        time_mid = (
+            midpoint.hour.to_numpy()
+            + midpoint.minute.to_numpy() / 60
+            + midpoint.second.to_numpy() / 3600
+            - utc_offset
+        )
+        time_mid = np.mod(time_mid, 24)
+
+        lat = np.deg2rad(latitude)
+        lon = np.deg2rad(longitude)
+
+        doy_fraction = 2 * np.pi * doy / 365
+        dr = 1 + 0.033 * np.cos(doy_fraction)
+        delta = 0.409 * np.sin(doy_fraction - 1.39)
+
+        b = 2 * np.pi * (doy - 81) / 364
+        sc = (
+            0.1645 * np.sin(2 * b)
+            - 0.1255 * np.cos(b)
+            - 0.0250 * np.sin(b)
+        )
+
+        solar_time = (
+            time_mid
+            + lon * 24 / (2 * np.pi)
+            + sc
+            - 12
+        )
+        omega = 2 * np.pi * solar_time / 24
+        omega = np.mod(omega + np.pi, 2 * np.pi) - np.pi
+
+        omega_s = np.arccos(
+            np.clip(-np.tan(lat) * np.tan(delta), -1, 1)
+        )
+
+        half_period = np.pi * period_hours / 24 #
+
+        omega1 = np.clip(
+            omega - half_period,
+            -omega_s,
+            omega_s
+        )
+        omega2 = np.clip(
+            omega + half_period,
+            -omega_s,
+            omega_s
+        )
+        omega1 = np.minimum(omega1, omega2)
+
+        theta = (
+            (omega2 - omega1) * np.sin(lat) * np.sin(delta)
+            + np.cos(lat)
+            * np.cos(delta)
+            * (np.sin(omega2) - np.sin(omega1))
+        )
+
+        ra = (12 / np.pi) * 4.92 * dr * theta
+        ra = np.maximum(ra, 0)
+        ra[ra < 1e-10] = 0
+
+        return pd.Series(
+            ra,
+            index=index,
+            name='sw_pot'
+        )
+
+    @staticmethod
+    def _interpolate_short_gaps(df, max_gap, max_night_gap, sw_pot=None):
+        """
+        Linearly interpolate short gaps in regularly spaced subdaily data.
+
+        A gap is filled only when it has valid observations immediately before and
+        after it and the number of missing records does not exceed the applicable
+        limit. Gaps that exceed the limit are left entirely missing rather than being
+        partially filled.
+
+        The longer nighttime limit is used only when ``sw_pot`` is present and equal
+        to zero throughout the gap and at both bounding observations. Any available
+        ``Rn`` values over the same period must also be negative. Missing ``Rn`` values
+        do not by themselves prevent use of the nighttime limit.
+
+        The shorter limit is used when the gap contains daylight, crosses between
+        night and day, ``sw_pot`` is missing, or any available ``Rn`` value is
+        nonnegative.
+
+        The function can interpolate any numeric columns supplied in ``df``. In the
+        ``QaQc`` workflow these may include ``t_avg``, ``sw_in``, ``ws``, ``vp``,
+        ``LE``, ``H``, ``Rn``, and ``G``.
+
+        Arguments:
+            df (:obj:`pandas.DataFrame`): Regularly spaced subdaily time series.
+            max_gap (int): Maximum number of consecutive missing records to fill
+                during daylight or when nighttime cannot be confirmed.
+            max_night_gap (int): Maximum number of consecutive missing records to
+                fill during confirmed nighttime conditions.
+            sw_pot (:obj:`pandas.Series` or None): Subdaily potential incoming
+                shortwave radiation aligned with ``df``. Values equal to zero indicate
+                solar night. Default :obj:`None`.
+
+        Returns:
+            :obj:`pandas.DataFrame`: Copy of ``df`` with eligible gaps interpolated.
+        """
+
+        interped = df.copy()
+
+        if sw_pot is None:
+            sw_pot = pd.Series(np.nan, index=df.index)
+        else:
+            sw_pot = sw_pot.reindex(df.index)
+
+        if 'Rn' in df.columns:
+            rn = pd.to_numeric(df.Rn, errors='coerce')
+        else:
+            rn = pd.Series(np.nan, index=df.index)
+
+        for col in df.columns:
+            vals = df[col].copy()
+            missing = vals.isna()
+
+            if not missing.any():
+                continue
+
+            # Calculate possible interpolated values for all gaps.
+            # These values are only used later when the entire gap meets the rules
+            fill_vals = vals.interpolate(
+                method='linear',
+                limit_area='inside'
+            )
+
+            gap_start = None
+
+            # Find each continuous run of missing values
+            for i, is_missing in enumerate(missing):
+                if is_missing and gap_start is None:
+                    gap_start = i
+
+                # No open gap to evaluate yet.
+                if gap_start is None:
+                    continue
+
+                at_end = i == len(vals) - 1
+
+                # A gap ends when a valid value is found or the series ends
+                if not is_missing or at_end:
+                    gap_end = i if is_missing else i - 1
+
+                    # Linear interpolation requires valid observations immediately
+                    # before and after the gap. Gaps at time series start or end
+                    # remain missing.
+                    if gap_start > 0 and gap_end < len(vals) - 1:
+                        # Include both bounding observations when classifying the gap
+                        # and deciding which maximum gap length applies.
+                        span = slice(gap_start - 1, gap_end + 2)
+                        sw_pot_span = sw_pot.iloc[span]
+                        rn_span = rn.iloc[span]
+
+                        # Potential shortwave radiation defines solar night.
+                        # Any missing or positive value means nighttime cannot be
+                        # confidently confirmed.
+                        solar_night = (
+                            sw_pot_span.notna().all() and
+                            (sw_pot_span <= 0).all()
+                        )
+
+                        # Available Rn values provide an additional check. Missing Rn
+                        # values are ignored, and entirely missing Rn does not prevent
+                        # confirmed solar night from using the nighttime limit.
+                        rn_available = rn_span.dropna()
+                        rn_allows_night = (
+                            rn_available.empty or
+                            (rn_available < 0).all()
+                        )
+
+                        # Use the longer limit only for confirmed nighttime gaps.
+                        # Gaps containing daylight, crossing between night and day, or lacking
+                        # enough sw_pot information to confirm nighttime use max_gap.
+                        if solar_night and rn_allows_night:
+                            allowed_gap = max_night_gap
+                        else:
+                            allowed_gap = max_gap
+
+                        # Fill the entire gap only when its length is within the
+                        # applicable limit. Longer gaps remain completely missing.
+                        gap_length = gap_end - gap_start + 1
+                        if gap_length <= allowed_gap:
+                            vals.iloc[gap_start:gap_end + 1] = fill_vals.iloc[
+                                gap_start:gap_end + 1
+                            ]
+
+                    # Reset before searching for the next missing run.
+                    gap_start = None
+
+            interped[col] = vals
+
+        return interped
+
 
 def _drop_cols(df, cols):
     """Drop columns from dataframe if they exist """

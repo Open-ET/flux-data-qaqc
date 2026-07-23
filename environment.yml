@@ -4,10 +4,12 @@ channels:
 dependencies:
   - bokeh>=3.0.0
   - pandas>=1.0
-  - python>=3.7
+  - python>=3.9
   - refet=0.3.10 
   - scikit-learn
   - netCDF4
   - numpy>=1.15
   - xarray
   - openpyxl
+  - timezonefinder
+  - tzdata

@@ -59,7 +59,7 @@ Now install using PIP:
 
    pip install fluxdataqaqc
 
-Now all package modules and tools should be available in your Python environment PATH and able to be imported. Note if you did not install the Conda virtual environment above, PIP should install dependencies automatically but be sure to be using a version of Python above or equal to 3.4. To test that everything has installed correctly by opening a Python interpretor or IDE and run the following:
+Now all package modules and tools should be available in your Python environment PATH and able to be imported. Note if you did not install the Conda virtual environment above, PIP should install dependencies automatically but be sure to be using a version of Python above or equal to 3.9. To test that everything has installed correctly by opening a Python interpreter or IDE and run the following:
 
 .. code-block:: python
 
