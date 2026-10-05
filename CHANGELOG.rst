@@ -1,6 +1,55 @@
 Change Log
 ==========
 
+Version 0.3.1
+-------------
+
+Bug fix and compatibility release. Computed values are unchanged for the
+example datasets with the previously required ``refet`` 0.3.10.
+
+Call :mod:`refet` with keyword arguments in :meth:`.Data.hourly_ASCE_refET`
+and :meth:`.QaQc.daily_ASCE_refET`. ``refet`` 0.4 changed the order of its
+arguments, so environments with ``refet`` 0.4 (e.g. installed from the
+previous ``requirements.txt``) produced incorrect ASCE reference ET. Also
+support the renamed radiation functions in ``refet`` 0.5.
+
+Raise a :obj:`ValueError` when creating a :obj:`.Data` object if units are
+missing from the config file for variables used in calculations or unit
+conversions (:attr:`.Convert.required_units`) or for multiple soil heat flux
+variables, units are never assumed. Missing units for variables only used in
+plot labels, e.g. relative humidity or soil moisture, still give a warning.
+Previously missing units caused an unrelated error in :obj:`.QaQc`.
+
+Fix :meth:`.QaQc.download_gridMET` with pandas 3 (`#34
+<https://github.com/Open-ET/flux-data-qaqc/issues/34>`__), when passing a
+single variable name, e.g. ``'ETr'``, and when downloading again. If the
+gridMET server cannot be reached an error is printed and ET gap filling is
+skipped instead of raising an exception.
+
+Save the gridMET file path relative to the config file and update only that
+line of the config file with the new :func:`.util.set_config_option`.
+Previously the full config file was rewritten with an absolute path, which
+removed all comments. Absolute paths in existing config files still work.
+
+Fix :meth:`.QaQc.lin_regress` and ``QaQc.correct_data(meth='lin_regress')``
+with newer versions of scikit-learn. Accept ``anemometer_height`` from the
+config file for ASCE reference ET (it was read as text), and raise a
+:obj:`ValueError` for invalid ``reference`` or ``refET`` options.
+
+Read Excel file headers with pandas instead of the openpyxl shared strings
+table. Fix config entries for QC flags of multiple soil variables, e.g.
+``g_1_qc``, which raised an error and were averaged into G. Accept ``ppm``
+for CO2 mole fraction and ``nondimensional`` for the stability parameter.
+
+Remove ``QaQc.from_dataframe`` which was not functional.
+
+Require pandas >= 2.2 (needed for monthly resampling) and allow ``refet`` >=
+0.3.10. ``requirements.txt`` and ``environment.yml`` now match ``setup.py``.
+Automated tests run on Python 3.9 with the oldest supported dependency
+versions and on Python 3.11 and 3.13 with the newest, and new tests cover
+these fixes, unit handling, gridMET download (without network access), and
+writing and plotting daily and monthly output.
+
 Version 0.3.0
 -------------
 
