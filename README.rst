@@ -37,11 +37,10 @@ Using PIP:
 
 PIP should install the necessary dependencies however it is recommended to use
 conda and first install the provided virtual environment. This is useful to
-avoid changing your local Python environment. Note, ``flux-data-qaqc`` has been
-tested for Python 3.7+, although it may work with versions greater than or
-equal to 3.4.
+avoid changing your local Python environment. Note, ``flux-data-qaqc``
+requires Python 3.9 or newer and is tested with Python 3.9, 3.11, and 3.13.
 
-First make sure you have the ``fluxdataqaqc`` environment file, you can download it `here <https://raw.githubusercontent.com/Open-ET/flux-data-qaqc/master/environment.yml?token=AB3BJKUKL2ELEM7WPLYLXFC45WQOG>`_. Next to install run,
+First make sure you have the ``fluxdataqaqc`` environment file, you can download it `here <https://raw.githubusercontent.com/Open-ET/flux-data-qaqc/master/environment.yml>`_. Next to install run,
 
 .. code-block:: bash
 

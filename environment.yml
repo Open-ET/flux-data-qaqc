@@ -3,9 +3,9 @@ channels:
   - conda-forge
 dependencies:
   - bokeh>=3.0.0
-  - pandas>=1.0
+  - pandas>=2.2
   - python>=3.9
-  - refet=0.3.10 
+  - refet>=0.3.10
   - scikit-learn
   - netCDF4
   - numpy>=1.15

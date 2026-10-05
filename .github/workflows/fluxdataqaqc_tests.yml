@@ -1,32 +1,43 @@
 name: Automated tests
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
   build-linux:
     runs-on: ubuntu-latest
+    strategy:
+      # finish all versions even if one fails
+      fail-fast: false
+      matrix:
+        include:
+          # oldest supported Python and dependency versions
+          - python-version: '3.9'
+            pins: "pandas==2.2.0 'numpy<2' refet==0.3.10"
+          - python-version: '3.11'
+            pins: ''
+          # newest versions of all dependencies
+          - python-version: '3.13'
+            pins: ''
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
       with:
-        python-version: 3.9
+        python-version: ${{ matrix.python-version }}
 
-    - name: Install dependencies
+    - name: Install package and dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install -r requirements.txt
-        python -m pip install .
+        python -m pip install . ${{ matrix.pins }}
+        python -m pip install pytest flake8
 
     - name: Lint with flake8
       run: |
-        python -m pip install flake8
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --builtins='Path'
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Test with pytest
       run: |
-        python -m pip install --upgrade pytest
         python -m pytest

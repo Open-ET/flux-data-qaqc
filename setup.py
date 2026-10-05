@@ -11,8 +11,8 @@ requires = [
     'bokeh>=3',
     'netCDF4',
     'numpy>=1.15',
-    'pandas>=1.0',
-    'refet==0.3.10',
+    'pandas>=2.2',
+    'refet>=0.3.10',
     'scikit-learn',
     'xarray',
     'openpyxl',
@@ -23,6 +23,10 @@ requires = [
 classifiers = [
     'License :: OSI Approved :: BSD License',
     'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
     'Environment :: Console',
     'Development Status :: 4 - Beta',
     'Topic :: Scientific/Engineering',
@@ -44,8 +48,7 @@ setup(
     classifiers=classifiers,
     packages=['fluxdataqaqc'],
     package_data={
-        'examples': ['Basic_usage/*'],
-    	'examples': ['Config_options/*'],
+        'examples': ['Basic_usage/*', 'Config_options/*'],
         '': ['*.yml']
     },
     install_requires=requires,

@@ -628,6 +628,30 @@ class TestQaQc(object):
         assert 0 < results['r2 (coef. det.)'].iloc[0] <= 1
         assert 'ET_corr' in q.df.rename(columns=q.inv_map).columns
 
+    def test_write_daily_and_monthly(self, data, tmp_path):
+        # monthly resampling uses the 'ME' alias which needs pandas >= 2.2
+        q = QaQc(Data(self._qc_example_config(data, tmp_path)))
+        q.correct_data(et_gap_fill=False)
+        out_dir = tmp_path / 'output'
+        q.write(out_dir=out_dir)
+        daily = pd.read_csv(
+            out_dir / f'{q.site_id}_daily_data.csv', index_col=0
+        )
+        monthly = pd.read_csv(
+            out_dir / f'{q.site_id}_monthly_data.csv', index_col=0
+        )
+        assert len(daily) == len(q.df)
+        assert len(monthly) == len(q.monthly_df)
+        assert {'ET', 'ET_corr', 'ebr_corr'}.issubset(monthly.columns)
+
+    def test_QaQc_plots(self, data, tmp_path):
+        q = QaQc(Data(self._qc_example_config(data, tmp_path)))
+        q.correct_data(et_gap_fill=False)
+        out_file = tmp_path / 'plots.html'
+        q.plot(out_file=out_file)
+        assert q.plot_file == out_file
+        assert out_file.is_file()
+
     def test_invalid_refET(self, data, tmp_path):
         q = QaQc(Data(self._qc_example_config(data, tmp_path)))
         with pytest.raises(ValueError):
