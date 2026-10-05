@@ -1,6 +1,13 @@
 Change Log
 ==========
 
+Version 0.3.3
+-------------
+
+Same code as intended for version 0.3.2. The version 0.3.2 files on PyPI were
+built by mistake from a working copy that included unreleased changes to the
+energy balance ratio correction, that release has been yanked.
+
 Version 0.3.2
 -------------
 
