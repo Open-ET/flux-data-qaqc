@@ -953,13 +953,17 @@ class Data(Plot, Convert):
             needs_units = (
                 var in Convert.required_units or var.startswith('g_')
             )
-            if needs_units and self.units.get(var) is None:
-                if var in self.variable_names_dict:
-                    config_key = self.variable_names_dict[var].replace(
-                        '_col', '_units'
-                    )
-                else:
-                    config_key = '{}_units'.format(var)
+            if not needs_units:
+                continue
+            if var in self.variable_names_dict:
+                config_key = self.variable_names_dict[var].replace(
+                    '_col', '_units'
+                )
+            else:
+                config_key = '{}_units'.format(var)
+            # check the config itself, units of a g_ variable that uses the
+            # same column as G are not stored in Data.units
+            if not self.config.get('DATA', config_key, fallback=None):
                 missing.append('{} ({})'.format(var, config_key))
 
         if missing:

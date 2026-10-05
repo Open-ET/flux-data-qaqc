@@ -1,6 +1,14 @@
 Change Log
 ==========
 
+Version 0.3.2
+-------------
+
+Fix the check for missing units added in version 0.3.1, which raised an error
+for config files where a multiple soil heat flux entry uses the same column
+as the ground heat flux, e.g. ``ground_flux_col = G`` and ``g_1 = G``, even
+though its units were given. The check now reads units from the config file.
+
 Version 0.3.1
 -------------
 
