@@ -4,6 +4,7 @@ Collection of utility objects and functions for the :mod:`fluxdataqaqc`
 module.
 """
 
+import re
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -34,6 +35,78 @@ def standard_utc_offset(latitude, longitude):
     return (
         dt.utcoffset() - dt.dst()
     ).total_seconds() / 3600
+
+def set_config_option(config_file, section, option, value):
+    """
+    Set one option in a config file without rewriting the rest of the file.
+
+    :meth:`configparser.ConfigParser.write` drops comments and blank
+    lines, so the file is edited as text instead: if ``option`` already
+    exists in ``section`` that line is replaced, otherwise a new line is
+    added after the last option in the section. Everything else is left
+    as is.
+
+    Arguments:
+        config_file (str or :obj:`pathlib.Path`): path to config file.
+        section (str): section name, e.g. 'METADATA'.
+        option (str): option name, matched without regard to case.
+        value (str): new value for the option.
+
+    Returns:
+        :obj:`None`
+
+    Raises:
+        ValueError: if ``section`` is not found in ``config_file``.
+
+    Example:
+        >>> set_config_option(
+        >>>     'config.ini', 'METADATA', 'gridMET_file_path', 'grid.csv'
+        >>> )
+    """
+    config_file = Path(config_file)
+    lines = config_file.read_text().splitlines(keepends=True)
+    new_line = '{} = {}\n'.format(option, value)
+
+    # find the section and the existing option line if there is one
+    section_start = None
+    section_end = len(lines)
+    option_line = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        is_header = stripped.startswith('[') and stripped.endswith(']')
+        if is_header and section_start is not None:
+            section_end = i
+            break
+        if is_header and stripped[1:-1].strip() == section:
+            section_start = i
+        elif section_start is not None and \
+                not stripped.startswith(('#', ';')):
+            # option name is the text before the first = or :
+            key = re.split('[=:]', stripped)[0].strip()
+            if key.lower() == option.lower():
+                option_line = i
+
+    if section_start is None:
+        raise ValueError(
+            'ERROR: [{}] section not found in {}'.format(section, config_file)
+        )
+
+    if option_line is not None:
+        lines[option_line] = new_line
+    else:
+        # add after the last option of the section, blank lines and
+        # comments just above the next section header stay with that header
+        insert_at = section_end
+        while insert_at > section_start + 1 and (
+                not lines[insert_at - 1].strip() or
+                lines[insert_at - 1].strip().startswith(('#', ';'))):
+            insert_at -= 1
+        if not lines[insert_at - 1].endswith('\n'):
+            lines[insert_at - 1] += '\n'
+        lines.insert(insert_at, new_line)
+
+    config_file.write_text(''.join(lines))
+
 
 class Convert(object):
     """
@@ -132,7 +205,10 @@ class Convert(object):
             'm_to_mm': self._m_to_mm,
             'f_to_c': self._f_to_c,
             'mj/m2_to_w/m2': self._mj_per_m2_to_watts_per_m2,
-            'mph_to_m/s': self._mph_to_m_per_s # miles/hr to meters/sec
+            'mph_to_m/s': self._mph_to_m_per_s, # miles/hr to meters/sec
+            # allowable aliases of the same unit, values are unchanged
+            'ppm_to_umol/mol': self._no_change,
+            'nondimensional_to_dimensionless': self._no_change,
         }
 
     @classmethod
@@ -179,6 +255,10 @@ class Convert(object):
         )
         df = convert_func(df, var_name)
 
+        return df
+
+    def _no_change(self, df, var_name):
+        # unit names differ but values are the same, e.g. ppm and umol/mol
         return df
 
     def _in_to_mm(self, df, var_name):

@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
 
+import configparser
+import shutil
 import pytest
 from pathlib import Path
-from refet.calcs import _ra_daily, _ra_hourly
 
 import numpy as np
 import pandas as pd
+import xarray
+# refet >= 0.5 renamed its radiation functions (dropped leading underscore)
+try:
+    from refet.calcs import ra_daily as _ra_daily, ra_hourly as _ra_hourly
+except ImportError:
+    from refet.calcs import _ra_daily, _ra_hourly
 
 from fluxdataqaqc import Data
 from fluxdataqaqc import QaQc
@@ -28,8 +35,78 @@ def data():
     d['package_root_dir'] = package_root_dir
 
     return d
-    
-    
+
+
+def _tmp_config(config, tmp_path, set_opts=None, remove_opts=None):
+    """
+    Copy an example config to a temporary directory so tests can change it.
+
+    The file is copied as text so comments are kept, and the climate file
+    path is made absolute so the copy still reads the example data in
+    place. ``set_opts`` is a list of (section, option, value) tuples and
+    ``remove_opts`` a list of (section, option) tuples, options to remove
+    are matched by name in any section.
+    """
+    config = Path(config)
+    out_file = Path(tmp_path) / config.name
+    shutil.copy(config, out_file)
+
+    cp = configparser.ConfigParser(interpolation=None)
+    cp.read(config)
+    climate_file = config.parent / cp.get('METADATA', 'climate_file_path')
+    util.set_config_option(
+        out_file, 'METADATA', 'climate_file_path', str(climate_file.resolve())
+    )
+    for section, option, value in set_opts or []:
+        util.set_config_option(out_file, section, option, value)
+
+    # remove options by dropping their lines
+    if remove_opts:
+        names = [option.lower() for section, option in remove_opts]
+        lines = out_file.read_text().splitlines(keepends=True)
+        lines = [
+            line for line in lines
+            if line.split('=')[0].strip().lower() not in names
+        ]
+        out_file.write_text(''.join(lines))
+
+    return out_file
+
+
+def _fake_gridMET_server(fail=False):
+    """
+    Stand-in for :func:`xarray.open_dataset` on the gridMET THREDDS server.
+
+    Returns small gridMET-like datasets with constant values so gridMET
+    download and gap filling can be tested without network access.
+    """
+    # constant daily values for each gridMET variable
+    values = {
+        'daily_mean_reference_evapotranspiration_alfalfa': 6.0,
+        'daily_mean_reference_evapotranspiration_grass': 5.0,
+        'precipitation_amount': 1.0,
+    }
+
+    def open_dataset(url, **kwargs):
+        if fail:
+            raise OSError('NetCDF: I/O failure (test)')
+        meta = [
+            m for m in QaQc.gridMET_meta.values() if m['nc_suffix'] in url
+        ][0]
+        days = pd.date_range('2008-01-01', '2013-12-31', name='day')
+        lats = [36.40, 36.44]
+        lons = [-99.44, -99.40]
+        data = np.full(
+            (len(days), len(lats), len(lons)), values[meta['name']]
+        )
+        return xarray.Dataset(
+            {meta['name']: (('day', 'lat', 'lon'), data), 'crs': 0},
+            coords={'day': days, 'lat': lats, 'lon': lons}
+        )
+
+    return open_dataset
+
+
 class TestData(object):
 
     @pytest.fixture(autouse=True)
@@ -107,7 +184,18 @@ class TestData(object):
     def test_ACSE_refET(self):
         ts = self.data_obj.hourly_ASCE_refET()
         assert len(ts) == 47544
-        #assert np.isclose(ts.mean(), 0.1830681034395387)
+        # same value for refet 0.3.10, 0.4 and 0.5 (keyword arguments)
+        assert np.isclose(ts.mean(), 0.1830681034395387)
+
+    def test_ASCE_refET_anemometer_height_from_config(self):
+        # config values are strings, this used to raise a TypeError
+        self.data_obj.config.set('METADATA', 'anemometer_height', '2')
+        ts = self.data_obj.hourly_ASCE_refET()
+        assert np.isclose(ts.mean(), 0.1830681034395387)
+
+    def test_ASCE_refET_invalid_reference(self):
+        with pytest.raises(ValueError):
+            self.data_obj.hourly_ASCE_refET(reference='medium')
 
     def test_Data_plots(self, tmp_path):
         assert self.data_obj.plot_file is None
@@ -150,9 +238,55 @@ class TestData(object):
             d.soil_var_weight_pairs.get('g_1').get('weight'), 
             0.045454545454545456
         )
-        g_mean = df[['g_1', 'g_2', 'g_3','g_4']].mean(1)
+        g_mean = df[['g_1', 'g_2', 'g_3','g_4']].mean(axis=1)
         g_weighted_mean = df.G
         assert (g_mean != g_weighted_mean).any()
+
+    def test_missing_units_raise(self, data, tmp_path):
+        # units are never assumed for variables used in calculations
+        config = data['package_root_dir']/'examples'\
+            /'Config_options'/'config_for_QC_flag_filtering.ini'
+        config = _tmp_config(
+            config, tmp_path,
+            remove_opts=[('DATA', 'latent_heat_flux_units')]
+        )
+        with pytest.raises(ValueError, match='latent_heat_flux_units'):
+            Data(config)
+
+    def test_missing_units_for_plot_only_variable(self, data, tmp_path):
+        # potential shortwave units are only used for plot labels
+        config = data['package_root_dir']/'examples'\
+            /'Config_options'/'config_for_QC_flag_filtering.ini'
+        config = _tmp_config(
+            config, tmp_path, remove_opts=[('DATA', 'shortwave_pot_units')]
+        )
+        q = QaQc(Data(config))
+        assert q.units.get('sw_pot') is None
+        assert q.units.get('LE') == 'w/m2'
+
+    def test_excel_header_and_data(self):
+        d = Data(self.fluxnet_config)
+        raw = pd.read_excel(d.climate_file)
+        # header is the first row of the first sheet
+        assert list(d.header) == list(raw.columns)
+        df = d.df
+        raw = raw.replace(d.na_val, np.nan)
+        for col in ['LE_F_MDS', 'H_F_MDS', 'NETRAD', 'G_F_MDS']:
+            assert np.isclose(df[col].mean(), raw[col].mean())
+
+    def test_soil_var_qc_flag_names(self, data, tmp_path):
+        # QC name for one of multiple soil heat flux variables
+        config = data['package_root_dir']/'examples'\
+            /'Config_options'/'config_for_multiple_soil_vars.ini'
+        config = _tmp_config(
+            config, tmp_path, set_opts=[('DATA', 'g_1_qc', 'G_2_1_1')]
+        )
+        d = Data(config)
+        # QC column is not treated as another soil heat flux variable
+        assert 'g_1_qc' not in d.variables
+        assert 'g_1_qc' not in d.soil_var_weight_pairs
+        assert d.variables['g_1_qc_flag'] == 'G_2_1_1'
+        assert d.qc_var_pairs['G_1_1_1'] == 'G_2_1_1'
 
     def test_calc_pes(self):
         df = self.data_obj.df.rename(columns=self.data_obj.inv_map)
@@ -475,8 +609,144 @@ class TestQaQc(object):
         assert sw_pot.loc['2020-06-21 12:00'] > 0
         assert sw_pot.max() > 0
 
+    def _qc_example_config(self, data, tmp_path, **kwargs):
+        """Daily US-AR1 example copied to a temp dir (gridMET writes)"""
+        config = (
+            data['package_root_dir'] /
+            'examples' /
+            'Config_options' /
+            'config_for_QC_flag_filtering.ini'
+        )
+        return _tmp_config(config, tmp_path, **kwargs)
+
+    def test_lin_regress_correction(self, data, tmp_path):
+        q = QaQc(Data(self._qc_example_config(data, tmp_path)))
+        q.correct_data(meth='lin_regress', et_gap_fill=False)
+        results = q.lin_regress_results
+        assert q.corrected
+        assert q.corr_meth == 'lin_regress'
+        assert 0 < results['r2 (coef. det.)'].iloc[0] <= 1
+        assert 'ET_corr' in q.df.rename(columns=q.inv_map).columns
+
+    def test_invalid_refET(self, data, tmp_path):
+        q = QaQc(Data(self._qc_example_config(data, tmp_path)))
+        with pytest.raises(ValueError):
+            q.correct_data(refET='etr')
+
+    def test_daily_ASCE_refET_anemometer_height_from_config(self, data):
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        q = QaQc(Data(config))
+        q.config.set('METADATA', 'anemometer_height', '2')
+        q.daily_ASCE_refET()
+        eto = q.df.rename(columns=q.inv_map).ASCE_ETo
+        q.daily_ASCE_refET(anemometer_height=2.0)
+        eto_float = q.df.rename(columns=q.inv_map).ASCE_ETo
+        assert np.allclose(eto, eto_float, equal_nan=True)
+        assert 4 < eto.mean() < 5
+        with pytest.raises(ValueError):
+            q.daily_ASCE_refET(reference='medium')
+
+    def test_download_gridMET_single_variable(
+            self, data, tmp_path, monkeypatch):
+        monkeypatch.setattr(xarray, 'open_dataset', _fake_gridMET_server())
+        config = self._qc_example_config(data, tmp_path)
+        config_before = config.read_text().splitlines()
+        q = QaQc(Data(config))
+        # a single name used to be split into characters
+        q.download_gridMET('ETr')
+        df = q.df
+        assert 'gridMET_ETr' in df.columns
+        assert 'gridMET_ETo' not in df.columns
+        assert np.isclose(df.gridMET_ETr.mean(), 6.0)
+        # downloading again replaces the columns
+        q.download_gridMET('ETr')
+        assert list(q.df.columns).count('gridMET_ETr') == 1
+        # path saved in the config is relative to the config file
+        saved = q.config.get('METADATA', 'gridMET_file_path')
+        assert not Path(saved).is_absolute()
+        assert (config.parent / saved).is_file()
+        # only the gridMET line was added, comments and layout are kept
+        config_after = config.read_text().splitlines()
+        added = [l for l in config_after if l not in config_before]
+        assert added == ['gridMET_file_path = {}'.format(saved)]
+        assert [l for l in config_after if l not in added] == config_before
+
+    def test_gridMET_gap_fill_reuses_saved_file(
+            self, data, tmp_path, monkeypatch):
+        monkeypatch.setattr(xarray, 'open_dataset', _fake_gridMET_server())
+        config = self._qc_example_config(data, tmp_path)
+        q = QaQc(Data(config))
+        q.correct_data()
+        df = q.df.rename(columns=q.inv_map)
+        assert {'ET_fill', 'ET_gap', 'ETrF_filtered'}.issubset(df.columns)
+        # second run reads the saved file through the relative path
+        monkeypatch.setattr(
+            xarray, 'open_dataset', _fake_gridMET_server(fail=True)
+        )
+        q2 = QaQc(Data(config))
+        assert q2.gridMET_exists
+        q2.correct_data()
+        df2 = q2.df.rename(columns=q2.inv_map)
+        assert np.allclose(df.ET_corr, df2.ET_corr, equal_nan=True)
+
+    def test_gridMET_download_failure_skips_gap_fill(
+            self, data, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            xarray, 'open_dataset', _fake_gridMET_server(fail=True)
+        )
+        q = QaQc(Data(self._qc_example_config(data, tmp_path)))
+        q.correct_data()
+        df = q.df.rename(columns=q.inv_map)
+        assert 'ET_corr' in df.columns
+        assert 'ET_fill' not in df.columns
+        assert not q.gridMET_exists
+
 
 class TestUtil(object):
+
+    def test_set_config_option(self, tmp_path):
+        config = tmp_path / 'config.ini'
+        config.write_text(
+            '# a comment to keep\n'
+            '[METADATA]\n'
+            'site_id = A\n'
+            'GRIDMET_FILE_PATH = /old/path.csv\n'
+            '\n'
+            '# data comment\n'
+            '[DATA]\n'
+            'net_radiation_col = Rn\n'
+        )
+        # replace existing option, option names are not case sensitive
+        util.set_config_option(
+            config, 'METADATA', 'gridMET_file_path', 'grid.csv'
+        )
+        # add a new option at the end of a section, before the next one
+        util.set_config_option(config, 'METADATA', 'skiprows', '2')
+        lines = config.read_text().splitlines()
+        assert lines == [
+            '# a comment to keep',
+            '[METADATA]',
+            'site_id = A',
+            'gridMET_file_path = grid.csv',
+            'skiprows = 2',
+            '',
+            '# data comment',
+            '[DATA]',
+            'net_radiation_col = Rn',
+        ]
+        cp = configparser.ConfigParser(interpolation=None)
+        cp.read(config)
+        assert cp.get('METADATA', 'gridMET_file_path') == 'grid.csv'
+        with pytest.raises(ValueError):
+            util.set_config_option(config, 'NOPE', 'a', 'b')
+
+    def test_convert_unit_aliases(self):
+        df = pd.DataFrame({'co2': [400., 410.], 'zeta': [-0.1, 0.2]})
+        df = Convert.convert('co2', 'ppm', 'umol/mol', df)
+        df = Convert.convert('zeta', 'nondimensional', 'dimensionless', df)
+        assert df.co2.tolist() == [400., 410.]
+        assert df.zeta.tolist() == [-0.1, 0.2]
 
     @pytest.mark.parametrize(
         'latitude, longitude, expected',

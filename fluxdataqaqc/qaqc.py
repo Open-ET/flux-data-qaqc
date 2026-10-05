@@ -11,8 +11,13 @@ import numpy as np
 import pandas as pd
 from sklearn import linear_model
 from sklearn.metrics import mean_squared_error
-from refet.calcs import _ra_daily, _rso_simple
-import refet 
+import refet
+# refet >= 0.5 renamed its radiation functions (dropped leading underscore)
+try:
+    from refet.calcs import ra_daily, rso_simple
+except ImportError:
+    from refet.calcs import _ra_daily as ra_daily
+    from refet.calcs import _rso_simple as rso_simple
 
 from .data import Data
 from .plot import Plot
@@ -20,6 +25,7 @@ from .util import (
     monthly_resample,
     Convert,
     get_subdaily_timestep_info,
+    set_config_option,
     standard_utc_offset
 )
 
@@ -38,8 +44,7 @@ class QaQc(Plot, Convert):
     resampling, estimation of climatic and statistical variables such as ET and
     potential shortwave radiation, downloading gridMET reference ET, managing data
     and metadata, creating interactive validation plots, and managing input and
-    output files. Input data is expected to be a :obj:`.Data` instance or a
-    :obj:`pandas.DataFrame`. 
+    output files. Input data is expected to be a :obj:`.Data` instance. 
     
     When regularly spaced sub-daily data is supplied, short gaps may be filled with
     linear interpolation before the data is resampled to daily frequency. The
@@ -361,11 +366,19 @@ class QaQc(Plot, Convert):
         Returns:
             :obj:`None` 
 
+        Raises:
+            ValueError: if ``reference`` is not "short" or "tall".
+
         Note:
             If the hourly ASCE variables were prior calculated from a
             :obj:`.Data` instance they will be overwritten as they are saved
             with the same names. 
         """
+        if reference not in ('short', 'tall'):
+            raise ValueError(
+                f'ERROR: reference must be "short" or "tall", but '
+                f'{reference} was given.'
+            )
 
         df = self.df.rename(columns=self.inv_map)
 
@@ -385,6 +398,8 @@ class QaQc(Plot, Convert):
                     'the config files metadata, proceeding with height of 2 m'
                 )
                 anemometer_height = 2
+        # values read from the config file are strings
+        anemometer_height = float(anemometer_height)
 
         # RefET will convert to MJ-m2-hr
         input_units = {
@@ -402,16 +417,17 @@ class QaQc(Plot, Convert):
         doy = df.index.dayofyear
         elev = np.full(length, self.elevation)
 
+        # use keywords, refet >= 0.4 changed the order of arguments
         REF = refet.Daily(
-            tmin,
-            tmax,
-            ea,
-            rs,
-            uz,
-            zw,
-            elev,
-            lat,
-            doy,
+            tmin=tmin,
+            tmax=tmax,
+            ea=ea,
+            rs=rs,
+            uz=uz,
+            zw=zw,
+            elev=elev,
+            lat=lat,
+            doy=doy,
             method='asce',
             input_units=input_units,
         )
@@ -437,9 +453,11 @@ class QaQc(Plot, Convert):
 
         Conversions are handled by util.Convert.convert class method.
         """
-        # force all input units to lower case
+        # force all input units to lower case, units missing from the
+        # config file are None and are left as is
         for k, v in self.units.items():
-            self.units[k] = v.lower()
+            if v is not None:
+                self.units[k] = v.lower()
 
         # can add check/rename unit aliases, e.g. C or c or celcius, etc... 
 
@@ -476,7 +494,7 @@ class QaQc(Plot, Convert):
         Returns:
             None
         """
-        gridfile = self.config.get('METADATA','gridMET_file_path',fallback=None)
+        gridfile = self._get_gridMET_file()
         if gridfile is None:
             self.gridMET_exists = False
         else:
@@ -508,6 +526,29 @@ class QaQc(Plot, Convert):
                 )
                 self.gridMET_exists = False
 
+    def _get_gridMET_file(self):
+        """
+        Get the path to the gridMET time series file set in the config.
+
+        Relative paths are taken as relative to the directory of the config
+        file, absolute paths (written by older versions) are used as is.
+
+        Returns:
+            gridfile (:obj:`pathlib.Path` or None): path to gridMET file or
+            None if it is not set in the config.
+        """
+        gridfile = self.config.get(
+            'METADATA', 'gridMET_file_path', fallback=None
+        )
+        if gridfile is None:
+            return None
+
+        gridfile = Path(gridfile)
+        if not gridfile.is_absolute():
+            gridfile = self.config_file.parent / gridfile
+
+        return gridfile
+
     def download_gridMET(self, variables=None):
         """
         Download reference ET (alfalfa and grass) and precipitation from
@@ -526,6 +567,9 @@ class QaQc(Plot, Convert):
         "gridMET_data" within the directory that contains the config file
         for the current :obj:`QaQc` instance and named with the site ID and 
         gridMET cell centroid lat and long coordinates in decimal degrees.
+        Its path, relative to the config file, is saved as
+        "gridMET_file_path" in the **METADATA** section of the config file,
+        only that line of the config file is added or changed.
         
         
         Arguments:
@@ -537,6 +581,10 @@ class QaQc(Plot, Convert):
 
         Returns:
             :obj:`None`
+
+        Note: 
+            If the gridMET server cannot be reached an error message is
+            printed and no data is added.
 
         Note: 
             Any previously downloaded gridMET time series will be overwritten
@@ -564,12 +612,13 @@ class QaQc(Plot, Convert):
             )
             return
             
+        # a single variable name, e.g. 'ETr'
         if isinstance(variables, str):
-            variables = list(variables)
+            variables = [variables]
             
         station_dates = self.df.index
         grid_dfs = []
-        for i,v in enumerate(variables):
+        for v in variables:
             if not v in QaQc.gridMET_meta:
                 print(
                     'ERROR: {} is not a valid gridMET variable, '
@@ -579,26 +628,39 @@ class QaQc(Plot, Convert):
                 )
                 continue
             meta = QaQc.gridMET_meta[v]
-            self.variables[meta['rename']] = meta['rename']
-            self.units[meta['rename']] = meta['units']
             print('Downloading gridMET var: {}\n'.format(meta['name'])) 
             netcdf = '{}{}'.format(server_prefix, meta['nc_suffix'])
-            ds = xarray.open_dataset(netcdf).sel(
-                lon=self.longitude, lat=self.latitude, method='nearest'
-            ).drop('crs')
-            df = ds.to_dataframe().loc[station_dates].rename(
+            # skip the variable if the server cannot be reached
+            try:
+                ds = xarray.open_dataset(netcdf).sel(
+                    lon=self.longitude, lat=self.latitude, method='nearest'
+                ).drop_vars('crs', errors='ignore')
+            except Exception as e:
+                print(
+                    'ERROR: could not download gridMET variable {}:\n{}'
+                    .format(v, e)
+                )
+                continue
+            # reindex in case station dates extend past available gridMET
+            df = ds.to_dataframe().reindex(station_dates).rename(
                 columns={meta['name']:meta['rename']}
             )
             df.index.name = 'date' # ensure date col name is 'date'
             # on first variable (if multiple) grab gridcell centroid coords
-            if i == 0:
-                lat_centroid = df.lat[0]
-                lon_centroid = df.lon[0]
+            if not grid_dfs:
+                lat_centroid = float(ds['lat'])
+                lon_centroid = float(ds['lon'])
 
-            df.drop(['lat', 'lon'], axis=1, inplace=True)
+            df = df.drop(columns=['lat', 'lon'], errors='ignore')
 
             grid_dfs.append(df)
-        
+            self.variables[meta['rename']] = meta['rename']
+            self.units[meta['rename']] = meta['units']
+
+        if not grid_dfs:
+            print('ERROR: no gridMET data was downloaded.')
+            return
+
         # combine data
         df = pd.concat(grid_dfs, axis=1)
         # save gridMET time series to CSV in subdirectory where config file is
@@ -609,15 +671,16 @@ class QaQc(Plot, Convert):
             )       
         )
         gridMET_file.parent.mkdir(parents=True, exist_ok=True)
-        self.config.set(
-            'METADATA', 'gridMET_file_path', value=str(gridMET_file)
-        )
         df.to_csv(gridMET_file)
-        # rewrite config with updated gridMET file path
-        with open(str(self.config_file), 'w') as outf:
-            self.config.write(outf)
-        # drop previously calced vars for replacement, no join duplicates
-        self._df = _drop_cols(self._df, variables)
+        # save path relative to config file so it works on other machines
+        grid_path = str(gridMET_file.relative_to(self.config_file.parent))
+        self.config.set('METADATA', 'gridMET_file_path', value=grid_path)
+        # update only this line of the config file, keep user's comments
+        set_config_option(
+            self.config_file, 'METADATA', 'gridMET_file_path', grid_path
+        )
+        # drop previously downloaded gridMET columns, no join duplicates
+        self._df = _drop_cols(self._df, list(df.columns))
         self._df = self._df.join(df)
         self.gridMET_exists = True
     
@@ -991,51 +1054,6 @@ class QaQc(Plot, Convert):
             self.df.rename(columns=self.inv_map).to_csv(daily_outf)
             self.monthly_df.rename(columns=self.inv_map).to_csv(monthly_outf)
 
-    @classmethod
-    def from_dataframe(cls, df, site_id, elev_m, lat_dec_deg, var_dict,
-            drop_gaps=True, daily_frac=1.00, max_interp_hours=2, 
-            max_interp_hours_night=4):
-        """
-        Create a :obj:`QaQc` object from a :obj:`pandas.DataFrame` object.
-        
-        Arguments:
-            df (:obj:`pandas.DataFrame`): DataFrame of climate variables with
-                datetime index named 'date'
-            site_id (str): site identifier such as station name
-            elev_m (int or float): elevation of site in meters
-            lat_dec_deg (float): latitude of site in decimal degrees
-            var_dict (dict): dictionary that maps `flux-data-qaqc` variable
-                names to user's columns in `df` e.g. {'Rn': 'netrad', ...}
-                see :attr:`fluxdataqaqc.Data.variable_names_dict` for list of 
-                `flux-data-qaqc` variable names
-        
-        Returns:
-            None
-
-        Note:
-            When using this method, any output files (CSVs, plots) will be 
-            saved to a directory named "output" in the current working 
-            directory. 
-        """
-        qaqc = cls()
-        # use property setter, make sure it is a dataframe object
-        qaqc.df = df  
-        qaqc.site_id = site_id
-        qaqc.latitude = lat_dec_deg
-        qaqc.elevation = elev_m
-        qaqc.out_dir = Path('output').absolute()
-        qaqc.variables = var_dict
-        # TODO handle assigned units 
-        qaqc.inv_map = {v: k for k, v in var_dict.items()}
-        qaqc.temporal_freq = qaqc._check_daily_freq(
-            drop_gaps, daily_frac, max_interp_hours, max_interp_hours_night
-        )
-        qaqc.corrected = False 
-        qaqc.corr_meth = None
-        qaqc._has_eb_vars = True
-
-        return qaqc
-
     def correct_data(self, meth='ebr', et_gap_fill=True, y='Rn', refET='ETr',
             x=['G','LE','H'], fit_intercept=False):
         """
@@ -1086,12 +1104,13 @@ class QaQc(Plot, Convert):
                 for ET gap filling, "ETr" or "ETo" are valid options.
             fit_intercept (bool): default False. Fit intercept for regression or
                 set to zero if False. Only used if ``meth='lin_regress'``.
-            apply_coefs (bool): default False. If :obj:`True` then apply fitted
-                coefficients to their respective variables for linear regression
-                correction method, rename the variables with the suffix "_corr".
         
         Returns:
             :obj:`None`
+
+        Raises:
+            ValueError: if ``meth`` is not in :attr:`QaQc.corr_methods` or
+                ``refET`` is not "ETr" or "ETo".
 
         Example:
             Starting from a correctly formatted config.ini and climate time
@@ -1143,6 +1162,11 @@ class QaQc(Plot, Convert):
                     [el for el in self.corr_methods]))
             )
             raise ValueError(err_msg)
+        if refET not in ('ETr', 'ETo'):
+            raise ValueError(
+                'ERROR: {} is not a valid refET option, please use "ETr" '
+                'or "ETo"'.format(refET)
+            )
 
         # calculate clear sky radiation if not already computed
         self._calc_rso()
@@ -1275,9 +1299,7 @@ class QaQc(Plot, Convert):
 
         else:
             # gridMET file has been verified and has all needed dates, just load
-            gridfile = self.config.get(
-                'METADATA','gridMET_file_path',fallback=None
-            )
+            gridfile = self._get_gridMET_file()
             print(
                 'gridMET reference ET already downloaded for station at:\n'
                 '{}\nnot redownloading.'.format(gridfile)
@@ -1293,6 +1315,14 @@ class QaQc(Plot, Convert):
         if not et_name in df.columns:
             print(
                 'ERROR: {} not found in data, cannot gap-fill'.format(et_name)
+            )
+            return
+        # gridMET download may have failed
+        if not 'gridMET_{}'.format(refET) in df.columns:
+            print(
+                'ERROR: gridMET_{} not available, cannot gap-fill {}'.format(
+                    refET, et_name
+                )
             )
             return
 
@@ -1456,8 +1486,8 @@ class QaQc(Plot, Convert):
         # obtain extraterrestrial radiation from doy and latitude and calculate
         # clear sky radiation 
         latitude_rads = self.latitude * (np.pi / 180)
-        ra_mj_m2 = _ra_daily(latitude_rads, doy, method='asce')
-        rso_a_mj_m2 = _rso_simple(ra_mj_m2, self.elevation)
+        ra_mj_m2 = ra_daily(latitude_rads, doy, method='asce')
+        rso_a_mj_m2 = rso_simple(ra_mj_m2, self.elevation)
         self._df['rso'] = rso_a_mj_m2 * 11.574
         
         self.variables.update(
@@ -1583,8 +1613,9 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         model = linear_model.LinearRegression(fit_intercept=fit_intercept)
         model.fit(X, Y)
         pred = model.predict(X)
-        r2 = model.score(X,Y).round(2)
-        rmse = (np.sqrt(mean_squared_error(Y, pred))).round(2)
+        # newer scikit-learn returns python floats, not numpy scalars
+        r2 = round(float(model.score(X, Y)), 2)
+        rmse = round(float(np.sqrt(mean_squared_error(Y, pred))), 2)
 
         eb_vars = ['LE','H','Rn','G']
         if apply_coefs and set(tmp.columns).intersection(eb_vars):

@@ -9,7 +9,6 @@ import pandas as pd
 import refet
 from datetime import datetime
 from pathlib import Path
-from openpyxl import load_workbook
 from .plot import Plot
 from .util import Convert, get_subdaily_timestep_info
 
@@ -111,6 +110,7 @@ class Data(Plot, Convert):
         self.config = self._load_config(self.config_file)
         self.variables = self._get_config_vars()
         self.units = self._get_config_units()
+        self._check_required_units()
         self.na_val = self.config.get('METADATA', 'missing_data_value', fallback=None)
         # try to parse na_val as numeric 
         try:
@@ -265,12 +265,21 @@ class Data(Plot, Convert):
         Returns:
             :obj:`None` or :obj:`pandas.Series`
 
+        Raises:
+            ValueError: if ``reference`` is not "short" or "tall".
+
         Hint:
             The input variables needed to run this method are: vapor pressure,
             wind speed, incoming shortwave radiation, and average air 
             temperature. If vapor pressure deficit and average air temperature
             exist, the actual vapor pressure will automatically be calculated.
         """
+
+        if reference not in ('short', 'tall'):
+            raise ValueError(
+                f'ERROR: reference must be "short" or "tall", but '
+                f'{reference} was given.'
+            )
 
         self.df.head(); # creates vp/vpd
         df = self.df.rename(columns=self.inv_map)
@@ -299,6 +308,8 @@ class Data(Plot, Convert):
                     'the config files metadata, proceeding with height of 2 m'
                 )
                 anemometer_height = 2
+        # values read from the config file are strings
+        anemometer_height = float(anemometer_height)
 
         for v, u in self.units.items():
             # only converting variables needed for ref ET
@@ -353,17 +364,18 @@ class Data(Plot, Convert):
             elev = np.full(length, self.elevation)
             time = tmean.index.hour
 
+        # use keywords, refet >= 0.4 changed the order of arguments
         REF = refet.Hourly(
-            tmean,
-            ea,
-            rs,
-            uz,
-            zw,
-            elev,
-            lat,
-            lon,
-            doy,
-            time,
+            tmean=tmean,
+            ea=ea,
+            rs=rs,
+            uz=uz,
+            zw=zw,
+            elev=elev,
+            lat=lat,
+            lon=lon,
+            doy=doy,
+            time=time,
             method='asce',
             input_units=input_units,
         )
@@ -752,20 +764,9 @@ class Data(Plot, Convert):
         Read only top line of climate time series file return header names.
         """
         if climate_file.suffix in ('.xlsx', '.xls'):
-            try: # using xlrd
-                workbook = pd.ExcelFile(climate_file)
-                rows = workbook.book.sheet_by_index(0).nrows
-                header = pd.read_excel(workbook, skipfooter = (rows - 1))
-                header = header.columns
-            except: # fallback openpyxl- slower
-                wb = load_workbook(climate_file, enumerate)
-                sheet = wb.worksheets[0]
-                header = sheet._shared_strings
-                self.xl_parser='openpyxl'
-                #rows = sheet.max_row
-                #header = pd.read_excel(workbook, skipfooter = (rows - 1))
-                #header = header.columns
-        
+            # read only the header row of the first sheet
+            header = pd.read_excel(climate_file, nrows=0).columns
+
         else: # assume CSV
             skiprows=None
             if 'skiprows' in dict(self.config.items('METADATA')):
@@ -806,7 +807,7 @@ class Data(Plot, Convert):
             # later in df
             elif (k.startswith('g_') or k.startswith('theta_')) and not \
                     weight_name in all_keys and not k.endswith('_units') and \
-                    not k.endswith('_weight'):
+                    not k.endswith('_weight') and not k.endswith('_qc'):
                 tmp = {'name': var_name, 'weight' : 1}
                 soil_var_weight_pairs[k] = tmp
 
@@ -837,14 +838,14 @@ class Data(Plot, Convert):
         # get multiple G flux/soil moisture variables 
         all_keys = dict(self.config.items('DATA')).keys()
         # should be named as 'g_ or 'theta_ what comes after not strict yet
+        # QC names for these (e.g. g_1_qc) are handled in _get_qc_flags
+        not_var_suffixes = ('_units', '_weight', '_qc')
         added_g_keys = []
         added_theta_keys = []
         for k in all_keys:
-            if k.startswith('g_') and not k.endswith('_units') \
-                    and not k.endswith('_weight'):
+            if k.startswith('g_') and not k.endswith(not_var_suffixes):
                 added_g_keys.append(k)
-            if k.startswith('theta_') and not k.endswith('_units') \
-                    and not k.endswith('_weight'):
+            if k.startswith('theta_') and not k.endswith(not_var_suffixes):
                 added_theta_keys.append(k)
                 
         if added_g_keys:
@@ -877,12 +878,12 @@ class Data(Plot, Convert):
 
         Note:
             Parsing of correct units and conversion if needed is performed
-            in the :obj:`.QaQc` class. Also, if units are not given
-            in the config file a warning message is printed and the units are
-            not included and thus will either need to be manually added later
-            e.g. in Python by adding to :attr:`Data.units` or by adding them
-            to the config and recreating a :obj:`Data` object otherwise the 
-            units will remain unknown and not be able to be later converted.
+            in the :obj:`.QaQc` class. If units are not given in the config
+            file for a variable that is used in calculations (see
+            :attr:`Convert.required_units`) an error is raised when the
+            :obj:`Data` object is created, units are never assumed. For
+            other variables, e.g. relative humidity or soil moisture, a
+            warning is printed and the units remain unknown.
         """
         no_unit_vars = ('datestring_col', 'year_col', 'month_col', 'day_col')
         config_dict = dict(self.config.items('DATA'))
@@ -930,6 +931,45 @@ class Data(Plot, Convert):
 
         return units
 
+    def _check_required_units(self):
+        """
+        Raise an error if units are missing from the config for variables
+        that are used in calculations or unit conversions.
+
+        These are variables in :attr:`Convert.required_units` and multiple
+        soil heat flux variables (e.g. g_1) that are averaged into G. Units
+        are never assumed for these. Variables whose units are only used
+        for plot labels (e.g. relative humidity, wind direction, soil
+        moisture) only get a warning in :meth:`Data._get_config_units`.
+
+        Raises:
+            ValueError: if units are missing for one or more variables.
+        """
+        missing = []
+        for var, col in self.variables.items():
+            # variables given as 'na' in the config are not in the data
+            if col == 'na':
+                continue
+            needs_units = (
+                var in Convert.required_units or var.startswith('g_')
+            )
+            if needs_units and self.units.get(var) is None:
+                if var in self.variable_names_dict:
+                    config_key = self.variable_names_dict[var].replace(
+                        '_col', '_units'
+                    )
+                else:
+                    config_key = '{}_units'.format(var)
+                missing.append('{} ({})'.format(var, config_key))
+
+        if missing:
+            raise ValueError(
+                'ERROR: units are missing from the DATA section of the config '
+                'file for these variables:\n{}\nAdd them to the config, '
+                'allowable units are listed in Convert.allowable_units.'
+                .format('\n'.join(missing))
+            )
+
     def _get_qc_flags(self):
         """
         Process any existing QC flags for variables in config, also add
@@ -940,7 +980,7 @@ class Data(Plot, Convert):
         qc_var_pairs = {}
         tmp = {}
 
-        no_qc_vars = ('datestring_col')
+        no_qc_vars = ('datestring_col',)
         # dictionary that maps config QC values to keys for main variables
         # other variables like multiple g or theta (with unknown names) are
         # search for in loop below
@@ -954,16 +994,23 @@ class Data(Plot, Convert):
                 # internal name for the variable (e.g. LE or Rn)
                 var_name = qc_config[k]
                 user_var_name = self.variables.get(var_name)
-            # keys are internal names for multiple G and theta
+            # keys are internal names for multiple G and theta, e.g. g_1_qc
             elif k.startswith(('g_','theta_')) and k.endswith('_qc'):
-                var_name = k 
+                var_name = k[:-len('_qc')]
+                user_var_name = self.variables.get(var_name)
             # key is not for a QC flag header name...
             else:
+                continue
+            if user_var_name is None:
+                print('WARNING: {} quality control name specified in the config'
+                    ' file but variable {} was not found, it will not be '
+                    'used.'.format(v, var_name)
+                )
                 continue
             if not v in self.header:
                 print('WARNING: {} quality control name specified in the config'
                     ' file for variable: {} does not exist in the input file, '
-                    'it will not be used.'.format(v, self.variables[var_name])
+                    'it will not be used.'.format(v, user_var_name)
                 )
                 continue
             internal_name = '{}_qc_flag'.format(var_name)
@@ -1396,7 +1443,7 @@ class Data(Plot, Convert):
                     key = 'G'
                 # calculate mean (sum weighted values)
                 df[val] = tmp_df.sum(axis=1)
-                df.loc[df[tmp_df.columns].isnull().all(1), val] = np.nan
+                df.loc[df[tmp_df.columns].isnull().all(axis=1), val] = np.nan
 
                 self.variables[key] = val
             elif len(vs) == 1:
