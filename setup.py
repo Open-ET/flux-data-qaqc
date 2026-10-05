@@ -33,6 +33,7 @@ setup(
     name='fluxdataqaqc',
     description='Tools for QA/QC of eddy covariance station data',
     long_description=readme,
+    long_description_content_type='text/x-rst',
     author='John Volk',
     author_email='john.volk@dri.edu',
     license='BSD3',

@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 
-import pkg_resources
 import pytest
 from pathlib import Path
-from shutil import move, copy, rmtree
 from refet.calcs import _ra_daily, _ra_hourly
 
 import numpy as np
@@ -17,39 +15,17 @@ from fluxdataqaqc import util
 
 
 @pytest.fixture(scope="session")
-def data(request):
-    """Prepare input data used for tests"""
+def data():
+    """
+    Paths used by tests, tests read the example data in place.
+
+    Anything a test writes (plots, CSVs) goes to a pytest temporary
+    directory so the examples folder is never modified.
+    """
     d = {}
-    package_root_dir = Path(
-        pkg_resources.resource_filename(
-            'fluxdataqaqc', '.'
-        )
-    ).parent
-
-    d['package_root_dir'] = package_root_dir      
-    # use example data from tutorial for most tests
-    examples_dir = package_root_dir / 'examples'
-    test_data_files = [
-        f for f in examples_dir.rglob('*') if f.suffix in [
-            '.csv','.ini','.xlsx'] and not 'gridMET_data' in str(f)
-    ]
-    
-    temp_data_dir = Path('tests') / 'test_data'
-    if not temp_data_dir.is_dir():
-        temp_data_dir.mkdir(parents=True, exist_ok=True)
-
-    print(temp_data_dir, Path())
-
-    for f in test_data_files:
-        copy(f, temp_data_dir)
-
-
-
-
-    def teardown():
-        rmtree(temp_data_dir)
-
-    request.addfinalizer(teardown)
+    # repository root is the parent of the tests directory
+    package_root_dir = Path(__file__).resolve().parent.parent
+    d['package_root_dir'] = package_root_dir
 
     return d
     
@@ -84,7 +60,7 @@ class TestData(object):
         assert self.data_obj.elevation == -9
         assert self.data_obj.latitude == 38.1159
         # dataframe should not be loaded
-        assert self.data_obj._df == None
+        assert self.data_obj._df is None
         # header of climate file should have been read however
         assert (self.data_obj.header == self.header_Tw3).all()
         assert self.data_obj.units.get('wd') == 'azimuth (degrees)'
@@ -133,8 +109,10 @@ class TestData(object):
         assert len(ts) == 47544
         #assert np.isclose(ts.mean(), 0.1830681034395387)
 
-    def test_Data_plots(self):
-        assert self.data_obj.plot_file == None
+    def test_Data_plots(self, tmp_path):
+        assert self.data_obj.plot_file is None
+        # default file name but saved outside of the examples folder
+        self.data_obj.out_dir = tmp_path
         self.data_obj.plot()
         assert self.data_obj.plot_file.name ==\
             f'{self.data_obj.site_id}_input_plots.html'
