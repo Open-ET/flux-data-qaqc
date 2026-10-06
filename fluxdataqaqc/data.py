@@ -290,9 +290,11 @@ class Data(Plot, Convert):
             print('Missing one or more required variables, cannot compute')
             return
 
-        second_day = df.index.date[2]
-        third_day = second_day + pd.Timedelta(1, unit='D')
-        n_samples_per_day = len(df.loc[str(second_day)].index) 
+        # number of records per day, daily data has one
+        try:
+            _, n_samples_per_day, _ = get_subdaily_timestep_info(df)
+        except ValueError:
+            n_samples_per_day = 1
 
         if n_samples_per_day < 24:
             print('Temporal frequency greater than hourly, not downsampling.')
@@ -459,18 +461,12 @@ class Data(Plot, Convert):
         Based on ASCE standardized ref et eqn. 37, air temperature must be in 
         celcius and actual vapor pressure in kPa.
 
-        Can also calculate VP from VPD and air temperature.
+        Can also calculate VP from VPD and air temperature. For daily input
+        data daily mean values are used, saturation vapor pressure from mean
+        air temperature is lower than the mean of sub-daily values so vapor
+        pressure calculated from daily VPD is an approximation.
         """
         df = df.rename(columns=self.inv_map)
-
-        # make sure day intervals are hourly or less if not skip
-        second_day = df.index.date[2]
-        third_day = second_day + pd.Timedelta(1, unit='D')
-        # both days start at 00:00:00, don't duplicate
-        times_in_day = len(df.loc[str(third_day)].index) 
-        if times_in_day < 24:
-            print('Temporal frequency of data > hourly cannot calculate VP/VPD')
-            return
 
         for v in ['vp', 'vpd', 't_avg']:
             u = self.units.get(v)

@@ -270,7 +270,7 @@ class Convert(object):
         return df
         
     def _f_to_c(self, df, var_name):
-        df[var_name] = (32 * df[var_name]) * (5/9)
+        df[var_name] = (df[var_name] - 32) * (5/9)
         return df
         
     def _k_to_c(self, df, var_name):
@@ -348,7 +348,8 @@ def monthly_resample(df, cols, agg_str, thresh=0.75):
         
     ret = pd.DataFrame()
     for c in cols:
-        bad_months = mdf.loc[:,(c,'count')] <= thresh * mdf.index.days_in_month
+        # null if fewer than thresh fraction of the days in the month exist
+        bad_months = mdf.loc[:,(c,'count')] < thresh * mdf.index.days_in_month
         # do not use the mean to fill missing days and then sum for bool vars (ET_gap)
         if agg_str == 'sum' and not pd.api.types.is_bool_dtype(df[c]):
             mdf.loc[:, (c, 'days_missing')] = (

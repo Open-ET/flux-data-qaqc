@@ -642,6 +642,16 @@ class QaQc(Plot, Convert):
                     .format(v, e)
                 )
                 continue
+            # gridMET only covers the contiguous US, the nearest cell of a
+            # station outside of it is on the edge of the grid
+            cell_size = 1 / 24
+            if abs(float(ds['lat']) - self.latitude) > cell_size or \
+                    abs(float(ds['lon']) - self.longitude) > cell_size:
+                print(
+                    'ERROR: station is outside of the gridMET domain '
+                    '(contiguous US), gridMET data was not downloaded.'
+                )
+                return
             # reindex in case station dates extend past available gridMET
             df = ds.to_dataframe().reindex(station_dates).rename(
                 columns={meta['name']:meta['rename']}
@@ -775,9 +785,9 @@ class QaQc(Plot, Convert):
 
             means = df.loc[:,mean_cols].apply(
                 pd.to_numeric, errors='coerce').resample('D').mean().copy()
-            # issue with resample sum of nans, need to drop first else 0
-            sums = df.loc[:,sum_cols].dropna().apply(
-                pd.to_numeric, errors='coerce').resample('D').sum()
+            # sum each column on its own, days without any data stay null
+            sums = df.loc[:,sum_cols].apply(
+                pd.to_numeric, errors='coerce').resample('D').sum(min_count=1)
 
             if max_interp_hours is not None:
                 # linearly interpolate energy balance components only
@@ -834,18 +844,19 @@ class QaQc(Plot, Convert):
                     .copy()
                 )
 
-                if 't_avg' in interp_vars:
-                    means['t_min'] = interped.t_avg.resample('D').min()
-                    means['t_max'] = interped.t_avg.resample('D').max()
-                    self.variables['t_min'] = 't_min'
-                    self.units['t_min'] = self.units['t_avg']
-                    self.variables['t_max'] = 't_max'
-                    self.units['t_max'] = self.units['t_avg']
-                    interp_vars = interp_vars + ['t_min', 't_max']
-                    interped[['t_min', 't_max']] = means[
-                        ['t_min', 't_max']
-                    ]
-                    
+            # daily min and max air temperature from sub-daily air temperature
+            if 't_avg' in df.columns:
+                if max_interp_hours is not None:
+                    t_avg = interped.t_avg
+                else:
+                    t_avg = pd.to_numeric(df.t_avg, errors='coerce')
+                means['t_min'] = t_avg.resample('D').min()
+                means['t_max'] = t_avg.resample('D').max()
+                self.variables['t_min'] = 't_min'
+                self.units['t_min'] = self.units['t_avg']
+                self.variables['t_max'] = 't_max'
+                self.units['t_max'] = self.units['t_avg']
+
             if drop_gaps:
                 # make sure round errors do not affect this value
                 n_vals_needed = int(round(max_times_in_day * daily_frac))
@@ -884,6 +895,13 @@ class QaQc(Plot, Convert):
                         subdaily_counts[col] < n_vals_needed
                     ]
                     df.loc[bad_days, col] = np.nan
+
+                # daily min and max air temperature use the same records
+                if 't_min' in df.columns:
+                    bad_days = subdaily_counts.index[
+                        subdaily_counts['t_avg'] < n_vals_needed
+                    ]
+                    df.loc[bad_days, ['t_min', 't_max']] = np.nan
         
         else:
             self.n_samples_per_day = 1
@@ -914,10 +932,10 @@ class QaQc(Plot, Convert):
         monthly means or sums based on :attr:`QaQc.agg_dict`, provides data 
         as :obj:`pandas.DataFrame`. 
         
-        Note that monthly means or sums are forced to null values if less than
-        20 percent of a months days are missing in the daily data
+        Note that monthly means or sums are forced to null values if more than
+        20 percent of a month's days are missing in the daily data
         (:attr:`QaQc.df`). Also, for variables that are summed (e.g. ET or
-        precipitation) missing days (if less than 20 percent of the month) will
+        precipitation) missing days (if 20 percent of the month or less) will
         be filled with the month's daily mean value before summation.
 
         If a :obj:`QaQc` instance has not yet run an energy balance correction
@@ -1681,7 +1699,7 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
             # not all vars are necessarily different than initial
             df['ebr_corr'] = (corr.H + corr.LE) / (corr.Rn - corr.G)
             df['flux_corr'] = corr.H + corr.LE
-            df['energy_corr'] = corr.Rn + corr.G
+            df['energy_corr'] = corr.Rn - corr.G
             del corr
 
             self.variables.update(
@@ -1958,12 +1976,12 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         Create corrected/adjusted latent energy and sensible heat flux to 
         close surface energy balance. 
         
-        Compute adjusted turbulent fluxes for when Rn > 0 and Bowen ratio 
-        < 0.05 instead of forcing closure when bowen ratio is often <- 0.8 or 
-        threshold when Rn < 0. The average between i-1 and i+1 is taken. If 
-        closure is forced by partitioning the error equally between LE and H, 
-        LE is drastically increased during periods of possibly "bad" data, 
-        usually while the measured LE is going down.
+        Available energy (Rn - G) is partitioned into LE and H using the daily
+        Bowen ratio (H / LE) of the measured fluxes, i.e. the Bowen ratio is
+        assumed to be correct. Days where the Bowen ratio is undefined (LE is
+        zero or the Bowen ratio is -1) or where corrected LE is <= -100 or
+        >= 850 w/m2, the same limits used by the energy balance ratio method,
+        are left without a correction.
 
         Updates :attr:`QaQc.df` and :attr:`QaQc.variables` attributes with new 
         variables used for closing energy balance.
@@ -1978,17 +1996,24 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         self._df = _drop_cols(self.df, self._eb_calc_vars)
         df = self._df.rename(columns=self.inv_map)
 
-        # apply correction 
-        df['br'] = df.H / df.LE
+        # Bowen ratio, undefined when LE is zero
+        df['br'] = (df.H / df.LE).replace([np.inf, -np.inf], np.nan)
+        # partition available energy with the Bowen ratio
         df['LE_corr'] = (df.Rn - df.G) / (1 + df.br)
         df['H_corr'] = df.LE_corr * df.br
+        # remove undefined (Bowen ratio of -1) and extreme corrected fluxes
+        bad_LE = ~np.isfinite(df.LE_corr) | (df.LE_corr >= 850) | \
+            (df.LE_corr <= -100)
+        df.loc[bad_LE, ['LE_corr', 'H_corr']] = np.nan
         df['flux_corr'] = df.LE_corr + df.H_corr
 
         # add EBR, other vars to dataframe using LE and H from raw, corr 
         # if provided user corrected, add raw energy and flux
         if set(['LE_user_corr','H_user_corr']).issubset(df.columns):
             df['flux_user_corr'] = df.LE_user_corr + df.H_user_corr 
-            df['br_user_corr'] = df.H_user_corr / df.LE_user_corr 
+            df['br_user_corr'] = (
+                df.H_user_corr / df.LE_user_corr
+            ).replace([np.inf, -np.inf], np.nan)
             df['ebr_user_corr']=(df.H_user_corr+df.LE_user_corr)/(df.Rn - df.G)
             df.ebr_user_corr=df.ebr_user_corr.replace([np.inf,-np.inf], np.nan)
 

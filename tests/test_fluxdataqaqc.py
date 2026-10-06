@@ -820,7 +820,151 @@ class TestQaQc(object):
         assert not q.gridMET_exists
 
 
+class TestValueFixes(object):
+    """Fixes in version 0.4.0 that change calculated values"""
+
+    def _synthetic_config(self, tmp_path, n_days=4):
+        """
+        Half-hourly synthetic data and config file in a temp directory.
+
+        Precipitation is missing for all of the third day and LE and
+        precipitation are both missing for the same 5 records on the second
+        day.
+        """
+        index = pd.date_range('2015-06-01', periods=48 * n_days, freq='30min')
+        hour = index.hour + index.minute / 60
+        sun = np.clip(np.sin((hour - 6) / 12 * np.pi), 0, None)
+        df = pd.DataFrame({
+            'date': index.strftime('%Y%m%d%H%M'),
+            'Rn': 600 * sun - 50, 'G': 60 * sun - 5,
+            'LE': 300 * sun, 'H': 150 * sun, 'TA': 20 + 10 * sun,
+            'P': 0.1,
+        })
+        df.loc[60:64, ['LE', 'P']] = np.nan
+        df.loc[96:143, 'P'] = np.nan
+        df.to_csv(tmp_path / 'synthetic.csv', index=False, na_rep='-9999')
+        config = tmp_path / 'synthetic_config.ini'
+        config.write_text(
+            '[METADATA]\n'
+            'climate_file_path = synthetic.csv\n'
+            'station_latitude = 39.5\nstation_longitude = -119.8\n'
+            'station_elevation = 1500\nmissing_data_value = -9999\n'
+            'date_parser = %Y%m%d%H%M\nsite_id = synthetic\n'
+            '[DATA]\n'
+            'datestring_col = date\n'
+            'net_radiation_col = Rn\nnet_radiation_units = w/m2\n'
+            'ground_flux_col = G\nground_flux_units = w/m2\n'
+            'latent_heat_flux_col = LE\nlatent_heat_flux_units = w/m2\n'
+            'sensible_heat_flux_col = H\nsensible_heat_flux_units = w/m2\n'
+            'avg_temp_col = TA\navg_temp_units = C\n'
+            'precip_col = P\nprecip_units = mm\n'
+        )
+        return config
+
+    def test_daily_sums_keep_missing_days(self, tmp_path):
+        config = self._synthetic_config(tmp_path)
+        q = QaQc(Data(config), drop_gaps=False, max_interp_hours=None)
+        df = q.df.rename(columns=q.inv_map)
+        # day with no precipitation records is missing, not zero
+        assert np.isnan(df.ppt.iloc[2])
+        assert np.isclose(df.ppt.iloc[0], 4.8)
+        assert np.isclose(df.ppt.iloc[1], 4.3)
+        # gaps in LE are counted even where precipitation is also missing
+        assert df.LE_subday_gaps.iloc[1] == 5
+
+    def test_t_min_t_max_filtered_like_t_avg(self, tmp_path):
+        config = self._synthetic_config(tmp_path)
+        cp = configparser.ConfigParser(interpolation=None)
+        cp.read(config)
+        # remove most of day 3 air temperature records
+        df = pd.read_csv(tmp_path / 'synthetic.csv')
+        df.loc[100:130, 'TA'] = -9999
+        df.to_csv(tmp_path / 'synthetic.csv', index=False)
+        q = QaQc(Data(config))
+        df = q.df.rename(columns=q.inv_map)
+        assert np.isnan(df.t_avg.iloc[2])
+        assert np.isnan(df.t_min.iloc[2]) and np.isnan(df.t_max.iloc[2])
+        assert np.isclose(df.t_max.iloc[0], 30)
+        # also calculated without sub-daily interpolation
+        q = QaQc(Data(config), max_interp_hours=None)
+        assert 't_min' in q.df.rename(columns=q.inv_map).columns
+
+    def test_daily_input_frequency_not_column_count(self, data, tmp_path):
+        # daily FLUXNET example with fewer than 24 columns loaded
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'fluxnet_config.ini'
+        keep = [
+            'datestring_col', 'net_radiation', 'ground_flux',
+            'latent_heat_flux', 'sensible_heat_flux', 'vap_press_def',
+            'avg_temp'
+        ]
+        cp = configparser.ConfigParser(interpolation=None)
+        cp.read(config)
+        remove = [
+            ('DATA', k) for k in cp['DATA']
+            if not any(k.startswith(n) for n in keep) or k.endswith('_qc')
+        ]
+        config = _tmp_config(config, tmp_path, remove_opts=remove)
+        d = Data(config)
+        assert len(d.df.columns) < 24
+        # vapor pressure is calculated from daily VPD and air temperature
+        assert 'vp' in d.df.rename(columns=d.inv_map).columns
+        # hourly reference ET is not calculated from daily data
+        assert d.hourly_ASCE_refET() is None
+
+    def test_bowen_ratio_correction_limits(self, data):
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        q = QaQc(Data(config))
+        q.correct_data(meth='br', et_gap_fill=False)
+        df = q.df.rename(columns=q.inv_map)
+        LE_corr = df.LE_corr.dropna()
+        assert np.isfinite(LE_corr).all()
+        assert ((LE_corr > -100) & (LE_corr < 850)).all()
+        assert np.isfinite(df.br.dropna()).all()
+
+    def test_lin_regress_energy_corr(self, data):
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        q = QaQc(Data(config))
+        q.correct_data(meth='lin_regress', et_gap_fill=False)
+        df = q.df.rename(columns=q.inv_map)
+        # Rn is the dependent variable so it is not corrected
+        assert np.allclose(df.energy_corr, df.Rn - df.G_corr, equal_nan=True)
+
+    def test_gridMET_outside_domain(self, data, tmp_path, monkeypatch):
+        monkeypatch.setattr(xarray, 'open_dataset', _fake_gridMET_server())
+        config = data['package_root_dir']/'examples'\
+            /'Config_options'/'config_for_QC_flag_filtering.ini'
+        # station far north of the (fake) grid
+        config = _tmp_config(
+            config, tmp_path,
+            set_opts=[('METADATA', 'station_latitude', '50.0')]
+        )
+        q = QaQc(Data(config))
+        q.download_gridMET()
+        assert not any(c.startswith('gridMET') for c in q.df.columns)
+        assert not q.gridMET_exists
+
+
 class TestUtil(object):
+
+    def test_monthly_resample_threshold(self):
+        # June has 30 days, 24 days is exactly 80 percent
+        index = pd.date_range('2015-06-01', '2015-07-31', freq='D')
+        df = pd.DataFrame({'ET': 2.0}, index=index)
+        df.loc['2015-06-25':'2015-06-30', 'ET'] = np.nan
+        df.loc['2015-07-25':'2015-07-31', 'ET'] = np.nan
+        monthly = util.monthly_resample(df, ['ET'], 'sum', 0.8)
+        # missing days are filled with the mean before summation
+        assert np.isclose(monthly.ET.iloc[0], 60.0)
+        # July has 24 of 31 days, less than 80 percent
+        assert np.isnan(monthly.ET.iloc[1])
+
+    def test_convert_f_to_c(self):
+        df = pd.DataFrame({'t_avg': [32., 212., -40.]})
+        df = Convert.convert('t_avg', 'f', 'c', df)
+        assert np.allclose(df.t_avg, [0., 100., -40.])
 
     def test_set_config_option(self, tmp_path):
         config = tmp_path / 'config.ini'
