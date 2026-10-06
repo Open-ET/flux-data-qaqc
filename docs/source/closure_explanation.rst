@@ -35,14 +35,24 @@ covariance flux tower site in California. The site is located in alfalfa fields 
 Energy Balance Ratio method
 ---------------------------
 
-The Energy Balance Ratio method (default) is modified from the `FLUXNET
-methodology <https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`__
-(step 3 daily heat processing).
-The method involves filtering out of extreme values of the daily Energy
-Balance Ratio time series, smoothing, and gap filling. Then the inverse of
-the filtered and smoothed time series is used as a series of
-correction factors for the initial time series of latent energy
-(:math:`LE`) and sensible heat (:math:`H`) flux time series.
+The Energy Balance Ratio method (default) follows the daily energy balance
+closure correction of the `FLUXNET2015 dataset
+<https://fluxnet.org/data/fluxnet2015-dataset/data-processing/>`__
+and ONEFlux processing pipeline described by `Pastorello et al. (2020)
+<https://doi.org/10.1038/s41597-020-0534-3>`__, with additional limits on the
+correction factor and corrected fluxes used by ``flux-data-qaqc``. The method
+calculates a daily energy balance closure correction factor, the inverse of
+the Energy Balance Ratio, filters out extreme values, smooths and gap fills
+it using moving windows, and multiplies the initial latent energy
+(:math:`LE`) and sensible heat (:math:`H`) flux time series by it.
+
+.. note::
+   Changed in version 0.4.0: outliers are filtered and moving window
+   statistics are calculated on the correction factor instead of the Energy
+   Balance Ratio, method 2 uses the mean, and remaining gaps are first filled
+   from the previous and next years as done by FLUXNET before the all-year
+   climatology is used. The interactive figures on this page were created
+   with earlier versions so values may differ slightly.
 
 All steps, abbreviated
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -57,38 +67,35 @@ example, FLUXNET data includes QC values for :math:`H` and :math:`LE`,
 e.g. H_F_MDS_QC and LE_F_MDS_QC are QC values for gap filled :math:`H` and
 :math:`LE`. This allows for manual pre-QaQc of data.
 
-**Step 1:** calculate the Energy Balance Ratio (EBR =
-:math:`\frac{H + LE}{Rn – G}`) daily time series from raw data.
+**Step 1:** calculate the daily Energy Balance Ratio (EBR =
+:math:`\frac{H + LE}{Rn – G}`) and its inverse, the energy balance closure
+correction factor (:math:`{EBC_{CF}} = \frac{Rn - G}{H + LE}`), from daily
+mean values.
 
-**Step 2:** filter EBR values that are outside 1.5 times the
+**Step 2:** remove :math:`EBC_{CF}` values that are outside 1.5 times the
 interquartile range.
 
-**Step 3:** for each day in the daily time series of filtered EBR, a
-sliding window of +/- 7 days (15 days) is used to select up to 15
-values.
+**Step 3 (method 1):** for each day, a sliding window of +/- 7 days (15 days)
+is used to select up to 15 :math:`EBC_{CF}` values, if at least 5 values
+exist use their median.
 
-**Step 4:** for each day take a percentile (default 50) of the 15 EBR
-values. Check if the inverse of the EBR value is :math:`> |2|` or if the
-the inverse of the ratio multiplied by the measured :math:`LE` would
-result in a flux greater than 850 or less than -100 :math:`w/m^2`, if so
-leave a gap for filling later.
+**Step 4 (method 2):** if fewer than 5 values exist in the 15 day window, use
+the mean :math:`EBC_{CF}` of a +/- 5 day (11 day) sliding window. In steps 3
+and 4, a correction factor that is :math:`\le 0.5` or :math:`\ge 2` is left
+as a gap for the next steps.
 
-**Step 5:** if less than +/- 5 days exist in the sliding 15 day window,
-use the mean EBR for all days in a +/- 5 day (11 day) sliding window.
-Apply same criteria for an extreme EBR value as in step 4.
+**Step 5 (method 3):** fill remaining gaps with the mean :math:`EBC_{CF}`
+within +/- 5 days of the same day in the previous and next years.
 
-**Step 6:** if no EBR data exist in the +/- 5 sliding window to average,
-fill remaining gaps of EBR with the mean from a +/- 5 day sliding window
-over the day of year mean for all years on record, i.e. 5 day
-climatology. Calculate the 5 day climatology from the filtered and
-smoothed EBR as produced from step 5. Apply same criteria for an extreme
-EBR value as in steps 4 and 5.
+**Step 6 (method 4):** fill gaps that still remain, e.g. in records with less
+than two years of data, with the 5 day climatology: the +/- 5 day moving mean
+of the day of year mean :math:`EBC_{CF}` from steps 3 and 4 over all years.
+This step is not part of the FLUXNET method.
 
-**Step 7:** use the filtered EBR time series from previous steps to
-correct :math:`LE` and :math:`H` by multiplying by the energy balance
-closure correction factor :math:`{EBC_{CF}} = \frac{1}{EBR}`, where EBR
-has been filtered by the previous steps. Use the corrected :math:`LE`
-and :math:`H` to calculate the corrected EBR.
+**Step 7:** correct :math:`LE` and :math:`H` by multiplying by
+:math:`EBC_{CF}` if it is between 0.5 and 2. If the corrected :math:`LE` is
+greater than 850 or less than -100 :math:`w/m^2` no correction is made for
+that day. The method used for each day (1-4) is saved as ebc_cf_method.
 
 **Step 8:** calculate corrected :math:`ET` from corrected :math:`LE`
 using average air temperature to adjust the latent heat of vaporization.
@@ -178,62 +185,58 @@ The resulting energy balance component plot with :math:`Rn` filtered:
    This will directly produce the same output of step 9 using the 
    pre-filtered data. 
 
-Steps 1 and 2, filtering outliers of EBR
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Steps 1 and 2, filtering outliers of the correction factor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Calculate daily EBR = :math:`\frac{H + LE}{Rn - G}` time series and
-filter out extreme values that are outside 1.5 the interquartile range.
-Note, in ``flux-data-qaqc`` this is named as “ebr”.
+Calculate the daily EBR = :math:`\frac{H + LE}{Rn - G}` and correction
+factor :math:`EBC_{CF} = \frac{Rn - G}{H + LE}` time series and filter out
+correction factors that are outside 1.5 times the interquartile range, as
+done by FLUXNET. Note, in ``flux-data-qaqc`` these are named “ebr” and
+“ebc_cf”. Versions before 0.4.0 applied this filter to EBR, which removes a
+different set of days because the inverse is not linear, the plot below was
+made with that earlier version.
 
 .. raw:: html
     :file: _static/closure_algorithms/steps1_2_PreFiltered.html
 
-Steps 3, 4, and 5, further filtering of EBR using moving window statistics
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Steps 3 and 4, moving window statistics of the correction factor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Filter the EBR time series using statistics performed over multiple
-moving windows. Specifically, take the median EBR from a +/- 7 day
-moving window, if less than 11 days exist in this window take the mean
-from a +/- 5 day moving window. In both of these cases check the
-resulting value before retaining based on the following criteria:
-
--  the inverse of the EBR value must be :math:`> |2|`
--  the the inverse of the ratio multiplied by the measured :math:`LE`
-   should result in a flux less than 850 and greater than -100
-   :math:`w/m^2`
-
-If either of these criteria are not met leave a gap for the day for
-filling in later steps.
+Smooth and fill the filtered correction factor time series using moving
+windows. Specifically, take the median :math:`EBC_{CF}` from a +/- 7 day
+moving window if it has at least 5 values (method 1), otherwise take the
+mean from a +/- 5 day moving window (method 2). Windows at the start and end
+of the record only use the days that exist. If the resulting correction
+factor is :math:`\le 0.5` or :math:`\ge 2` leave a gap for the day for
+filling in later steps. The plot below shows the equivalent filtered and
+smoothed EBR (:math:`\frac{1}{EBC_{CF}}`) from an earlier version.
 
 .. raw:: html
     :file: _static/closure_algorithms/steps3_5_PreFiltered.html
 
-Step 6, calculate the 5 day climatology of EBR
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Steps 5 and 6, fill remaining gaps from other years
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Compute the 5 day climatology of daily EBR (as adjusted from previous
-steps) to fill in remaining gaps of 11 or more days. Specifically,
-calculate the the day of year mean of the EBR for all years in record
-and then extract the day of year mean using a moving +/- 5 day (11 day)
-moving window. The resulting value is also checked against the same
-criteria described in steps 3-5:
-
--  the inverse of the EBR value must be :math:`> |2|`
--  the the inverse of the ratio multiplied by the measured :math:`LE`
-   should result in a flux less than 850 and greater than -100
-   :math:`w/m^2`
-
-Note, this step is only used for remaining gaps which should be larger
-than 11 days in the EBR time series following step 5. This example has a
-few time periods that were filled with the 5 day climatology of EBR
-which can be seen as the thin blue line in the plot below.
+Days that still have no correction factor after steps 3 and 4 are mostly in
+gaps of 11 or more days. These are filled with the mean of the filtered
+:math:`EBC_{CF}` within +/- 5 days of the same day in the previous and next
+years (method 3, as done by FLUXNET). If neither of those years has data,
+e.g. in records shorter than two years, the gap is filled with the 5 day
+climatology of the correction factor (method 4): the day of year mean of the
+correction factors from steps 3 and 4 over all years in the record, smoothed
+with a moving +/- 5 day (11 day) window. Correction factors from these steps
+that are :math:`\le 0.5` or :math:`\ge 2` are not used. In versions before
+0.4.0 the 5 day climatology was used for all remaining gaps, which can be
+seen as the thin blue line in the plot below.
 
 .. raw:: html
     :file: _static/closure_algorithms/step6_PreFiltered.html
 
-``flux-data-qaqc`` also keeps a record of the 5 day climatology of the
-Energy Balance Ratio as calculated at this step (shown below), it is 
-named by ``flux-data-qaqc`` as ebr_5day_clim.
+``flux-data-qaqc`` also keeps a record of the 5 day climatology as an
+Energy Balance Ratio (inverse of the climatology of the correction factor,
+shown below), it is named by ``flux-data-qaqc`` as ebr_5day_clim. The method
+used to get each day's correction factor is saved as ebc_cf_method, 1-4 for
+methods 1-4 above and null for days without a correction factor.
 
 .. raw:: html
     :file: _static/closure_algorithms/5dayclim_PreFiltered.html
@@ -242,16 +245,18 @@ Steps 7 and 8 correct turbulent fluxes, EBR, and ET
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Calculate corrected :math:`LE` and :math:`H` by multiplying by
-:math:`\frac{1}{EBR}` where :math:`EBR` is the filtered EBR time series
-from previous steps:
+:math:`EBC_{CF}`, the filtered and gap filled correction factor from
+previous steps:
 
-.. math:: LE_{corr} = LE \times \frac{1}{EBR}
+.. math:: LE_{corr} = LE \times EBC_{CF}
 
 \ and
 
-.. math:: H_{corr} = H \times \frac{1}{EBR}.
+.. math:: H_{corr} = H \times EBC_{CF}.
 
-Use corrected LE and H to calculate the corrected EBR,
+The daily corrected EBR (ebr_corr) saved by ``flux-data-qaqc`` is the
+filtered and smoothed EBR, :math:`\frac{1}{EBC_{CF}}`. In monthly output it
+is calculated from corrected :math:`LE` and :math:`H`,
 
 .. math:: EBR_{corr} = \frac{H_{corr} + LE_{corr}}{Rn - G}.
 
@@ -288,12 +293,10 @@ Notice the mean daily corrected energy balance ratio (slope of corrected) is 1 o
    are provided by default via the :meth:`.QaQc.plot` method.
 
 In ``flux-data-qaqc`` new variable names from these steps are: LE_corr, H_corr,
-ebr, ebr_corr, ebc_cf, ET, ET_corr, ebr_corr, and ebr_5day_clim. The inverse of
-the corrected EBR (filtered from previous steps) is named ebc_cf which is short
-for energy balance closure correction factor as described by the `FLUXNET
-methodology
-<https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`__
-(step 3 daily heat processing).
+ebr, ebr_corr, ebc_cf, ebc_cf_method, ET, ET_corr, and ebr_5day_clim. The
+energy balance closure correction factor is named ebc_cf as in the `FLUXNET
+methodology <https://fluxnet.org/data/fluxnet2015-dataset/data-processing/>`__
+and Pastorello et al. (2020).
 
 Step 9, optionally gap fill corrected ET using gridMET reference ET and reference ET fraction
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

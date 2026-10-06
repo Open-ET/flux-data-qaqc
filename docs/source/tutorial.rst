@@ -1276,8 +1276,9 @@ required input variables exist.
  br                 bowen ratio                                                                     —
  co2                CO2 mole fraction                                                               μmol mol⁻¹
  ebc_cf             energy balance closure correction factor (inverse of ebr_corr)                  —
+ ebc_cf_method      method used for ebc_cf, 1-4 (see Closure Methodologies)                         —
  ebr                input energy balance ratio                                                      —
- ebr_5day_clim      5 day climatology of the filtered energy balance ratio                          —
+ ebr_5day_clim      5 day climatology of the filtered energy balance ratio (method 4)               —
  ebr_corr           corrected energy balance ratio                                                  —
  energy             input Rn - G                                                                    W m⁻²
  es                 saturation vapor pressure                                                       kPa

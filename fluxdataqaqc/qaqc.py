@@ -275,6 +275,7 @@ class QaQc(Plot, Convert):
         'ebr_corr',
         'ebr_user_corr',
         'ebc_cf',
+        'ebc_cf_method',
         'ebr_5day_clim',
         'flux',
         'flux_corr',
@@ -940,7 +941,11 @@ class QaQc(Plot, Convert):
         # rename columns to internal names 
         df = self._df.rename(columns=self.inv_map).copy()
         # avoid including string QC flags because of float forcing on resample
-        numeric_cols = [c for c in df.columns if not '_qc_flag' in c]
+        # also skip the daily energy balance correction method flag
+        numeric_cols = [
+            c for c in df.columns
+            if not '_qc_flag' in c and not c == 'ebc_cf_method'
+        ]
         sum_cols = [k for k,v in self.agg_dict.items() if v == 'sum']
         # to avoid warning/error of missing columns 
         sum_cols = list(set(sum_cols).intersection(df.columns))
@@ -1138,10 +1143,13 @@ class QaQc(Plot, Convert):
 
         Note:
             The *ebr_corr* variable or energy balance closure ratio is 
-            calculated from the corrected versions of LE and H independent 
-            of the method. When using the 'ebr' method the energy balance 
-            correction factor (what is applied to the raw H and LE) is left as 
-            calculated (inverse of ebr) and saved as *ebc_cf*. 
+            calculated from the corrected versions of LE and H for the 'br'
+            and 'lin_regress' methods and for monthly data. For daily data
+            with the 'ebr' method it is the filtered and smoothed energy
+            balance ratio, i.e. the inverse of the correction factor that is
+            applied to the raw H and LE, which is saved as *ebc_cf*. The
+            method used to get each day's correction factor (1-4, see
+            :ref:`Closure Methodologies`) is saved as *ebc_cf_method*. 
 
         See Also:
             For explanation of the linear regression method see the
@@ -1695,8 +1703,25 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         """
         Energy balance ratio correction method for daily LE, H, EBR, and ET.
 
-        Correct turblent fluxes to close energy balance using methods 
-        described by FLUXNET for daily H and LE. 
+        Correct turbulent fluxes to close the energy balance following the
+        daily energy balance closure correction of FLUXNET2015 (ONEFlux)
+        described by Pastorello et al. (2020), with the additional limits on
+        the correction factor and corrected LE used by ``flux-data-qaqc``:
+
+        1. calculate the daily correction factor, CF = (Rn - G) / (H + LE),
+           and remove values outside of 1.5 times its interquartile range
+        2. method 1, median CF in a +/- 7 day window with at least 5 values
+        3. method 2, mean CF in a +/- 5 day window
+        4. method 3, mean CF in +/- 5 days around the same day in the
+           previous and next years
+        5. method 4 (not in FLUXNET), +/- 5 day moving mean of the day of
+           year mean CF from methods 1 and 2 over all years
+        6. keep CF between 0.5 and 2 and multiply LE and H by CF, remove
+           days where corrected LE is <= -100 or >= 850 w/m2
+
+        A CF outside of the limits from any method is not used and the next
+        method may fill that day. The method used for each day is saved as
+        "ebc_cf_method".
 
         Updates :attr:`QaQc.df` and :attr:`QaQc.variables` attributes with new 
         variables related to the corrections, e.g. LE_corr, ebr_corr, etc.
@@ -1708,129 +1733,68 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
             :obj:`None`
 
         """
-        # moving windows FLUXNET methods 1, 2 and 3
-        window_1 = 15
-        window_2 = 11
-        half_win_1 = window_1 // 2
-        half_win_2 = window_2 // 2
-        
         # drop relavant calculated variables if they exist
         self._df = _drop_cols(self.df, self._eb_calc_vars)
         df = self._df.rename(columns=self.inv_map)
-        # check if mean G, or heat storage measurements exist
-        vars_to_use = ['LE','H','Rn','G']
-        for el in ['SH', 'SLE', 'SG']:
-            if el in df.columns:
-                vars_to_use.append(el)
-        df = df[vars_to_use].astype(float).copy()
+        LE = df.LE.astype(float)
+        H = df.H.astype(float)
+        Rn = df.Rn.astype(float)
+        G = df.G.astype(float)
 
-        # make copy of original data for later
-        orig_df = df[['LE','H','Rn','G']].astype(float).copy()
-        orig_df['ebr'] =  (orig_df.H + orig_df.LE) / (orig_df.Rn - orig_df.G)
+        # daily energy balance ratio and correction factor (its inverse)
+        df['ebr'] = (H + LE) / (Rn - G)
+        cf = (Rn - G) / (H + LE)
+        cf = cf.replace([np.inf, -np.inf], np.nan)
 
-        # compute IQR to filter out extreme ebrs, 
-        df['ebr'] = (df.H + df.LE) / (df.Rn - df.G)
-        Q1 = df['ebr'].quantile(0.25)
-        Q3 = df['ebr'].quantile(0.75)
+        # remove correction factors outside of 1.5 times the IQR
+        Q1 = cf.quantile(0.25)
+        Q3 = cf.quantile(0.75)
         IQR = Q3 - Q1
-        # filter values between Q1-1.5IQR and Q3+1.5IQR
-        mask = (df['ebr'] >= (Q1 - 1.5 * IQR)) & (df['ebr'] <= (Q3 + 1.5 * IQR))
-        filtered = df[mask]
-        # apply filter
-        filtered_mask = filtered.index
-        removed_mask = set(df.index) - set(filtered_mask)
-        removed_mask = pd.to_datetime(list(removed_mask))
-        df.loc[removed_mask] = np.nan
+        cf = cf.where((cf >= Q1 - 1.5 * IQR) & (cf <= Q3 + 1.5 * IQR))
 
-        # FLUXNET methods 1 and 2 for filtering/smoothing ebr
-        ebr = df.ebr.values
-        df['ebr_corr'] = np.nan
-        for i in range(len(ebr)):
-            win_arr1 = ebr[i-half_win_1:i+half_win_1+1]
-            win_arr2 = ebr[i-half_win_2:i+half_win_2+1]
-            count = np.count_nonzero(~np.isnan(win_arr1))
-            # get median of daily window1 if half window2 or more days exist
-            if count >= half_win_2:
-                val = np.nanpercentile(win_arr1, 50, axis=None)
-                if abs(1/val) >= 2 or abs(1/val) <= 0.5:
-                    val = np.nan
-            # if at least one day exists in window2 take mean
-            elif np.count_nonzero(~np.isnan(win_arr2)) > 0:
-                val = np.nanmedian(win_arr2)
-                if abs(1/val) >= 2 or abs(1/val) <= 0.5:
-                    val = np.nan
-            else:
-                # assign nan for now, update with 5 day climatology
-                val = np.nan
-            # assign values if they were found in methods 1 or 2
-            df.iloc[i, df.columns.get_loc('ebr_corr')] = val
-        # make 5 day climatology of ebr for method 3
-        # the cenetered window skips first and last 5 DOYs
-        # so prepend and append first and last 5 days and loop...
-        doy_ebr_mean=df['ebr_corr'].groupby(df.index.dayofyear).mean().copy()
-        l5days = pd.Series(
-            index=np.arange(-4,1), data=doy_ebr_mean.iloc[-5:].values)
-        f5days = pd.Series(
-            index=np.arange(367,372), data=doy_ebr_mean.iloc[:5].values)
-        #doy_ebr_mean = doy_ebr_mean.append(f5days)
-        doy_ebr_mean = pd.concat([doy_ebr_mean, f5days])
-        doy_ebr_mean = pd.concat([l5days, doy_ebr_mean])
-        ebr_5day_clim = pd.DataFrame(
-            index=np.arange(1,367), columns=['ebr_5day_clim'])
-        doy_ebr_mean = doy_ebr_mean.values
-        for i in range(len(doy_ebr_mean)):
-            # i = 0 which starts at prepended 5 days, shift window up
-            win = doy_ebr_mean[i:i+2*half_win_2+1]
-            count = np.count_nonzero(~np.isnan(win))
-            # get 11 day moving window mean
-            if i in ebr_5day_clim.index and count > 0:
-                ebr_5day_clim.iloc[
-                    i-1, ebr_5day_clim.columns.get_loc('ebr_5day_clim')
-                ] = np.nanmean(win)
-        ebr_5day_clim['DOY'] = ebr_5day_clim.index
-        ebr_5day_clim.index.name = 'date'
+        # methods 1 and 2, moving windows around each day
+        cf_corr, cf_method = self._ebc_cf_moving_windows(cf)
+        # out of limit values are left as gaps for methods 3 and 4
+        out_of_limits = (cf_corr <= 0.5) | (cf_corr >= 2)
+        cf_corr[out_of_limits] = np.nan
+        cf_method[out_of_limits] = np.nan
 
-        # fill gaps of 11 or more days in filtered EBR with 5 day clim
-        df['DOY'] = df.index.dayofyear
-        # datetime indices of all remaining null elements
-        null_dates = df.loc[df.ebr_corr.isnull(), 'ebr_corr'].index
-
-        merged = pd.merge(
-            df, ebr_5day_clim, left_on='DOY', right_index=True
+        # method 3, same days in the previous and next years
+        cf_adjacent = self._ebc_cf_adjacent_years(cf)
+        # method 4, climatology of method 1 and 2 results for all years
+        cf_clim = self._ebc_cf_climatology(cf_corr)
+        cf_clim = pd.Series(
+            cf_clim.reindex(df.index.dayofyear).values, index=df.index
         )
-        # assign 5 day climatology of EBR 
-        merged.loc[null_dates,'ebr_corr'] =\
-            merged.loc[null_dates,'ebr_5day_clim'].astype(float)
-        # replace raw variables with unfiltered dataframe copy
-        merged.LE = orig_df.LE
-        merged.H = orig_df.H
-        merged.Rn = orig_df.Rn
-        merged.G = orig_df.G
-        merged.ebr = orig_df.ebr
-        # calculated corrected EBR to assign to ebr_corr (not EBC_CF), 
-        # save CFs as defined by fluxnet method, i.e. inverse of EBR
-        merged['ebc_cf'] = 1/merged.ebr_corr
-        # filter out CF that are >=2 or <=0.5 (absolute)
-        merged.loc[
-            (abs(merged.ebc_cf) >= 2) | (abs(merged.ebc_cf <= 0.5)), 'ebc_cf'
-        ] = np.nan
-        # apply corrections to LE and H multiply by 1/EBR
-        merged['LE_corr'] = merged.LE * merged.ebc_cf
-        merged['H_corr'] = merged.H * merged.ebc_cf
-        # filter out any corrected LE that <= -100 or >= 850 w/m2
-        # also removing corrected H, EBR, and EBC_CF
-        merged.loc[
-            (merged.LE_corr >= 850) | (merged.LE_corr <= -100), (
-                'LE_corr', 'H_corr', 'ebr_corr', 'ebc_cf'
-            )
-        ] = np.nan
-        # compute EBR total turb flux
-        merged['flux_corr'] = merged['LE_corr'] + merged['H_corr']
 
-        df = self._df.rename(columns=self.inv_map)
+        # fill remaining gaps with method 3 then method 4, only correction
+        # factors between 0.5 and 2 are used
+        for method, cf_fill in [(3, cf_adjacent), (4, cf_clim)]:
+            cf_fill = cf_fill.where((cf_fill > 0.5) & (cf_fill < 2))
+            gaps = cf_corr.isna() & cf_fill.notna()
+            cf_corr[gaps] = cf_fill[gaps]
+            cf_method[gaps] = method
+
+        # apply corrections to LE and H
+        df['LE_corr'] = LE * cf_corr
+        df['H_corr'] = H * cf_corr
+        # filter out any corrected LE that <= -100 or >= 850 w/m2
+        # also removing corrected H and correction factor
+        bad_LE = (df.LE_corr >= 850) | (df.LE_corr <= -100)
+        df.loc[bad_LE, ['LE_corr', 'H_corr']] = np.nan
+        cf_corr[bad_LE] = np.nan
+        cf_method[bad_LE] = np.nan
+
+        df['ebc_cf'] = cf_corr
+        df['ebc_cf_method'] = cf_method
+        # filtered and smoothed energy balance ratio, inverse of ebc_cf
+        df['ebr_corr'] = 1 / cf_corr
+        # 5 day climatology of the energy balance ratio (method 4)
+        df['ebr_5day_clim'] = 1 / cf_clim
+        df['flux_corr'] = df.LE_corr + df.H_corr
         # other variables needed for plots using raw data
-        df['flux'] = merged.LE + merged.H
-        df['energy'] = merged.Rn - merged.G
+        df['flux'] = LE + H
+        df['energy'] = Rn - G
 
         # corrected turbulent flux if given from input data
         if set(['LE_user_corr','H_user_corr']).issubset(df.columns):
@@ -1841,12 +1805,6 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
                 flux_user_corr = 'flux_user_corr',
                 ebr_user_corr = 'ebr_user_corr'
             )
-        # grab select columns to merge into main dataframe
-        cols = list(set(merged.columns).difference(df.columns))
-        # join calculated data in
-        merged = df.join(merged[cols], how='outer')
-        # remove merge columns with suffix
-        merged = merged.drop(columns=['DOY_x','DOY_y'])
 
         self.variables.update(
             energy = 'energy',
@@ -1857,14 +1815,144 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
             ebr = 'ebr',
             ebr_corr = 'ebr_corr',
             ebc_cf = 'ebc_cf',
+            ebc_cf_method = 'ebc_cf_method',
             ebr_5day_clim = 'ebr_5day_clim'
         )
 
         # revert column names to user's
-        self._df = merged.rename(columns=self.variables)
+        self._df = df.rename(columns=self.variables)
         # update flag for other methods
         self.corrected = True
-    
+
+    @staticmethod
+    def _ebc_cf_moving_windows(cf, half_win_1=7, half_win_2=5,
+            min_count_1=5):
+        """
+        Energy balance closure correction factors from moving windows,
+        methods 1 and 2 of the FLUXNET2015 daily correction.
+
+        Method 1 is the median of a +/- 7 day window when it has at least 5
+        values, otherwise method 2 is the mean of a +/- 5 day window.
+        Windows are cut off at the start and end of the record. Assumes a
+        continuous daily time series.
+
+        Arguments:
+            cf (:obj:`pandas.Series`): daily correction factors with
+                outliers removed (null).
+
+        Keyword Arguments:
+            half_win_1 (int): default 7. Half width of the method 1 window
+                [days].
+            half_win_2 (int): default 5. Half width of the method 2 window
+                [days].
+            min_count_1 (int): default 5. Minimum number of values in the
+                method 1 window.
+
+        Returns:
+            cf_corr, cf_method (tuple): :obj:`pandas.Series` of correction
+            factors and the method used (1 or 2), null where the windows
+            have no values.
+        """
+        cf_vals = cf.values
+        cf_corr = np.full(len(cf_vals), np.nan)
+        cf_method = np.full(len(cf_vals), np.nan)
+
+        for i in range(len(cf_vals)):
+            win_1 = cf_vals[max(0, i - half_win_1):i + half_win_1 + 1]
+            win_2 = cf_vals[max(0, i - half_win_2):i + half_win_2 + 1]
+            count_1 = np.count_nonzero(~np.isnan(win_1))
+            count_2 = np.count_nonzero(~np.isnan(win_2))
+            # method 1, median of +/- 7 days
+            if count_1 >= min_count_1:
+                cf_corr[i] = np.nanmedian(win_1)
+                cf_method[i] = 1
+            # method 2, mean of +/- 5 days
+            elif count_2 > 0:
+                cf_corr[i] = np.nanmean(win_2)
+                cf_method[i] = 2
+
+        return (
+            pd.Series(cf_corr, index=cf.index),
+            pd.Series(cf_method, index=cf.index)
+        )
+
+    @staticmethod
+    def _ebc_cf_adjacent_years(cf, half_win=5):
+        """
+        Energy balance closure correction factors from the previous and next
+        years, method 3 of the FLUXNET2015 daily correction.
+
+        For each day, the mean of the correction factors within +/- 5 days
+        of the same day in the previous and next years. Assumes a
+        continuous daily time series.
+
+        Arguments:
+            cf (:obj:`pandas.Series`): daily correction factors with
+                outliers removed (null).
+
+        Keyword Arguments:
+            half_win (int): default 5. Half width of the window [days].
+
+        Returns:
+            cf_adjacent (:obj:`pandas.Series`): correction factors, null
+            where neither year has values.
+        """
+        # sum and count of values in a +/- 5 day window around each day
+        window = cf.rolling(2 * half_win + 1, center=True, min_periods=1)
+        win_sum = window.sum()
+        win_count = window.count()
+
+        # add windows from the same days one year before and after
+        total = np.zeros(len(cf))
+        count = np.zeros(len(cf))
+        for years in (-1, 1):
+            dates = cf.index + pd.DateOffset(years=years)
+            total += win_sum.reindex(dates).fillna(0).values
+            count += win_count.reindex(dates).fillna(0).values
+
+        cf_adjacent = np.full(len(cf), np.nan)
+        has_values = count > 0
+        cf_adjacent[has_values] = total[has_values] / count[has_values]
+
+        return pd.Series(cf_adjacent, index=cf.index)
+
+    @staticmethod
+    def _ebc_cf_climatology(cf_corr, half_win=5):
+        """
+        Day of year climatology of energy balance closure correction
+        factors, used to fill gaps that remain after FLUXNET method 3.
+
+        The mean correction factor for each day of year over all years is
+        smoothed with a +/- 5 day moving mean, windows near the start and
+        end of the year wrap around to the other end.
+
+        Arguments:
+            cf_corr (:obj:`pandas.Series`): daily correction factors from
+                methods 1 and 2.
+
+        Keyword Arguments:
+            half_win (int): default 5. Half width of the window [days].
+
+        Returns:
+            cf_clim (:obj:`pandas.Series`): correction factor for each day of
+            year, index is day of year from 1 to 366.
+        """
+        doy_mean = cf_corr.groupby(cf_corr.index.dayofyear).mean()
+        # include all days of year so windows line up with day of year
+        doy_mean = doy_mean.reindex(np.arange(1, 367))
+
+        # wrap around the end of the year before the moving mean
+        wrapped = pd.concat([
+            doy_mean.iloc[-half_win:], doy_mean, doy_mean.iloc[:half_win]
+        ])
+        cf_clim = wrapped.rolling(
+            2 * half_win + 1, center=True, min_periods=1
+        ).mean()
+        cf_clim = cf_clim.iloc[half_win:-half_win]
+        cf_clim.index = np.arange(1, 367)
+
+        return cf_clim
+
     def _bowen_ratio_correction(self):
         """
         Create corrected/adjusted latent energy and sensible heat flux to 

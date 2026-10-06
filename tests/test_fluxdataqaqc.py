@@ -253,6 +253,18 @@ class TestData(object):
         with pytest.raises(ValueError, match='latent_heat_flux_units'):
             Data(config)
 
+    def test_soil_heat_flux_column_named_G(self, data, tmp_path):
+        # g_1 uses the same column as G, its units are in the config but
+        # not stored in Data.units, this was rejected in version 0.3.1
+        config = data['package_root_dir']/'examples'\
+            /'Config_options'/'config_for_QC_flag_filtering.ini'
+        config = _tmp_config(
+            config, tmp_path,
+            set_opts=[('DATA', 'g_1', 'G'), ('DATA', 'g_1_units', 'w/m2')]
+        )
+        q = QaQc(Data(config))
+        assert 'G' in q.df.rename(columns=q.inv_map).columns
+
     def test_missing_units_for_plot_only_variable(self, data, tmp_path):
         # potential shortwave units are only used for plot labels
         config = data['package_root_dir']/'examples'\
@@ -608,6 +620,87 @@ class TestQaQc(object):
         assert sw_pot.loc['2020-06-21 00:00'] == 0
         assert sw_pot.loc['2020-06-21 12:00'] > 0
         assert sw_pot.max() > 0
+
+    def _daily_cf(self, values, start='2010-03-01'):
+        """Daily correction factor series for energy balance tests"""
+        index = pd.date_range(start, periods=len(values), freq='D')
+        return pd.Series(values, index=index, dtype=float)
+
+    def test_ebc_cf_method_1_at_record_start(self):
+        # first days used to get no moving window value
+        cf = self._daily_cf([1.2] * 30)
+        cf.iloc[0] = 1.0
+        cf_corr, method = QaQc._ebc_cf_moving_windows(cf)
+        assert (method == 1).all()
+        # day 0 window is days 0-7, median of 1.0 and seven 1.2 values
+        assert np.isclose(cf_corr.iloc[0], 1.2)
+
+    def test_ebc_cf_method_2_is_mean(self):
+        # only 3 values within +/- 7 days, method 2 uses the mean
+        cf = self._daily_cf([np.nan] * 30)
+        cf.iloc[[10, 12, 13]] = [1.0, 1.1, 1.6]
+        cf_corr, method = QaQc._ebc_cf_moving_windows(cf)
+        assert method.iloc[11] == 2
+        assert np.isclose(cf_corr.iloc[11], np.mean([1.0, 1.1, 1.6]))
+        # no values within +/- 5 days
+        assert np.isnan(cf_corr.iloc[25]) and np.isnan(method.iloc[25])
+
+    def test_ebc_cf_method_3_previous_and_next_years(self):
+        cf = self._daily_cf([1.0] * 365 + [1.5] * 365 + [1.4] * 365,
+            start='2010-01-01')
+        adjacent = QaQc._ebc_cf_adjacent_years(cf)
+        # middle year, mean of previous (1.0) and next (1.4) years
+        assert np.isclose(adjacent.loc['2011-06-15'], 1.2)
+        # first year, only the next year exists
+        assert np.isclose(adjacent.loc['2010-06-15'], 1.5)
+        # values in a gap of the middle year come from the other years
+        cf.loc['2011-06-01':'2011-07-31'] = np.nan
+        adjacent = QaQc._ebc_cf_adjacent_years(cf)
+        assert np.isclose(adjacent.loc['2011-06-15'], 1.2)
+
+    def test_ebc_cf_climatology_lines_up_with_day_of_year(self):
+        # 200 days from March 1, climatology used to shift by record start
+        cf = self._daily_cf(np.linspace(0.8, 1.4, 200))
+        clim = QaQc._ebc_cf_climatology(cf)
+        doy = cf.index.dayofyear
+        day = cf.index[100]
+        expected = cf[(doy >= day.dayofyear - 5) & (doy <= day.dayofyear + 5)]
+        assert np.isclose(clim.loc[day.dayofyear], expected.mean())
+        # no data in January
+        assert np.isnan(clim.loc[15])
+
+    def test_ebc_cf_out_of_limits_falls_through(self, data, monkeypatch):
+        # method 3 values outside of 0.5-2 are not used, method 4 fills
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        q = QaQc(Data(config))
+        q.correct_data(et_gap_fill=False)
+        method_3_days = q.df.ebc_cf_method == 3
+        assert method_3_days.any()
+        monkeypatch.setattr(
+            QaQc, '_ebc_cf_adjacent_years',
+            staticmethod(lambda cf, half_win=5: cf * 0 + 2.5)
+        )
+        q = QaQc(Data(config))
+        q.correct_data(et_gap_fill=False)
+        methods = q.df.ebc_cf_method
+        assert not (methods == 3).any()
+        assert (methods[method_3_days] == 4).all()
+
+    def test_ebr_correction_outputs(self, data):
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        q = QaQc(Data(config))
+        q.correct_data(et_gap_fill=False)
+        df = q.df.rename(columns=q.inv_map)
+        methods = df.ebc_cf_method.dropna()
+        assert set(methods.unique()).issubset({1, 2, 3, 4})
+        cf = df.ebc_cf.dropna()
+        assert ((cf > 0.5) & (cf < 2)).all()
+        assert np.allclose(df.LE_corr, df.LE * df.ebc_cf, equal_nan=True)
+        assert np.allclose(df.ebr_corr, 1 / df.ebc_cf, equal_nan=True)
+        # method flag is daily only
+        assert 'ebc_cf_method' not in q.monthly_df.columns
 
     def _qc_example_config(self, data, tmp_path, **kwargs):
         """Daily US-AR1 example copied to a temp dir (gridMET writes)"""
