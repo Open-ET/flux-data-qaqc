@@ -51,8 +51,7 @@ it using moving windows, and multiplies the initial latent energy
    statistics are calculated on the correction factor instead of the Energy
    Balance Ratio, method 2 uses the mean, and remaining gaps are first filled
    from the previous and next years as done by FLUXNET before the all-year
-   climatology is used. The interactive figures on this page were created
-   with earlier versions so values may differ slightly.
+   climatology is used.
 
 All steps, abbreviated
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -193,8 +192,8 @@ factor :math:`EBC_{CF} = \frac{Rn - G}{H + LE}` time series and filter out
 correction factors that are outside 1.5 times the interquartile range, as
 done by FLUXNET. Note, in ``flux-data-qaqc`` these are named “ebr” and
 “ebc_cf”. Versions before 0.4.0 applied this filter to EBR, which removes a
-different set of days because the inverse is not linear, the plot below was
-made with that earlier version.
+different set of days because the inverse is not linear. The plot below shows
+the correction factor before and after the filter.
 
 .. raw:: html
     :file: _static/closure_algorithms/steps1_2_PreFiltered.html
@@ -208,11 +207,11 @@ moving window if it has at least 5 values (method 1), otherwise take the
 mean from a +/- 5 day moving window (method 2). Windows at the start and end
 of the record only use the days that exist. If the resulting correction
 factor is :math:`\le 0.5` or :math:`\ge 2` leave a gap for the day for
-filling in later steps. The plot below shows the equivalent filtered and
-smoothed EBR (:math:`\frac{1}{EBC_{CF}}`) from an earlier version.
+filling in later steps. The plot below shows the filtered correction factor
+and the correction factor after steps 3 and 4.
 
 .. raw:: html
-    :file: _static/closure_algorithms/steps3_5_PreFiltered.html
+    :file: _static/closure_algorithms/steps3_4_PreFiltered.html
 
 Steps 5 and 6, fill remaining gaps from other years
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -226,11 +225,12 @@ climatology of the correction factor (method 4): the day of year mean of the
 correction factors from steps 3 and 4 over all years in the record, smoothed
 with a moving +/- 5 day (11 day) window. Correction factors from these steps
 that are :math:`\le 0.5` or :math:`\ge 2` are not used. In versions before
-0.4.0 the 5 day climatology was used for all remaining gaps, which can be
-seen as the thin blue line in the plot below.
+0.4.0 the 5 day climatology was used for all remaining gaps. The plot below
+shows the days filled by each step, at this site mostly before the tower was
+installed in May 2013 and in a gap in 2016.
 
 .. raw:: html
-    :file: _static/closure_algorithms/step6_PreFiltered.html
+    :file: _static/closure_algorithms/steps5_6_PreFiltered.html
 
 ``flux-data-qaqc`` also keeps a record of the 5 day climatology as an
 Energy Balance Ratio (inverse of the climatology of the correction factor,
@@ -283,7 +283,7 @@ The following plot shows the energy balance closure of the initial and corrected
 .. raw:: html
     :file: _static/closure_algorithms/EBC_scatter_PreFiltered.html
 
-Notice the mean daily corrected energy balance ratio (slope of corrected) is 1 or near perfect closure. However, the same plot below shows the results if we skipped the manual pre-filtering of outlier :math:`Rn` values. In this case the resulting corrected mean closure is only 0.93:
+Notice the mean daily corrected energy balance ratio (slope of corrected) is 0.99 or near perfect closure. However, the same plot below shows the results if we skipped the manual pre-filtering of outlier :math:`Rn` values. In this case the resulting corrected mean closure is only 0.92:
 
 .. raw:: html
     :file: _static/closure_algorithms/EBC_scatter_noPreFilter.html
@@ -338,12 +338,12 @@ Note, the gap filled values of :math:`ET` (green line) do not accurately catch t
 
 This ET gap-filling step is used by default when running ``flux-data-qaqc``
 energy balance closure correction routines, to disable it set the
-``etr_gap_fill`` argument of :meth:`QaQc.correct_data` to False, e.g.
+``et_gap_fill`` argument of :meth:`QaQc.correct_data` to False, e.g.
 
 .. code-block:: python
 
     # q is a QaQc instance
-    q.correct_data(meth='ebr', etr_gap_fill=False)
+    q.correct_data(meth='ebr', et_gap_fill=False)
 
 
 In ``flux-data-qaqc`` new variable names from this step are: ETrF,
@@ -381,7 +381,11 @@ to latent energy flux,
 .. math:: \beta = \frac{H}{LE}.
 
 This routine forces energy balance closure for each day in the time
-series.
+series. Days where the Bowen Ratio is undefined (:math:`LE` is zero or
+:math:`\beta = -1`) or where the corrected :math:`LE` is :math:`\ge 850`
+or :math:`\le -100` :math:`w/m^2`, the same limits used by the Energy
+Balance Ratio method, are left without a correction (changed in version
+0.4.0).
 
 Here is the resulting :math:`ET_{corr}` time series using the pre-filtered (:math:`Rn`) energy balance time series and the Bowen Ratio method:
 

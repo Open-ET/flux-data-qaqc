@@ -656,8 +656,8 @@ creation of a :obj:`.QaQc` instance if the frequency within the preceeding
     >>> q = QaQc(d)
         The input data temporal frequency appears to be less than daily.
         Data is being resampled to daily temporal frequency.
+        Linearly interpolating complete internal gaps up to 4 hours when sw_pot <= 0 and all available Rn values are < 0, and up to 2 hours otherwise.
         Filtering days with less then 100.0% or 48/48 sub-daily measurements
-        Converting vpd from hpa to kpa
 
 
     >>> # first 5 datetime indices are dates now
@@ -771,8 +771,8 @@ The percentage of sub-daily samples to require set by the ``daily_frac`` argumen
     >>> q = QaQc(d, daily_frac=20/24, max_interp_hours=2, max_interp_hours_night=2)
         The input data temporal frequency appears to be less than daily.
         Data is being resampled to daily temporal frequency.
-        Linearly interpolating gaps in energy balance components up to 2 hours when Rn < 0 and up to 2 hours when Rn >= 0.
-        Filtering days with less then 83.33333333333334% or 40/48 sub-daily measurements    
+        Linearly interpolating complete internal gaps up to 2 hours when sw_pot <= 0 and all available Rn values are < 0, and up to 2 hours otherwise.
+        Filtering days with less then 83.33333333333334% or 40/48 sub-daily measurements
 
 In this case we set ``daily_frac=20/24`` because we are only allowing a maximum of 4 hours of total gaps in the day in other words we are requiring 40 of the 48 half hourly samples to exist before we filter out a day. Remember, because linear interpolation of gaps is done before counting sub-daily gaps, this could result in retaining days with more than 4 hours of gaps in the original time series of energy balance components. You may also pass the ``daily_frac`` arugment as a decimal fraction, e.g. :math:`0.8333 \approx 20/24`.
 
@@ -816,7 +816,7 @@ daily mean :math:`Rn` if not filtered carefully:
     >>> # add daily gap counts to secondary y
     >>> fig.extra_y_ranges['gap_counts'] = Range1d(start=0, end=48)
     >>> fig.add_layout(LinearAxis(y_range_name='gap_counts', axis_label='number of sub-daily gaps'), 'right')
-    >>> fig.circle('date', 'sub_day_gaps', legend_label='n sub-day gaps', y_range_name='gap_counts',
+    >>> fig.scatter('date', 'sub_day_gaps', legend_label='n sub-day gaps', y_range_name='gap_counts',
     >>>     color='silver', source=source
     >>> )
     >>> fig.hover[0].tooltips.append(('sub_day_gaps','@{}'.format('sub_day_gaps')))
@@ -874,29 +874,44 @@ Try zooming in on the gaps filled by the "no filter wout/interp." line to compar
               </thead>
               <tbody>
                 <tr>
-                  <td>2015-06-09</td>
-                  <td>101.710194</td>
-                  <td>5.0</td>
+                  <td>2016-08-11</td>
+                  <td>114.199504</td>
+                  <td>5</td>
                 </tr>
                 <tr>
-                  <td>2015-11-20</td>
-                  <td>47.990988</td>
-                  <td>5.0</td>
+                  <td>2016-08-18</td>
+                  <td>108.823582</td>
+                  <td>6</td>
                 </tr>
                 <tr>
-                  <td>2016-01-15</td>
-                  <td>72.495973</td>
-                  <td>8.0</td>
+                  <td>2016-09-25</td>
+                  <td>84.881956</td>
+                  <td>7</td>
                 </tr>
                 <tr>
-                  <td>2018-01-06</td>
-                  <td>79.507008</td>
-                  <td>7.0</td>
+                  <td>2016-10-05</td>
+                  <td>69.856446</td>
+                  <td>5</td>
                 </tr>
                 <tr>
-                  <td>2018-05-10</td>
-                  <td>160.997332</td>
-                  <td>6.0</td>
+                  <td>2016-10-06</td>
+                  <td>75.677964</td>
+                  <td>5</td>
+                </tr>
+                <tr>
+                  <td>2016-10-07</td>
+                  <td>78.044075</td>
+                  <td>6</td>
+                </tr>
+                <tr>
+                  <td>2016-10-08</td>
+                  <td>79.764286</td>
+                  <td>5</td>
+                </tr>
+                <tr>
+                  <td>2016-10-09</td>
+                  <td>71.234351</td>
+                  <td>5</td>
                 </tr>
               </tbody>
             </table>
@@ -937,14 +952,14 @@ By calling the monthly dataframe, the energy balance closure was applied
 automatically
 
     >>> q.monthly_df.ET_corr.describe()
-        count     61.000000
-        mean      87.858135
-        std       49.938287
-        min       11.370062
-        25%       41.418994
-        50%       84.383190
-        75%      127.500125
-        max      192.033481
+        count     60.000000
+        mean      85.471030
+        std       48.958646
+        min       10.950070
+        25%       40.134493
+        50%       83.545119
+        75%      124.518922
+        max      191.313598
         Name: ET_corr, dtype: float64
 
 
@@ -952,8 +967,8 @@ automatically
         True
 
 .. note:: 
-   The :attr:`.QaQc.monthly_df` also filters out months with less than 30% of
-   days of the month missing by default. To calculate monthly time series with
+   The :attr:`.QaQc.monthly_df` also forces months to null when fewer than
+   80% of the days in the month exist. To calculate monthly time series with
    other threshold fractions of days required use the
    :func:`.util.monthly_resample` function and adjust the keyword argument
    ``thresh`` which is the fraction (0-1) of days of the month required to not
@@ -1043,11 +1058,11 @@ corrections. Here are a few tips on using them,
     >>> # make copies of daily results of different correction options
     >>> q.correct_data(meth='ebr')
     >>> ebr_gapfilled = q.df
-    >>> q.correct_data(meth='ebr', etr_gap_fill=False)
+    >>> q.correct_data(meth='ebr', et_gap_fill=False)
     >>> ebr_notgapfilled = q.df
     >>> q.correct_data(meth='br')
     >>> br_gapfilled = q.df
-    >>> q.correct_data(meth='br', etr_gap_fill=False)
+    >>> q.correct_data(meth='br', et_gap_fill=False)
     >>> br_notgapfilled = q.df
 
 
@@ -1056,7 +1071,7 @@ ET gap-filling
 
 A few notes on the option that uses reference ET and fraction of daily
 reference ET to fill in large gaps in corrected ET, i.e. the keyword
-argument ``QaQc.correct_data(etr_gap_fill = True)``.
+argument ``QaQc.correct_data(et_gap_fill=True)``.
 
 -  The nearest `gridMET <http://www.climatologylab.org/gridmet.html>`__
    cell’s time series data for precipitation and alfalfa reference ET is
@@ -1083,7 +1098,7 @@ argument ``QaQc.correct_data(etr_gap_fill = True)``.
    the contiguous United States and from 1979 to present, therefore if your
    station lies outside of this region or you are analyzing eddy flux data
    recorded before 1979 this option will not be ususable and you should always
-   run corrections with ``etr_gap_fill=False`` to avoid potential errors.
+   run corrections with ``et_gap_fill=False`` to avoid potential errors.
 
 
 The Bowen Ratio correction method will produce the ‘br’ variable which
@@ -1097,8 +1112,7 @@ energy (LE) and air temperature, corrected ET from corrected LE and air
 temperature, potential clear sky radiation (ASCE formulation), and the
 :obj:`.Data` object attempts to calculate vapor pressure deficit from vapor
 pressure and air temperature or vapor pressure from vapor pressure
-deficit and air temperature if they exist at hourly or shorter temporal
-frequency.
+deficit and air temperature if they exist.
 
 Evapotranspiration
 ^^^^^^^^^^^^^^^^^^
@@ -1210,9 +1224,8 @@ Vapor pressure/deficit
 
 The :obj:`.Data` object will attempt to calculate vapor pressure or vapor
 pressure deficit if one exists but not the other and average air
-temperature time series also exists with the input data at hourly or
-shorter temporal frequency. The Tetens equation (eqn. 37 in the ASCE report) 
-s an accurate approximation for saturation vapor pressure (:math:`es`) in kPa as a function of air temperature,
+temperature time series also exists with the input data. The Tetens equation (eqn. 37 in the ASCE report) 
+is an accurate approximation for saturation vapor pressure (:math:`es`) in kPa as a function of air temperature,
 
 .. math::  es = 0.6108  e^{\left(\frac{17.27 \cdot T}{(T + 237.3)}\right)} 
 
@@ -1224,9 +1237,7 @@ Vapor pressure deficit (:math:`vpd`) is,
 where :math:`ea` is actual vapor pressure in kPa. **Note,** The
 equations above are defined for hourly measurements however they are used for
 hourly or shorter mean variables (:math:`T`, :math:`ea`, or :math:`vpd`)
-within ``flux-data-qaqc`` and then converted to daily means, if they are
-not present in the input data at hourly or shorter frequencies then they
-are not calculated.
+within ``flux-data-qaqc`` and then converted to daily means.
 
 These equations can be rearanged to solve for either :math:`es` or
 :math:`vpd` given the other variable and air temperature. For example,
@@ -1241,12 +1252,12 @@ In ``flux-data-qaqc`` actual vapor pressure is named "vp" not "ea". Also, during
 .. math:: rh = 100 \times \frac{ea}{es}.
 
 .. hint:: 
-   The same calculations are available at the daily timestep but are not
-   automatically applied as the hourly or higher temporal frequency calculation
-   is preffered. To apply the estimates of vapor pressure or vapor pressure
-   deficit, and saturation vapor pressure, and relative humidity with daily data
-   one must call the :meth:`.QaQc._calc_vpd_from_vp` method from a :obj:`.QaQc`
-   instance. 
+   For daily input data the same equations are applied to daily mean values
+   (changed in version 0.4.0, earlier versions only applied them to hourly or
+   shorter input data). Saturation vapor pressure from daily mean air
+   temperature is lower than the daily mean of hourly values, so vapor
+   pressure calculated from daily vapor pressure deficit is an
+   approximation and hourly or shorter input data is preferred.
    
 Legend for calculated variable names
 ------------------------------------
@@ -1469,6 +1480,12 @@ Here is an example of the default daily and monthly time series plots produced a
     >>> q.plot(output_type='notebook', plot_width=700)
 
 .. raw:: html
-    :file: _static/tutorial/US-Tw3_plots.html
+
+   <iframe
+       src="_static/tutorial/US-Tw3_plots.html"
+       width="100%"
+       height="900"
+       style="border:none;">
+   </iframe>
 
 

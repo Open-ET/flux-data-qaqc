@@ -415,8 +415,8 @@ Here is a plot showing the data before and after applying the filter.
     >>> from bokeh.plotting import ColumnDataSource, figure, show
     >>> from bokeh.models.formatters import DatetimeTickFormatter
     >>> p = figure(x_axis_label='date', y_axis_label='swrad with data removed based on QC value')
-    >>> p.line(no_qc_swrad.index, no_qc_swrad, color='red', legend="no flag", line_width=2)
-    >>> p.line(no_qc_swrad.index, qc_flag_swrad, color='black', legend="flag = b or x", line_width=2)
+    >>> p.line(no_qc_swrad.index, no_qc_swrad, color='red', legend_label="no flag", line_width=2)
+    >>> p.line(no_qc_swrad.index, qc_flag_swrad, color='black', legend_label="flag = b or x", line_width=2)
     >>> p.xaxis.formatter = DatetimeTickFormatter(days="%d-%b-%Y")
     >>> show(p)
 
@@ -427,8 +427,8 @@ Here is a plot showing the data before and after applying the filter.
 And for :math:`LE`,
 
     >>> p = figure(x_axis_label='date', y_axis_label='LE with data removed based on QC value')
-    >>> p.line(no_qc.index, no_qc, color='red', legend="no QC", line_width=2)
-    >>> p.line(no_qc.index, qc_def, color='black', legend="QC=0.5", line_width=2)
+    >>> p.line(no_qc.index, no_qc, color='red', legend_label="no QC", line_width=2)
+    >>> p.line(no_qc.index, qc_def, color='black', legend_label="QC=0.5", line_width=2)
     >>> p.xaxis.formatter = DatetimeTickFormatter(days="%d-%b-%Y")
     >>> show(p)
 
@@ -511,9 +511,9 @@ Be sure to validate QC thresholds or flags before applying them to make sure eve
     >>> from bokeh.models import LinearAxis, Range1d
     >>> p = figure(x_axis_label='date', y_axis_label='sensible heat flux (w/m2)')
     >>> p.extra_y_ranges = {"sec": Range1d(start=-0.1, end=1.1)}
-    >>> p.line(d.df.index, d.df['H_F_MDS'], color='red', line_width=1, legend='data')
+    >>> p.line(d.df.index, d.df['H_F_MDS'], color='red', line_width=1, legend_label='data')
     >>> p.add_layout(LinearAxis(y_range_name="sec", axis_label='QC value'), 'right')
-    >>> p.circle(d.df.index, d.df['H_F_MDS_QC'], line_width=2, y_range_name="sec", legend='QC')
+    >>> p.scatter(d.df.index, d.df['H_F_MDS_QC'], y_range_name="sec", legend_label='QC')
     >>> p.x_range=Range1d(d.df.index[0], d.df.index[365])
     >>> p.xaxis.formatter = DatetimeTickFormatter(days="%d-%b-%Y")
     >>> p.legend.location = "top_left"
@@ -557,9 +557,9 @@ Now let's view the same sesnible heat flux time series after applying the thresh
 
     >>> p = figure(x_axis_label='date', y_axis_label='sensible heat flux (w/m2)')
     >>> p.extra_y_ranges = {"sec": Range1d(start=-0.1, end=1.1)}
-    >>> p.line(d.df.index, d.df['H_F_MDS'], color='red', line_width=1, legend='data')
+    >>> p.line(d.df.index, d.df['H_F_MDS'], color='red', line_width=1, legend_label='data')
     >>> p.add_layout(LinearAxis(y_range_name="sec", axis_label='QC value'), 'right')
-    >>> p.circle(d.df.index, d.df['H_F_MDS_QC'], line_width=2, y_range_name="sec", legend='QC')
+    >>> p.scatter(d.df.index, d.df['H_F_MDS_QC'], y_range_name="sec", legend_label='QC')
     >>> p.x_range=Range1d(d.df.index[0], d.df.index[365])
     >>> p.xaxis.formatter = DatetimeTickFormatter(days="%d-%b-%Y")
     >>> p.legend.location = "top_left"
@@ -935,5 +935,11 @@ Within the set of default plots created by the :meth:`.QaQc.plot` method will in
 
 
 .. raw:: html
-    :file: _static/US-ARM_multipe_soilvars_plots.html
+
+   <iframe
+       src="_static/US-ARM_multipe_soilvars_plots.html"
+       width="100%"
+       height="900"
+       style="border:none;">
+   </iframe>
  
