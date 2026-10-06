@@ -721,6 +721,22 @@ class TestQaQc(object):
         assert 0 < results['r2 (coef. det.)'].iloc[0] <= 1
         assert 'ET_corr' in q.df.rename(columns=q.inv_map).columns
 
+    def test_lin_regress_available_energy(self, data, tmp_path, capsys):
+        q = QaQc(Data(self._qc_example_config(data, tmp_path)))
+        # Rn - G as the dependent variable, no warning for closure variables
+        q.correct_data(
+            meth='lin_regress', y='energy', x=['LE', 'H'], et_gap_fill=False
+        )
+        assert 'WARNING: using variables' not in capsys.readouterr().out
+        results = q.lin_regress_results
+        assert results['Y (dependent var.)'].iloc[0] == 'energy'
+        df = q.df.rename(columns=q.inv_map)
+        coef = results['c1 (coef on LE)'].iloc[0]
+        assert np.allclose((df.LE_corr / df.LE).dropna(), coef, atol=1e-3)
+        # other variables give a warning
+        q.correct_data(meth='lin_regress', y='LE', x=['Rn'], et_gap_fill=False)
+        assert 'WARNING: using variables' in capsys.readouterr().out
+
     def test_write_daily_and_monthly(self, data, tmp_path):
         # monthly resampling uses the 'ME' alias which needs pandas >= 2.2
         q = QaQc(Data(self._qc_example_config(data, tmp_path)))

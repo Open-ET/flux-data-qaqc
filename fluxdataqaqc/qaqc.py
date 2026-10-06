@@ -1108,8 +1108,9 @@ class QaQc(Plot, Convert):
 
         Arguments:
             y (str): name of dependent variable for regression, must be in 
-                :attr:`QaQc.variables` keys, or a user-added variable.
-                Only used if ``meth='lin_regress'``.
+                :attr:`QaQc.variables` keys, 'energy' for available energy
+                (Rn - G), or a user-added variable. Only used if
+                ``meth='lin_regress'``.
             x (str or list): name or list of independent variables for 
                 regression, names must be in :attr:`QaQc.variables` keys, or a 
                 user-added variable. Only used if ``meth='lin_regress'``.
@@ -1219,13 +1220,14 @@ class QaQc(Plot, Convert):
         elif meth == 'br':
             self._bowen_ratio_correction()
         elif meth == 'lin_regress':
-            if y not in eb_vars or len(set(x).difference(eb_vars)) > 0:
+            x_vars = x if isinstance(x, list) else [x]
+            if y not in ('Rn', 'energy') or \
+                    not set(x_vars).issubset({'G', 'LE', 'H'}):
                 print(
-                    'WARNING: correcting energy balance variables using '
-                    'depedendent or independent variables that are not '
-                    'energy balance components will cause undesired results!'
-                    '\nIt is recommended to use only Rn, G, LE, and H for '
-                    'dependent (y) and independent (x) variables.'
+                    'WARNING: using variables other than Rn or Rn - G '
+                    '(\'energy\') for y and G, LE, or H for x may give results '
+                    'that are hard to interpret in terms of energy balance '
+                    'closure.'
                 )
             self.lin_regress(
                 y=y, x=x, fit_intercept=fit_intercept, apply_coefs=True
@@ -1551,7 +1553,8 @@ class QaQc(Plot, Convert):
 
         Arguments:
             y (str): name of dependent variable for regression, must be in 
-                :attr:`QaQc.variables` keys, or a user-added variable.
+                :attr:`QaQc.variables` keys, 'energy' for available energy
+                (Rn - G), or a user-added variable.
             x (str or list): name or list of independent variables for 
                 regression, names must be in :attr:`QaQc.variables` keys, or a 
                 user-added variable.
@@ -1575,8 +1578,8 @@ class QaQc(Plot, Convert):
             "over-measured". Then, starting with a :obj:`.Data` instance:
 
             >>> Q = QaQc(Data_instance)
-            >>> Q.lin_regress(y='Rn', x=['G','H','LE'], fit_intercept=True)
-            >>> Q.lin_regress_result
+            >>> Q.lin_regress(y='Rn', x=['G','LE','H'], fit_intercept=True)
+            >>> Q.lin_regress_results
 
             This would produce something like the following,
 
@@ -1600,6 +1603,11 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         # drop relavant calculated variables if they exist
         self._df = _drop_cols(self.df, self._eb_calc_vars)
         df = self._df.rename(columns=self.inv_map)
+        # available energy (Rn - G) can be used as a regression variable
+        x_vars = x if isinstance(x, list) else [x]
+        if 'energy' in [y] + x_vars and {'Rn', 'G'}.issubset(df.columns):
+            df['energy'] = df.Rn - df.G
+            self.units['energy'] = self.units.get('Rn')
         if not y in df.columns:
             print(
                 'ERROR: the dependent variable ({}) was not '
@@ -1607,33 +1615,18 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
                 'names:\n{}\n'.format(y, ', '.join(df.columns))
             )
             return
-        if not isinstance(x, list) and not x in df.columns:
+        if not set(x_vars).issubset(df.columns):
             print(
-                'ERROR: the dependent variable ({}) was not '
+                'ERROR: one or more independent variables ({}) were not '
                 'found in the dataframe.\nHere are all available variable '
-                'names:\n{}\n'.format(x, ', '.join(df.columns))
+                'names:\n{}'.format(','.join(x_vars), ', '.join(df.columns))
             )
             return
 
-        # get n X vars, names if more than 1
-        n_x = 1
-        if isinstance(x, list):
-            n_x = len(x)
-            if not set(x).issubset(df.columns):
-                print(
-                    'ERROR: one or more independent variables ({}) were not '
-                    'found in the dataframe.\nHere are all available variable '
-                    'names:\n{}'.format(','.join(x), ', '.join(df.columns))
-                )
-                return
-            if n_x > 1:
-                cols = x + [y] 
-                tmp = df[cols].copy()
-        if n_x == 1:
-            tmp = df[[x,y]].copy()
         # drop timestamps with any missing variables
-        tmp = tmp.dropna()
-        X = tmp[x]
+        tmp = df[x_vars + [y]].copy().dropna()
+        # independent variables as a dataframe, also for a single variable
+        X = tmp[x_vars]
         Y = tmp[y]
         # create model, fit, and predict Y for RMSE/R2 calcs 
         model = linear_model.LinearRegression(fit_intercept=fit_intercept)
