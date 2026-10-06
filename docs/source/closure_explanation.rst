@@ -3,7 +3,9 @@ Closure Methodologies
 
 ``flux-data-qaqc`` currently provides two routines which ultimately adjust
 turbulent fluxes in order to improve energy balance closure of eddy covariance
-tower data, the Energy Balance Ratio and the Bowen Ratio method. 
+tower data, the Energy Balance Ratio and the Bowen Ratio method, and a linear
+regression option that is mainly a diagnostic tool (described at the end of
+this page). 
 
 Closure methods are assigned as keyword arguments to the 
 :meth:`.QaQc.correct_data` method, and for a list of provided 
@@ -400,5 +402,76 @@ And here is the energy balance closure scatter plot which shows the forced closu
 New variables produced by ``flux-data-qaqc`` by this method include: br
 (Bowen Ratio), ebr, ebr_corr, LE_corr, H_corr, ET, ET_corr, energy, flux, and
 flux_corr.
+
+Linear regression method
+------------------------
+
+The linear regression option (``meth='lin_regress'``) is mainly a diagnostic
+tool, it was not designed to correct fluxes. It fits a least squares linear
+regression between energy balance components of the daily data over the full
+record. The dependent variable (``y``), the independent variables (``x``),
+and whether an intercept is fit (``fit_intercept``) are chosen by the user.
+By default :math:`Rn` is regressed on :math:`G`, :math:`LE`, and :math:`H`
+without an intercept,
+
+.. math:: Rn = c_1 G + c_2 LE + c_3 H,
+
+and the coefficients show how much each component would need to be scaled,
+on average, to close the energy balance if :math:`Rn` is assumed to be
+correct. `Volk et al. (2023)
+<https://doi.org/10.1016/j.agrformet.2023.109307>`__ used it this way to show
+how :math:`LE` and :math:`H` relate to the closure deficit. For the
+pre-filtered data used on this page,
+
+    >>> q.lin_regress(y='Rn', x=['G', 'LE', 'H'])
+    >>> q.lin_regress_results.T
+        SITE_ID            US-Tw3
+        Y (dependent var.)     Rn
+        c0 (intercept)        0.0
+        c1 (coef on G)      0.651
+        c2 (coef on LE)     1.204
+        c3 (coef on H)      0.986
+        RMSE (w/m2)         13.26
+        r2 (coef. det.)      0.94
+        n (sample count)     1561
+
+which suggests that most of the closure deficit at this site is in
+:math:`LE` (about 20%) while :math:`H` is close to balanced.
+
+Available energy (:math:`Rn - G`) can be used as the dependent variable with
+``y='energy'``,
+
+    >>> q.lin_regress(y='energy', x=['LE', 'H'])
+    >>> q.lin_regress_results.T
+        SITE_ID             US-Tw3
+        Y (dependent var.)  energy
+        c0 (intercept)         0.0
+        c1 (coef on LE)      1.187
+        c2 (coef on H)       0.967
+        RMSE (w/m2)          13.43
+        r2 (coef. det.)       0.93
+        n (sample count)      1561
+
+With ``fit_intercept=True`` the intercept (c0) is also estimated, e.g. 2.1
+:math:`w/m^2` for the default regression at this site, a constant offset that
+the coefficients alone cannot account for.
+
+Running ``q.correct_data(meth='lin_regress')`` multiplies each independent
+variable by its coefficient, :math:`G`, :math:`LE`, and :math:`H` by
+default, or e.g. only :math:`LE` and :math:`H` with
+``q.correct_data(meth='lin_regress', y='energy', x=['LE', 'H'])``. The
+dependent variable is not corrected and the intercept is not applied. Unlike the Energy Balance Ratio and Bowen Ratio methods the
+coefficients are the same for every day of the record, so the correction does
+not follow daily or seasonal changes in closure. The plot below compares them
+to the daily correction factor of the Energy Balance Ratio method, which
+ranges from 0.82 to 1.55 at this site.
+
+.. raw:: html
+    :file: _static/closure_algorithms/lin_regress_coefs.html
+
+See :meth:`.QaQc.lin_regress` for more options. New variables produced by
+this method include: G_corr, LE_corr, H_corr, ET_corr, energy_corr,
+flux_corr, and ebr_corr, and the regression results are saved in
+:attr:`.QaQc.lin_regress_results`.
 
 

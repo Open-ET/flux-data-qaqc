@@ -1016,12 +1016,13 @@ of latent energy, sensible heat, and evapotranspiration with the option to
 gap-fill days in corrected ET with ET calculated from gridMET reference ET and
 fraction of reference ET.
 
-There are two methods currently implemented: 
+There are three methods currently implemented: 
 
 * Energy Balance Ratio method (default), modified from the `FLUXNET method <https://fluxnet.fluxdata.org/data/fluxnet2015-dataset/data-processing/>`__
 * Bowen Ratio approach (forces closure) 
-* Multiple least squares regression
-  - user defines LHS and RHS from :math:`LE`, :math:`H`, :math:`Rn`, and :math:`G`,
+* Multiple least squares regression, mainly a diagnostic tool, the user
+  defines the dependent and independent variables from :math:`LE`,
+  :math:`H`, :math:`Rn`, and :math:`G`
 
 Detailed descriptions of methods including daily ET gap-filling methods
 can be found in the online documentation :ref:`Closure Methodologies`
@@ -1287,7 +1288,9 @@ required input variables exist.
  br                 bowen ratio                                                                     —
  co2                CO2 mole fraction                                                               μmol mol⁻¹
  ebc_cf             energy balance closure correction factor (inverse of ebr_corr)                  —
- ebc_cf_method      method used for ebc_cf, 1-4 (see Closure Methodologies)                         —
+ ebc_cf_method      method used for ebc_cf, 1: median of +/- 7 days, 2: mean of +/- 5 days,         —
+                    3: +/- 5 days in previous and next years (1-3 follow FLUXNET2015,
+                    `Pastorello et al., 2020`_), 4: 5 day climatology (not in FLUXNET)
  ebr                input energy balance ratio                                                      —
  ebr_5day_clim      5 day climatology of the filtered energy balance ratio (method 4)               —
  ebr_corr           corrected energy balance ratio                                                  —
@@ -1350,6 +1353,8 @@ required input variables exist.
  ws                 wind speed                                                                      m s⁻¹
  zeta               Monin-Obukhov stability parameter (z/L)                                         —
  ================= ================================================================================ =======================
+
+.. _Pastorello et al., 2020: https://doi.org/10.1038/s41597-020-0534-3
 
 
 A note on units
