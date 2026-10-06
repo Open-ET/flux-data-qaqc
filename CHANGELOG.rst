@@ -1,6 +1,77 @@
 Change Log
 ==========
 
+Version 0.4.0
+-------------
+
+This release changes computed values, mainly corrected LE, H, and ET from the
+default Energy Balance Ratio correction. On 293 AmeriFlux sites with all four
+energy balance components, pooled corrected ET decreased 1.3% compared to
+version 0.3.3 (median site -1.0%, 5th to 95th percentile of sites -3.3% to
++0.2%) and 1,372 more days were corrected instead of gap filled.
+
+The Energy Balance Ratio correction (``meth='ebr'``) now follows the daily
+energy balance closure correction of FLUXNET2015 and ONEFlux (`Pastorello et
+al., 2020 <https://doi.org/10.1038/s41597-020-0534-3>`__) more closely.
+Outliers are removed with 1.5 times the interquartile range of the correction
+factor, :math:`EBC_{CF} = (Rn - G) / (H + LE)`, instead of the Energy Balance
+Ratio, and the moving window statistics use the correction factor. Method 2
+now uses the mean instead of the median of the +/- 5 day window, as in
+ONEFlux. Remaining gaps are filled with the mean correction factor within
++/- 5 days of the same day in the previous and next years (method 3, new)
+before the 5 day climatology of all years is used (method 4), which was
+retained as a backup and is a deviation from ONEFlux. A correction factor from
+any method that is outside of 0.5 to 2 is replaced by the next method (these
+limits were retained and are also a deviation from ONEFlux). Fix the moving
+windows for the first 7 days of the record, which were empty so these days
+could only get the 5 day climatology, and align the 5 day climatology with
+the day of year. The new daily variable ``ebc_cf_method`` reports the method
+used for each day: the 15 day median (1), the 11 day mean (2), the same days
+in the previous and next years (3), or the 5 day climatology (4).
+
+Calculate daily sums, e.g. precipitation, photosynthetic energy storage, and
+sub-daily gap counts, for each variable on its own. Previously a missing
+record in any summed variable removed that time step from all of them, and
+days without data were summed to zero instead of null, causing potential errors in those variables.
+
+Calculate daily ``t_min`` and ``t_max`` from sub-daily ``t_avg`` with or
+without linear interpolation of short sub-daily gaps (``max_interp_hours``
+and ``max_interp_hours_night``), previously they were only calculated with
+interpolation. With ``drop_gaps=True`` (default) they are now set to null on
+the same days as ``t_avg``, days with fewer than ``daily_frac`` (default 1.0,
+e.g. 48 of 48 half-hourly records) of the sub-daily air temperature records
+after interpolation. Previously they were not filtered.
+
+Keep monthly values when exactly 80% of the days in the month exist, as
+documented. Previously these months were set to null.
+
+Fix the conversion of air temperature from Fahrenheit to Celsius.
+
+The Bowen Ratio correction (``meth='br'``) no longer produces infinite
+values, days where the Bowen Ratio is undefined or the corrected LE is
+outside of -100 to 850 w/m2 (the same limits used by the Energy Balance Ratio
+correction) are not corrected.
+
+Fix the sign of G in ``energy_corr`` (Rn - G) from :meth:`.QaQc.lin_regress`.
+
+Fix the check of the input temporal frequency for **daily** data, it used the
+number of columns instead of the number of records per day. Vapor pressure or
+vapor pressure deficit are now calculated for daily input data, and hourly
+ASCE reference ET cannot be calculated from daily data.
+
+:meth:`.QaQc.download_gridMET` prints an error and does not download data
+when the station is outside of the gridMET domain (contiguous US).
+
+:meth:`.QaQc.lin_regress` and ``QaQc.correct_data(meth='lin_regress')``
+accept ``y='energy'`` for available energy (Rn - G) and a single independent
+variable, which previously raised an error. The warning for other variables
+now says that the results may be hard to interpret in terms of energy balance
+closure.
+
+Regenerate all figures in the online documentation with the current version
+and update the documentation for these changes, including a new section on
+the linear regression option.
+
 Version 0.3.3
 -------------
 

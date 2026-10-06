@@ -4,7 +4,7 @@ Tools for performing energy balance correction and QA/QC of eddy covariance flux
 
 __name__ = 'fluxdataqaqc'
 __author__ = 'John Volk'
-__version__ = '0.3.3'
+__version__ = '0.4.0'
 
 
 from fluxdataqaqc.data import Data
