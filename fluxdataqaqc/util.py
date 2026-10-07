@@ -257,6 +257,37 @@ class Convert(object):
 
         return df
 
+    @staticmethod
+    def _check_mj_units(units, is_daily):
+        """
+        Raise an error if mj/m2 units are given for sub-daily input data.
+
+        The mj/m2 to w/m2 conversion assumes daily totals (MJ m-2 per day),
+        sub-daily values would be converted wrong, e.g. 48 times too low for
+        half-hourly data.
+
+        Arguments:
+            units (dict): internal variable names and their input units.
+            is_daily (bool): True if the input data is daily.
+
+        Raises:
+            ValueError: if any variable that is converted has mj/m2 units and
+                the input data is not daily.
+        """
+        if is_daily:
+            return
+        mj_vars = [
+            var for var, unit in units.items() if var in
+            Convert.required_units and str(unit).lower() == 'mj/m2'
+        ]
+        if mj_vars:
+            raise ValueError(
+                'mj/m2 units are only supported for daily input data (MJ m-2 '
+                'per day), convert {} to w/m2 for sub-daily data.'.format(
+                    ', '.join(mj_vars)
+                )
+            )
+
     def _no_change(self, df, var_name):
         # unit names differ but values are the same, e.g. ppm and umol/mol
         return df
@@ -290,9 +321,8 @@ class Convert(object):
         return df
         
     def _mj_per_m2_to_watts_per_m2(self, df, var_name):
-        # assumes average mj per day is correct- only valid daily
-        # because shortwate rad may be used in data (before daily) it is
-        # not covered for automatic conversion because time period is unknown
+        # MJ m-2 per day to mean W m-2 (1e6 / 86400), only valid for daily
+        # data, sub-daily data with mj/m2 units raises an error before this
         df[var_name] *= 11.574074074074074
         return df
 

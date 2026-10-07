@@ -698,9 +698,49 @@ class TestQaQc(object):
         cf = df.ebc_cf.dropna()
         assert ((cf > 0.5) & (cf < 2)).all()
         assert np.allclose(df.LE_corr, df.LE * df.ebc_cf, equal_nan=True)
-        assert np.allclose(df.ebr_corr, 1 / df.ebc_cf, equal_nan=True)
+        assert np.allclose(df.ebr_est, 1 / df.ebc_cf, equal_nan=True)
+        # ebr_corr is the energy balance ratio after correction
+        ebr_corr = (df.H_corr + df.LE_corr) / (df.Rn - df.G)
+        assert np.allclose(df.ebr_corr, ebr_corr, equal_nan=True)
         # method flag is daily only
         assert 'ebc_cf_method' not in q.monthly_df.columns
+
+    def test_ebr_est_only_for_ebr_method(self, data):
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        q = QaQc(Data(config))
+        q.correct_data(et_gap_fill=False)
+        assert 'ebr_est' in q.df.rename(columns=q.inv_map).columns
+        # switching methods drops the ebr method variables
+        q.correct_data(meth='br', et_gap_fill=False)
+        df = q.df.rename(columns=q.inv_map)
+        assert not {'ebr_est', 'ebc_cf'}.intersection(df.columns)
+        ebr_corr = (df.H_corr + df.LE_corr) / (df.Rn - df.G)
+        assert np.allclose(df.ebr_corr, ebr_corr, equal_nan=True)
+
+    def test_mj_units_sub_daily_error(self, data, tmp_path):
+        # mj/m2 is converted as daily totals, sub-daily input is an error
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        config = _tmp_config(
+            config, tmp_path,
+            set_opts=[('DATA', 'latent_heat_flux_units', 'mj/m2')]
+        )
+        with pytest.raises(ValueError, match='mj/m2'):
+            Data(config).df
+
+    def test_mj_units_daily_conversion(self, data, tmp_path):
+        # daily input in mj/m2 is converted to mean w/m2
+        q_w = QaQc(Data(self._qc_example_config(data, tmp_path)))
+        mj_dir = tmp_path / 'mj'
+        mj_dir.mkdir()
+        q_mj = QaQc(Data(self._qc_example_config(
+            data, mj_dir,
+            set_opts=[('DATA', 'latent_heat_flux_units', 'mj/m2')]
+        )))
+        LE_w = q_w.df.rename(columns=q_w.inv_map).LE
+        LE_mj = q_mj.df.rename(columns=q_mj.inv_map).LE
+        assert np.allclose(LE_mj, LE_w * 1e6 / 86400, equal_nan=True)
 
     def _qc_example_config(self, data, tmp_path, **kwargs):
         """Daily US-AR1 example copied to a temp dir (gridMET writes)"""

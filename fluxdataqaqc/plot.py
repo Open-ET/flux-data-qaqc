@@ -844,8 +844,8 @@ class Plot(object):
         #### 
         # energy balance ratio time series plots
         #### 
-        plt_vars = ['ebr', 'ebr_corr', 'ebr_user_corr']
-        colors = ['black', 'red', 'darkorange']
+        plt_vars = ['ebr', 'ebr_corr', 'ebr_est', 'ebr_user_corr']
+        colors = ['black', 'red', 'blue', 'darkorange']
         title = 'Daily Energy Balance Ratio with Long-term Mean'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)

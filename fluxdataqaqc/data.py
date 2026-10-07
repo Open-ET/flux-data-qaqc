@@ -1546,6 +1546,10 @@ class Data(Plot, Convert):
         df = df[df.index.notnull()]
         df.index = pd.to_datetime(df.index) # ensure datetime
         df.drop('date', axis=1, inplace=True)
+        # mj/m2 units are converted as daily totals, not valid for sub-daily
+        time_step = df.index.to_series().diff().median()
+        is_daily = pd.isnull(time_step) or time_step >= pd.Timedelta('1D')
+        self._check_mj_units(self.units, is_daily)
         self._df = df # vpd calc uses attribute
         # calc vapor pressure or vapor pressure deficit if hourly or less
         # also converts units if needed for vp, vpd, t_avg

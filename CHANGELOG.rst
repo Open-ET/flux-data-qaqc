@@ -1,6 +1,29 @@
 Change Log
 ==========
 
+Version 0.4.1
+-------------
+
+The daily ``ebr_corr`` variable of the Energy Balance Ratio correction
+(``meth='ebr'``, default) is now the energy balance ratio after correction,
+(H_corr + LE_corr) / (Rn - G), as it already was for the other correction
+methods and for monthly data. Previously it was the energy balance ratio
+estimated by the correction (filtered, smoothed, and gap filled, the inverse
+of ``ebc_cf``), which is now saved as the new variable ``ebr_est``. The
+energy balance ratio plots of :meth:`.QaQc.plot` show ``ebr_est`` in
+addition to ``ebr`` and ``ebr_corr``. Infinite daily ``ebr`` values (Rn - G
+equal to zero) are now set to null with the ``ebr`` method as with the other
+methods. Corrected LE, H, and ET are unchanged.
+
+Raise an error when ``mj/m2`` units are given for hourly or shorter input
+data. The conversion to ``w/m2`` assumes daily totals (MJ m⁻² per day), so
+sub-daily values were converted incorrectly without a warning, e.g. 48 times
+too low for half-hourly data. Daily input in ``mj/m2`` is converted as
+before.
+
+The new documentation page "Variables and Units" lists all calculated
+variables and the accepted input units for each variable.
+
 Version 0.4.0
 -------------
 

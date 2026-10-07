@@ -29,7 +29,8 @@ Key functionalities and tools include:
    install
    Configuration Options <advanced_config_options>
    Tutorial <tutorial>
-   Closure Algorithms <closure_explanation>
+   Closure Methodologies <closure_explanation>
+   Variables and Units <variables>
    api
    Tests <software_tests>
    contributors

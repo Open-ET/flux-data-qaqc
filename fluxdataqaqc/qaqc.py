@@ -158,6 +158,7 @@ class QaQc(Plot, Convert):
         'ebr': 'mean',
         'ebr_corr': 'mean',
         'ebr_user_corr': 'mean',
+        'ebr_est': 'mean',
         'ebr_5day_clim': 'mean',
         'gridMET_ETr': 'sum',
         'gridMET_ETo': 'sum',
@@ -276,6 +277,7 @@ class QaQc(Plot, Convert):
         'ebr_user_corr',
         'ebc_cf',
         'ebc_cf_method',
+        'ebr_est',
         'ebr_5day_clim',
         'flux',
         'flux_corr',
@@ -459,6 +461,8 @@ class QaQc(Plot, Convert):
         for k, v in self.units.items():
             if v is not None:
                 self.units[k] = v.lower()
+        # mj/m2 units are converted as daily totals, not valid for sub-daily
+        self._check_mj_units(self.units, self.temporal_freq == 'D')
 
         # can add check/rename unit aliases, e.g. C or c or celcius, etc... 
 
@@ -1161,14 +1165,15 @@ class QaQc(Plot, Convert):
             gap-filled.
 
         Note:
-            The *ebr_corr* variable or energy balance closure ratio is 
-            calculated from the corrected versions of LE and H for the 'br'
-            and 'lin_regress' methods and for monthly data. For daily data
-            with the 'ebr' method it is the filtered and smoothed energy
-            balance ratio, i.e. the inverse of the correction factor that is
-            applied to the raw H and LE, which is saved as *ebc_cf*. The
-            method used to get each day's correction factor (1-4, see
-            :ref:`Closure Methodologies`) is saved as *ebc_cf_method*. 
+            The *ebr_corr* variable is the energy balance ratio after
+            correction, (H_corr + LE_corr) / (Rn - G), for all methods,
+            monthly values are calculated from monthly sums. With the 'ebr'
+            method the daily energy balance ratio estimated by the
+            correction (filtered, smoothed, and gap filled) is saved as
+            *ebr_est*, its inverse is the correction factor applied to the
+            raw H and LE, saved as *ebc_cf*, and the method used to get each
+            day's correction factor (1-4, see :ref:`Closure Methodologies`)
+            is saved as *ebc_cf_method*.
 
         See Also:
             For explanation of the linear regression method see the
@@ -1798,14 +1803,19 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
 
         df['ebc_cf'] = cf_corr
         df['ebc_cf_method'] = cf_method
-        # filtered and smoothed energy balance ratio, inverse of ebc_cf
-        df['ebr_corr'] = 1 / cf_corr
+        # energy balance ratio estimated by the steps above, inverse of ebc_cf
+        df['ebr_est'] = 1 / cf_corr
         # 5 day climatology of the energy balance ratio (method 4)
         df['ebr_5day_clim'] = 1 / cf_clim
         df['flux_corr'] = df.LE_corr + df.H_corr
         # other variables needed for plots using raw data
         df['flux'] = LE + H
         df['energy'] = Rn - G
+        # energy balance ratio after correction, same as other methods
+        df['ebr_corr'] = df.flux_corr / df.energy
+        # replace undefined/infinity with nans in EBR columns
+        for col in ['ebr', 'ebr_corr']:
+            df[col] = df[col].replace([np.inf, -np.inf], np.nan)
 
         # corrected turbulent flux if given from input data
         if set(['LE_user_corr','H_user_corr']).issubset(df.columns):
@@ -1827,6 +1837,7 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
             ebr_corr = 'ebr_corr',
             ebc_cf = 'ebc_cf',
             ebc_cf_method = 'ebc_cf_method',
+            ebr_est = 'ebr_est',
             ebr_5day_clim = 'ebr_5day_clim'
         )
 

@@ -96,7 +96,9 @@ This step is not part of the FLUXNET method.
 **Step 7:** correct :math:`LE` and :math:`H` by multiplying by
 :math:`EBC_{CF}` if it is between 0.5 and 2. If the corrected :math:`LE` is
 greater than 850 or less than -100 :math:`w/m^2` no correction is made for
-that day. The method used for each day (1-4) is saved as ebc_cf_method.
+that day. The correction factor is saved as ebc_cf, its inverse (the EBR
+estimated by steps 1-6) as ebr_est, the method used for each day (1-4) as
+ebc_cf_method, and the EBR after correction as ebr_corr.
 
 **Step 8:** calculate corrected :math:`ET` from corrected :math:`LE`
 using average air temperature to adjust the latent heat of vaporization.
@@ -234,11 +236,14 @@ installed in May 2013 and in a gap in 2016.
 .. raw:: html
     :file: _static/closure_algorithms/steps5_6_PreFiltered.html
 
-``flux-data-qaqc`` also keeps a record of the 5 day climatology as an
-Energy Balance Ratio (inverse of the climatology of the correction factor,
-shown below), it is named by ``flux-data-qaqc`` as ebr_5day_clim. The method
-used to get each day's correction factor is saved as ebc_cf_method, 1-4 for
-methods 1-4 above and null for days without a correction factor.
+``flux-data-qaqc`` saves the final correction factor as ebc_cf and its
+inverse, the EBR estimated by steps 1-6, as ebr_est. The method used to get
+each day's correction factor is saved as ebc_cf_method, 1-4 for methods 1-4
+above. All three are null for days without a correction factor, including
+days where the corrected :math:`LE` is out of range (step 7). The 5 day
+climatology is also saved as an EBR (the inverse of the climatology of the
+correction factor) named ebr_5day_clim. Both ebr_est and ebr_5day_clim are
+shown below.
 
 .. raw:: html
     :file: _static/closure_algorithms/5dayclim_PreFiltered.html
@@ -256,11 +261,14 @@ previous steps:
 
 .. math:: H_{corr} = H \times EBC_{CF}.
 
-The daily corrected EBR (ebr_corr) saved by ``flux-data-qaqc`` is the
-filtered and smoothed EBR, :math:`\frac{1}{EBC_{CF}}`. In monthly output it
-is calculated from corrected :math:`LE` and :math:`H`,
+The corrected EBR (ebr_corr) is the energy balance ratio after correction,
+calculated from corrected :math:`LE` and :math:`H` (from monthly sums in
+monthly output),
 
 .. math:: EBR_{corr} = \frac{H_{corr} + LE_{corr}}{Rn - G}.
+
+Unlike ebr_est, it is near 1 on most days because the correction removes the
+estimated closure gap.
 
 Calculate ET from LE using average air temperature to adjust the latent
 heat of vaporization following the method of Harrison, L.P. 1963,
@@ -295,9 +303,9 @@ Notice the mean daily corrected energy balance ratio (slope of corrected) is 0.9
    are provided by default via the :meth:`.QaQc.plot` method.
 
 In ``flux-data-qaqc`` new variable names from these steps are: LE_corr, H_corr,
-ebr, ebr_corr, ebc_cf, ebc_cf_method, ET, ET_corr, and ebr_5day_clim. The
-energy balance closure correction factor is named ebc_cf as in the `FLUXNET
-methodology <https://fluxnet.org/data/fluxnet2015-dataset/data-processing/>`__
+ebr, ebr_corr, ebr_est, ebc_cf, ebc_cf_method, ET, ET_corr, and
+ebr_5day_clim. The energy balance closure correction factor is named ebc_cf
+as in the `FLUXNET methodology <https://fluxnet.org/data/fluxnet2015-dataset/data-processing/>`__
 and Pastorello et al. (2020).
 
 Step 9, optionally gap fill corrected ET using gridMET reference ET and reference ET fraction
