@@ -17,8 +17,8 @@ import sys
 sys.path.insert(0, os.path.abspath('../../'))
 
 autodoc_mock_imports = [
-    "numpy", "bokeh", "pandas", "xarray", "refet", "sklearn", "netCDF4", 
-    "scipy", "openpyxl"
+    "numpy", "bokeh", "pandas", "xarray", "refet", "sklearn", "netCDF4",
+    "scipy", "openpyxl", "timezonefinder"
 ]
 
 
@@ -33,12 +33,16 @@ version = ''
 # The full version, including alpha/beta/rc tags
 release = ''
 
-try:
-    from fluxdataqaqc import __version__ as version
-except ImportError:
-    pass
-else:
-    release = version
+# read the version without importing the package, its dependencies are not
+# installed when building the docs on Read the Docs
+import re
+init_file = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..', '..', 'fluxdataqaqc',
+    '__init__.py'
+)
+with open(init_file) as f:
+    version = re.search(r"__version__ = '(.*?)'", f.read()).group(1)
+release = version
 
 # -- General configuration ---------------------------------------------------
 
