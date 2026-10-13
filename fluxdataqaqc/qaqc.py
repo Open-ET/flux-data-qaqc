@@ -57,8 +57,10 @@ class QaQc(Plot, Convert):
     immediately before and after it and its full length does not exceed the
     applicable limit. Longer gaps remain entirely missing rather than being
     partially filled. Interpolation may be applied to available sub-daily variables
-    including ``t_avg``, ``sw_in``, ``ws``, ``vp``, ``LE``, ``H``, ``Rn``, and
-    ``G``.
+    including ``t_avg``, ``sw_in``, ``ws``, ``vp``, ``LE``, ``H``, ``Rn``,
+    ``G``, the carbon fluxes ``gpp``, ``reco``, and ``nee``, and the
+    photosynthetic energy storage ``pes`` and ``pes_flux`` calculated from GPP
+    by :meth:`.Data.calc_pes`.
 
     Keyword Arguments:
         data (:obj:`.Data`): :obj:`.Data` instance to create :obj:`.QaQc` 
@@ -768,6 +770,8 @@ class QaQc(Plot, Convert):
 
             energy_bal_vars = ['LE', 'H', 'Rn', 'G']
             asce_std_interp_vars = ['t_avg','sw_in','ws','vp']
+            # carbon fluxes and photosynthetic energy storage from GPP
+            carbon_interp_vars = ['gpp', 'reco', 'nee', 'pes', 'pes_flux']
             # for interpolation of energy balance variables if they exist
             energy_bal_vars = list(
                 set(energy_bal_vars).intersection(df.columns)
@@ -775,7 +779,12 @@ class QaQc(Plot, Convert):
             asce_std_interp_vars = list(
                 set(asce_std_interp_vars).intersection(df.columns)
             )
-            interp_vars = asce_std_interp_vars + energy_bal_vars
+            carbon_interp_vars = list(
+                set(carbon_interp_vars).intersection(df.columns)
+            )
+            interp_vars = (
+                asce_std_interp_vars + energy_bal_vars + carbon_interp_vars
+            )
 
             # add subday gap col for energy balance comps to sum daily gap count
             for v in energy_bal_vars:
@@ -840,9 +849,17 @@ class QaQc(Plot, Convert):
                     sw_pot=sw_pot
                 )
 
-                # overwrite non-interpolated daily means
-                means[interp_vars] = (
-                    interped[interp_vars]
+                # overwrite non-interpolated daily sums (pes) and means
+                interp_sums = [v for v in interp_vars if v in sum_cols]
+                interp_means = [v for v in interp_vars if v not in sum_cols]
+                if interp_sums:
+                    sums[interp_sums] = (
+                        interped[interp_sums]
+                        .resample('D')
+                        .sum(min_count=1)
+                    )
+                means[interp_means] = (
+                    interped[interp_means]
                     .resample('D')
                     .mean()
                     .copy()
@@ -2279,7 +2296,8 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
 
         The function can interpolate any numeric columns supplied in ``df``. In the
         ``QaQc`` workflow these may include ``t_avg``, ``sw_in``, ``ws``, ``vp``,
-        ``LE``, ``H``, ``Rn``, and ``G``.
+        ``LE``, ``H``, ``Rn``, ``G``, ``gpp``, ``reco``, ``nee``, ``pes``, and
+        ``pes_flux``.
 
         Arguments:
             df (:obj:`pandas.DataFrame`): Regularly spaced subdaily time series.

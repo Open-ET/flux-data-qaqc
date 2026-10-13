@@ -524,6 +524,37 @@ class TestQaQc(object):
 
         assert result_gap.isna().all()
         
+    def test_carbon_fluxes_interpolated_like_energy_balance(self, data):
+        # short gaps in GPP are filled like LE, H, Rn, and G, longer gaps
+        # remove the day, and daily pes and pes_flux stay consistent
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        d = Data(config)
+        # Data._df uses the internal variable names after loading
+        gpp = d.df.rename(columns=d.inv_map).gpp
+        counts = gpp.notna().groupby(gpp.index.date).sum()
+        full_days = counts.index[counts == counts.max()]
+        short_day = str(full_days[10])
+        long_day = str(full_days[11])
+
+        # 1 hour gap at midday, 5.5 hour gap in the morning
+        d._df.loc[f'{short_day} 11:00':f'{short_day} 11:30', 'gpp'] = np.nan
+        d._df.loc[f'{long_day} 07:00':f'{long_day} 12:00', 'gpp'] = np.nan
+        d.calc_pes()
+
+        q = QaQc(d)
+        daily = q.df.rename(columns=q.inv_map)
+
+        assert pd.notna(daily.loc[short_day, 'gpp'])
+        assert pd.notna(daily.loc[short_day, 'pes'])
+        assert pd.isna(daily.loc[long_day, 'gpp'])
+        assert pd.isna(daily.loc[long_day, 'pes_flux'])
+        # daily sum of energy equals the daily mean flux times a day
+        assert np.isclose(
+            daily.loc[short_day, 'pes'],
+            daily.loc[short_day, 'pes_flux'] * 86400
+        )
+
     def test_subdaily_sw_pot_matches_refet_hourly(self):
         latitude = 40.0
         longitude = -75.0

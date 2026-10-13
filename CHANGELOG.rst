@@ -1,6 +1,17 @@
 Change Log
 ==========
 
+Unreleased
+----------
+
+GPP (``gpp``), ecosystem respiration (``reco``), NEE (``nee``), and the
+photosynthetic energy storage calculated from GPP (``pes`` and ``pes_flux``)
+are now linearly interpolated over short sub-daily gaps before daily values
+are calculated, like LE, H, Rn, and G (``max_interp_hours`` and
+``max_interp_hours_night``). Days with remaining gaps are still set to null
+(``daily_frac``), so more days now have daily values of these variables.
+Daily ``pes`` is the sum of the interpolated sub-daily values.
+
 Version 0.4.1
 -------------
 
