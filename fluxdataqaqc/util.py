@@ -36,6 +36,128 @@ def standard_utc_offset(latitude, longitude):
         dt.utcoffset() - dt.dst()
     ).total_seconds() / 3600
 
+
+def subdaily_sw_pot(index, latitude, longitude, utc_offset,
+        period_hours):
+    """Calculate extraterrestrial radiation for sub-daily periods.
+
+    Uses the ASCE-EWRI (2005) hourly extraterrestrial-radiation
+    equations, generalized to the detected period length following
+    FAO-56 equations 28-30 for hourly or shorter periods.
+
+    The datetime index is assumed to represent the beginning of each
+    interval and to use local standard time.
+    """
+    midpoint = index + pd.to_timedelta(
+        period_hours / 2,
+        unit='h'
+    )
+
+    doy = midpoint.dayofyear.to_numpy()
+    time_mid = (
+        midpoint.hour.to_numpy()
+        + midpoint.minute.to_numpy() / 60
+        + midpoint.second.to_numpy() / 3600
+        - utc_offset
+    )
+    time_mid = np.mod(time_mid, 24)
+
+    lat = np.deg2rad(latitude)
+    lon = np.deg2rad(longitude)
+
+    doy_fraction = 2 * np.pi * doy / 365
+    dr = 1 + 0.033 * np.cos(doy_fraction)
+    delta = 0.409 * np.sin(doy_fraction - 1.39)
+
+    b = 2 * np.pi * (doy - 81) / 364
+    sc = (
+        0.1645 * np.sin(2 * b)
+        - 0.1255 * np.cos(b)
+        - 0.0250 * np.sin(b)
+    )
+
+    solar_time = (
+        time_mid
+        + lon * 24 / (2 * np.pi)
+        + sc
+        - 12
+    )
+    omega = 2 * np.pi * solar_time / 24
+    omega = np.mod(omega + np.pi, 2 * np.pi) - np.pi
+
+    omega_s = np.arccos(
+        np.clip(-np.tan(lat) * np.tan(delta), -1, 1)
+    )
+
+    half_period = np.pi * period_hours / 24 #
+
+    omega1 = np.clip(
+        omega - half_period,
+        -omega_s,
+        omega_s
+    )
+    omega2 = np.clip(
+        omega + half_period,
+        -omega_s,
+        omega_s
+    )
+    omega1 = np.minimum(omega1, omega2)
+
+    theta = (
+        (omega2 - omega1) * np.sin(lat) * np.sin(delta)
+        + np.cos(lat)
+        * np.cos(delta)
+        * (np.sin(omega2) - np.sin(omega1))
+    )
+
+    ra = (12 / np.pi) * 4.92 * dr * theta
+    ra = np.maximum(ra, 0)
+    ra[ra < 1e-10] = 0
+
+    return pd.Series(
+        ra,
+        index=index,
+        name='sw_pot'
+    )
+
+
+def solar_night(index, latitude, longitude, period_hours, rn=None):
+    """
+    Sub-daily periods of solar night.
+
+    Night is when potential (extraterrestrial) shortwave radiation is zero
+    and net radiation, where it is available, is negative. This is the
+    nighttime definition used for sub-daily gap filling in
+    :obj:`fluxdataqaqc.QaQc`, applied to each period.
+
+    Arguments:
+        index (:obj:`pandas.DatetimeIndex`): start of each period in local
+            standard time.
+        latitude (float): station latitude [decimal degrees].
+        longitude (float): station longitude [decimal degrees].
+        period_hours (float): length of each period [hours].
+
+    Keyword Arguments:
+        rn (:obj:`pandas.Series` or None): default None. Net radiation
+            [W m-2] aligned with ``index``.
+
+    Returns:
+        night (:obj:`pandas.Series`): True during solar night.
+
+    Raises:
+        ValueError: if the station time zone cannot be determined.
+    """
+    utc_offset = standard_utc_offset(latitude, longitude)
+    sw_pot = subdaily_sw_pot(
+        index, latitude, longitude, utc_offset, period_hours
+    )
+    night = sw_pot <= 0
+    # positive net radiation means it may not be night (e.g. time offsets)
+    if rn is not None:
+        night = night & ~(rn.reindex(index) >= 0)
+    return night.rename('night')
+
+
 def set_config_option(config_file, section, option, value):
     """
     Set one option in a config file without rewriting the rest of the file.

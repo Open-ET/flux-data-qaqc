@@ -10,7 +10,7 @@ import refet
 from datetime import datetime
 from pathlib import Path
 from .plot import Plot
-from .util import Convert, get_subdaily_timestep_info
+from .util import Convert, get_subdaily_timestep_info, solar_night
 
 class Data(Plot, Convert):
     """
@@ -147,31 +147,79 @@ class Data(Plot, Convert):
         self.plot_file = None
 
 
-    def calc_pes(self, gpp_var='gpp', coeff_kj_per_mol=422.0,
-                 clip_negative_gpp=True, inplace=True):
-        """
-        Calculate photosynthetic energy storage (pes) and photosynthetic
-        energy storage flux term (pes_flux) from sub-daily GPP.
+    # largest valid GPP and Reco magnitude [umol m-2 s-1] for calc_pes
+    max_co2_flux = 100
 
-        Simple approach based on Meyers & Hollinger (2004). By default,
-        negative GPP values are assumed invalid and are clipped to zero.
+    def calc_pes(self, gpp_var='gpp', coeff_kj_per_mol=422.0,
+                 clip_negative_gpp=True, inplace=True, reco_var='reco',
+                 night_gpp_zero=True):
+        """
+        Calculate photosynthetic energy storage from sub-daily GPP, gross
+        (pes, pes_flux) and net of ecosystem respiration (pes_net,
+        pes_net_flux).
+
+        Gross storage is the chemical energy fixed by photosynthesis,
+        k x GPP (Meyers & Hollinger, 2004). Net storage subtracts the energy
+        released by plant and soil respiration, k x (GPP - Reco), which is
+        the biochemical storage term of the surface energy balance (Gu et
+        al., 2007; Leuning et al., 2012). Respiration releases the stored
+        energy as heat in the canopy and soil, which leaves through the
+        measured fluxes (mostly H, but also LE, outgoing longwave radiation
+        in Rn, and G), so net storage is the term that closes the energy
+        balance and gross storage is an upper bound. Net storage is negative
+        when respiration exceeds photosynthesis, e.g. at night.
+
+        By default, negative GPP values are assumed invalid and are clipped
+        to zero, and missing GPP at night is set to zero because there is no
+        photosynthesis without light. Night is when potential shortwave
+        radiation is zero and net radiation, where available, is negative,
+        the same nighttime definition used for sub-daily gap filling in
+        :obj:`.QaQc` (see :func:`.util.solar_night`). Negative Reco values
+        are not physical and are set to null, as are GPP and Reco values
+        larger than :attr:`Data.max_co2_flux` (100 umol m-2 s-1), which are
+        fill values or errors. Net storage uses the same GPP as gross
+        storage, so their difference is k x Reco.
+
+        The energy stored per mol of CO2 fixed (``coeff_kj_per_mol``, k)
+        differs in the literature, e.g.
+
+            * 422 kJ mol-1, Nobel (1974) as used by Meyers & Hollinger (2004)
+            * 469 kJ mol-1, Blanken et al. (1997) as used by Leuning et al.
+              (2012), close to the heat of combustion of glucose per mol CO2
+            * 480 kJ mol-1, Blankenship (2002) as used by Gu et al. (2007)
 
         Keyword Arguments:
-            gpp_var (str): default 'gpp'. 
+            gpp_var (str): default 'gpp'.
                 Internal variable name for gross primary productivity.
-            coeff_kj_per_mol (float): default 422.0. 
+            coeff_kj_per_mol (float): default 422.0.
                 Energy equivalent per mol CO2 fixed, in kJ mol-1 CO2.
             clip_negative_gpp (bool): default True
                 If True, negative GPP values are set to zero before calculating
                 photosynthetic energy storage.
             inplace (bool): default True
-                If True, add ``pes`` and ``pes_flux`` to :attr:`Data.df`.
+                If True, add the new variables to :attr:`Data.df`.
                 If False, return them in a new DataFrame.
+            reco_var (str): default 'reco'.
+                Internal variable name for ecosystem respiration, needed for
+                net storage. Without it only gross storage is calculated.
+            night_gpp_zero (bool): default True.
+                If True, missing GPP at night is set to zero.
 
         Returns:
             :obj:`pandas.DataFrame` or :obj:`None`
                 If ``inplace=False``, returns a DataFrame with ``pes`` and
-                ``pes_flux``. Otherwise returns :obj:`None`.
+                ``pes_flux``, and ``pes_net`` and ``pes_net_flux`` when Reco
+                is available. Otherwise returns :obj:`None`.
+
+        Example:
+            Gross and net storage with the factor of Leuning et al. (2012),
+            then the energy balance closure correction with net storage
+            subtracted from Rn - G
+
+            >>> d = Data('path/to/config.ini')
+            >>> d.calc_pes(coeff_kj_per_mol=469)
+            >>> q = QaQc(d)
+            >>> q.correct_data(pes='net')
         """
         self.df.head()
         # use internal variable names for calculations
@@ -203,43 +251,73 @@ class Data(Plot, Convert):
             print(f'ERROR: could not determine sub-daily timestep: {e}')
             return self.df
 
-        
         # coefficient conversion kJ mol-1 to J umol-1 
         coeff_j_per_umol = coeff_kj_per_mol / 1000.0
 
         gpp = pd.to_numeric(df[gpp_var], errors='coerce').copy()
+        # larger values are fill values or errors, e.g. 1e30
+        gpp = gpp.where(gpp.abs() <= self.max_co2_flux)
 
         if clip_negative_gpp:
             gpp[gpp < 0] = 0.0
 
-        # interval-mean energy balance term [W m-2]
-        pes_flux = gpp * coeff_j_per_umol
+        # no photosynthesis at night, same nighttime as QaQc gap filling
+        if night_gpp_zero:
+            rn = None
+            if 'Rn' in df.columns:
+                rn = pd.to_numeric(df['Rn'], errors='coerce')
+            try:
+                night = solar_night(
+                    df.index, self.latitude, self.longitude,
+                    dt_seconds / 3600, rn=rn
+                )
+                gpp[gpp.isna() & night] = 0.0
+            except ValueError as e:
+                print(f'WARNING: missing night GPP not set to zero: {e}')
 
+        # interval-mean energy balance term [W m-2], null where GPP is null
+        pes_flux = gpp * coeff_j_per_umol
         # energy fixed over timestep [J m-2]
         pes = pes_flux * dt_seconds
+        new_vars = {'pes': pes, 'pes_flux': pes_flux}
+        new_units = {'pes': 'j/m2', 'pes_flux': 'w/m2'}
 
-        # keep NaNs
-        pes[df[gpp_var].isna()] = np.nan
-        pes_flux[df[gpp_var].isna()] = np.nan
+        # net storage, photosynthesis minus plant and soil respiration
+        if reco_var not in df.columns:
+            print(
+                f'WARNING: "{reco_var}" not found, net photosynthetic energy '
+                'storage (pes_net) not calculated.'
+            )
+        elif self.units.get(reco_var) != 'umolco2/m2/s':
+            print(
+                f'WARNING: unsupported units for "{reco_var}": '
+                f'{self.units.get(reco_var)}. Expected "umolco2/m2/s", net '
+                'photosynthetic energy storage (pes_net) not calculated.'
+            )
+        else:
+            reco = pd.to_numeric(df[reco_var], errors='coerce')
+            # negative respiration is not physical, large values are errors
+            reco = reco.where((reco >= 0) & (reco <= self.max_co2_flux))
+            # net storage flux [W m-2] and energy over timestep [J m-2]
+            pes_net_flux = (gpp - reco) * coeff_j_per_umol
+            new_vars['pes_net'] = pes_net_flux * dt_seconds
+            new_vars['pes_net_flux'] = pes_net_flux
+            new_units['pes_net'] = 'j/m2'
+            new_units['pes_net_flux'] = 'w/m2'
 
         if inplace:
             # store derived variables update dicts
-            self._df['pes'] = pes
-            self._df['pes_flux'] = pes_flux
-            self.variables['pes'] = 'pes'
-            self.variables['pes_flux'] = 'pes_flux'
-            self.units['pes'] = 'j/m2'
-            self.units['pes_flux'] = 'w/m2'
+            for var, values in new_vars.items():
+                self._df[var] = values
+                self.variables[var] = var
+                self.units[var] = new_units[var]
 
             self.inv_map = {
                 v: k for k, v in self.variables.items() if k != v
             }
 
         else:
-            return pd.DataFrame(
-                {'pes': pes, 'pes_flux': pes_flux},
-                index=df.index
-            )
+            return pd.DataFrame(new_vars, index=df.index)
 
 
     def hourly_ASCE_refET(self, reference='short', anemometer_height=None):

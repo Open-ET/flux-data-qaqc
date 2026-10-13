@@ -331,6 +331,52 @@ class TestData(object):
 
 
 
+    def test_calc_pes_night_gpp_zero(self):
+        # missing GPP at night becomes zero, missing GPP in the day stays
+        # missing, and night_gpp_zero=False keeps both missing
+        d = self.data_obj
+        df = d.df.rename(columns=d.inv_map)
+        _, _, dt_seconds = util.get_subdaily_timestep_info(df)
+        night = util.solar_night(
+            df.index, d.latitude, d.longitude, dt_seconds / 3600, rn=df.Rn
+        )
+        night_time = df.index[night & df.gpp.notna()][100]
+        day_time = df.index[~night & (df.Rn > 100) & df.gpp.notna()][100]
+        d._df.loc[[night_time, day_time], 'gpp'] = np.nan
+
+        pes = d.calc_pes(inplace=False)
+        assert pes.loc[night_time, 'pes_flux'] == 0
+        assert np.isnan(pes.loc[day_time, 'pes_flux'])
+
+        pes = d.calc_pes(inplace=False, night_gpp_zero=False)
+        assert np.isnan(pes.loc[night_time, 'pes_flux'])
+
+    def test_calc_pes_net(self):
+        # net storage is k x (GPP - Reco) with the same GPP as gross storage
+        d = self.data_obj
+        pes = d.calc_pes(inplace=False)
+        df = d.df.rename(columns=d.inv_map)
+        gpp = df.gpp.clip(lower=0)
+        reco = df.reco
+        ok = gpp.notna() & (reco >= 0)
+
+        assert ok.sum() > 1000
+        assert np.allclose(
+            pes.pes_net_flux[ok], 0.422 * (gpp[ok] - reco[ok])
+        )
+        assert np.allclose(
+            (pes.pes_flux - pes.pes_net_flux)[ok], 0.422 * reco[ok]
+        )
+        # negative respiration is not used
+        assert pes.pes_net_flux[reco < 0].isna().all()
+
+        # fill values of Reco are not used
+        bad_time = reco.index[ok][10]
+        d._df.loc[bad_time, 'reco'] = 1e30
+        pes = d.calc_pes(inplace=False)
+        assert np.isnan(pes.loc[bad_time, 'pes_net_flux'])
+
+
 class TestQaQc(object):
 
     def _test_df(self, gap_length, sw_pot, rn=100.,
@@ -554,6 +600,52 @@ class TestQaQc(object):
             daily.loc[short_day, 'pes'],
             daily.loc[short_day, 'pes_flux'] * 86400
         )
+
+    def test_correct_data_with_pes(self, data):
+        # storage is subtracted from Rn - G by the ebr and br methods
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        d = Data(config)
+        d.calc_pes()
+        q = QaQc(d)
+        q.correct_data(et_gap_fill=False)
+        base = q.df.rename(columns=q.inv_map).copy()
+
+        for pes, pes_var in QaQc.pes_options.items():
+            q.correct_data(et_gap_fill=False, pes=pes)
+            df = q.df.rename(columns=q.inv_map)
+            assert q.pes == pes
+            assert np.allclose(
+                df.energy, df.Rn - df.G - df[pes_var], equal_nan=True
+            )
+
+        # gross storage lowers corrected ET
+        q.correct_data(et_gap_fill=False, pes='gross')
+        gross = q.df.rename(columns=q.inv_map)
+        both = base.ET_corr.notna() & gross.ET_corr.notna()
+        assert gross.ET_corr[both].sum() < base.ET_corr[both].sum()
+
+        # the Bowen ratio method closes Rn - G - PES
+        q.correct_data(meth='br', et_gap_fill=False, pes='net')
+        df = q.df.rename(columns=q.inv_map)
+        ok = df.LE_corr.notna()
+        assert np.allclose(df.LE_corr[ok] + df.H_corr[ok], df.energy[ok])
+
+        # back to the default, energy is Rn - G
+        q.correct_data(et_gap_fill=False)
+        df = q.df.rename(columns=q.inv_map)
+        assert q.pes is None
+        assert np.allclose(df.energy, df.Rn - df.G, equal_nan=True)
+
+    def test_correct_data_pes_errors(self, data):
+        # storage not calculated, or an unknown option
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        q = QaQc(Data(config))
+        with pytest.raises(ValueError):
+            q.correct_data(et_gap_fill=False, pes='net')
+        with pytest.raises(ValueError):
+            q.correct_data(et_gap_fill=False, pes='other')
 
     def test_subdaily_sw_pot_matches_refet_hourly(self):
         latitude = 40.0

@@ -1146,34 +1146,67 @@ report <https://www.mesonet.org/images/site/ASCE_Evapotranspiration_Formula.pdf>
 Photosynthetic energy storage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-An optional term for photosynthetic energy storage can be
-calculated from sub-daily gross primary productivity (GPP) using a simple
-first-order approach based on Meyers and Hollinger (2004). In this
-implementation, the photosynthetic energy storage flux term is
+An optional term for photosynthetic energy storage (PES) can be
+calculated from sub-daily gross primary productivity (GPP) with
+:meth:`.Data.calc_pes`, following Meyers and Hollinger (2004). The gross
+photosynthetic energy storage flux term is
 
 .. math::
 
-   pes\_flux = GPP \times 0.422
+   pes\_flux = GPP \times k
 
-where 0.422 is the energy equivalent in :math:`J\ \mu mol^{-1}\ CO_2`
-(equivalent to 422 :math:`kJ\ mol^{-1}\ CO_2`), GPP is in
+where :math:`k` is the energy stored per mol of :math:`CO_2` fixed, by
+default 0.422 :math:`J\ \mu mol^{-1}\ CO_2` (422 :math:`kJ\ mol^{-1}`,
+Nobel, 1974, as used by Meyers and Hollinger, 2004), GPP is in
 :math:`\mu mol\ CO_2\ m^{-2}\ s^{-1}`, and :math:`pes\_flux` is in
-:math:`W\ m^{-2}`.
+:math:`W\ m^{-2}`. Other values in the literature are 469
+:math:`kJ\ mol^{-1}` (Blanken et al., 1997, as used by Leuning et al., 2012,
+close to the heat of combustion of glucose per mol of :math:`CO_2`) and 480
+:math:`kJ\ mol^{-1}` (Blankenship, 2002, as used by Gu et al., 2007), set
+with the ``coeff_kj_per_mol`` keyword argument.
 
-Energy fixed over the timestep is then
+Plant and soil respiration release this energy again as heat in the canopy
+and soil. That heat leaves through the measured fluxes, mostly as :math:`H`
+but also as :math:`LE`, outgoing longwave radiation (part of :math:`Rn`),
+and :math:`G`. When ecosystem respiration (Reco) is available, :meth:`.Data.calc_pes` also calculates the net storage, the
+biochemical energy storage term of the surface energy balance (Gu et al.,
+2007; Leuning et al., 2012),
 
 .. math::
 
-   pes = pes\_flux \times \Delta t
+   pes\_net\_flux = (GPP - Reco) \times k
+
+which is negative when respiration exceeds photosynthesis, e.g. at night.
+The gross term is an upper bound of the storage. Energy stored or released
+over the timestep is
+
+.. math::
+
+   pes = pes\_flux \times \Delta t, \quad
+   pes\_net = pes\_net\_flux \times \Delta t
 
 where :math:`\Delta t` is the timestep length in seconds and :math:`pes`
-is in :math:`J\ m^{-2}`.
+and :math:`pes\_net` are in :math:`J\ m^{-2}`.
 
-By default, negative GPP values are clipped to zero before calculating PES.
-If ``pes`` and ``pes_flux`` are added to a :obj:`.Data` object before
-creating a :obj:`.QaQc` instance, then ``pes`` is summed to daily values
-and ``pes_flux`` is averaged to daily values automatically during
-resampling.
+By default, negative GPP values are clipped to zero, negative Reco values
+are set to null, and missing GPP at night is set to zero because there is
+no photosynthesis without light. Night is when the potential shortwave
+radiation is zero and net radiation, where available, is negative, the same
+nighttime definition used to interpolate sub-daily gaps (see above). The
+variables are summed (``pes``, ``pes_net``) or averaged (``pes_flux``,
+``pes_net_flux``) to daily values when the :obj:`.QaQc` instance is created
+and their short sub-daily gaps are interpolated like the energy balance
+components.
+
+The storage can be subtracted from the available energy, :math:`Rn - G`,
+before the energy balance closure correction with the ``pes`` keyword
+argument of :meth:`.QaQc.correct_data`, ``pes='gross'`` or ``pes='net'``,
+for the Energy Balance Ratio and Bowen Ratio methods::
+
+   d = Data('US-Tw3_config.ini')
+   d.calc_pes(coeff_kj_per_mol=469)
+   q = QaQc(d)
+   q.correct_data(meth='ebr', pes='net')
 
 Example::
 

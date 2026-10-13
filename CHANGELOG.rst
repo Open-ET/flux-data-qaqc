@@ -12,6 +12,27 @@ are calculated, like LE, H, Rn, and G (``max_interp_hours`` and
 (``daily_frac``), so more days now have daily values of these variables.
 Daily ``pes`` is the sum of the interpolated sub-daily values.
 
+:meth:`.Data.calc_pes` also calculates the net photosynthetic energy storage,
+``pes_net`` and ``pes_net_flux``, k x (GPP - Reco), when ecosystem
+respiration is available (new ``reco_var`` keyword argument). Missing GPP at
+night is now set to zero before calculating the storage (new
+``night_gpp_zero`` keyword argument, default True), using the nighttime
+definition of the sub-daily gap filling (potential shortwave radiation of zero
+and negative net radiation where available), so ``pes`` and ``pes_flux`` have
+values on more days. Negative Reco values, and GPP and Reco values larger than
+100 umol m-2 s-1 (``Data.max_co2_flux``, e.g. fill values), are set to null. The docstring lists
+literature values of the energy stored per mol of CO2 (422, 469, and 480 kJ
+mol-1); the default is still 422.
+
+New ``pes`` keyword argument of :meth:`.QaQc.correct_data`: ``'gross'`` or
+``'net'`` subtracts the daily storage from Rn - G before the Energy Balance
+Ratio or Bowen Ratio correction. The ``energy`` variable is then
+Rn - G - PES and ``ebr`` and ``ebr_corr`` use it. The default (None) gives
+the same results as before.
+
+New function :func:`.util.solar_night`; the sub-daily potential shortwave
+radiation calculation moved to :func:`.util.subdaily_sw_pot`.
+
 Version 0.4.1
 -------------
 

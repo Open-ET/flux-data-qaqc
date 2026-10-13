@@ -38,7 +38,7 @@ and units`.
  ebr_5day_clim      5 day climatology of the filtered energy balance ratio (method 4)               —
  ebr_corr           energy balance ratio after correction, (H_corr + LE_corr) / (Rn - G)            —
  ebr_est            energy balance ratio estimated by the 'ebr' correction (inverse of ebc_cf)      —
- energy             input Rn - G                                                                    W m⁻²
+ energy             input Rn - G, minus pes_flux or pes_net_flux with correct_data(pes=...)         W m⁻²
  es                 saturation vapor pressure                                                       kPa
  ET                 ET calculated from input LE and average air temperature                         mm time⁻¹
  ET_corr            ET calculated from LE_corr                                                      mm time⁻¹
@@ -72,6 +72,8 @@ and units`.
  nee                net ecosystem exchange                                                          μmol CO₂ m⁻² s⁻¹
  pes                photosynthetic energy fixed over the timestep                                   J m⁻²
  pes_flux           photosynthetic energy storage flux-equivalent term                              W m⁻²
+ pes_net            net photosynthetic energy storage (GPP - Reco) over the timestep                J m⁻²
+ pes_net_flux       net photosynthetic energy storage flux-equivalent term                          W m⁻²
  ppfd_in            incoming photosynthetic photon flux density                                     μmol photons m⁻² s⁻¹
  ppt                precipitation                                                                   mm time⁻¹
  reco               ecosystem respiration                                                           μmol CO₂ m⁻² s⁻¹
