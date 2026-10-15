@@ -28,7 +28,15 @@ New ``pes`` keyword argument of :meth:`.QaQc.correct_data`: ``'gross'`` or
 ``'net'`` subtracts the daily storage from Rn - G before the Energy Balance
 Ratio or Bowen Ratio correction. The ``energy`` variable is then
 Rn - G - PES and ``ebr`` and ``ebr_corr`` use it. The default (None) gives
-the same results as before.
+the same results as before. The linear regression method ignores it.
+
+New plots in :meth:`.Data.plot` and :meth:`.QaQc.plot`: gross and net
+photosynthetic energy storage (``pes_flux``, ``pes_net_flux``) and carbon
+fluxes (GPP, Reco, NEE), daily and monthly, when they exist. With
+``correct_data(pes=...)``, the energy balance closure scatter plots also show
+the initial closure against Rn - G without the storage on the same days, and
+the x axis label and energy balance ratio plot titles name the storage that
+was removed.
 
 New function :func:`.util.solar_night`; the sub-daily potential shortwave
 radiation calculation moved to :func:`.util.subdaily_sw_pot`.

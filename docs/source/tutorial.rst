@@ -581,6 +581,8 @@ plots of input data, potential plots inlcude:
 -  wind speed
 -  precipitation
 -  latent energy
+-  gross and net photosynthetic energy storage, after :meth:`.Data.calc_pes`
+-  GPP, ecosystem respiration, and NEE
 -  multiple soil moisture measurements
 
 If any of these variables are not found the plot(s) will not be added.
@@ -1208,6 +1210,12 @@ for the Energy Balance Ratio and Bowen Ratio methods::
    q = QaQc(d)
    q.correct_data(meth='ebr', pes='net')
 
+The linear regression method does not use the storage. :meth:`.QaQc.plot`
+and :meth:`.Data.plot` include time series of the gross and net storage and
+of GPP, Reco, and NEE. After a correction with ``pes``, the energy balance
+closure scatter plots also show the initial closure against :math:`Rn - G`
+without the storage, on the same days, for comparison.
+
 Example::
 
    d = Data('US-Tw3_config.ini')
@@ -1376,8 +1384,9 @@ dimensions, output type, output file path, etc. are available. Similar to
 corrected the ``plot`` method will correct it using the default parameters
 before creating the plots. 
 
-Here is an example of the default daily and monthly time series plots produced after running the Energy Balance Ratio closure correction:
+Here is an example of the default daily and monthly time series plots produced after running the Energy Balance Ratio closure correction. The photosynthetic energy storage is calculated first so that its plots are included:
 
+    >>> d.calc_pes()
     >>> q = QaQc(d)
     >>> q.plot(output_type='notebook', plot_width=700)
 

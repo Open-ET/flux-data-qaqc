@@ -1246,6 +1246,9 @@ class QaQc(Plot, Convert):
                 'or "ETo"'.format(refET)
             )
         self._check_pes_option(pes, meth)
+        # only the ebr and br methods remove storage from Rn - G
+        if meth == 'lin_regress':
+            pes = None
         self.pes = pes
 
         # calculate clear sky radiation if not already computed
@@ -1786,7 +1789,10 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
                 '(reco)'.format(pes_var)
             )
         if meth == 'lin_regress':
-            print('WARNING: pes is only used by the ebr and br methods.')
+            print(
+                'WARNING: pes is only used by the ebr and br methods, it is '
+                'ignored by lin_regress.'
+            )
 
     def _available_energy(self, df):
         """
@@ -2169,11 +2175,15 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         * initial, corrected, gap filled, and reference evapotranspiration
         * crop coefficient and smoothed and interpolated crop coefficient
         * initial and corrected energy balance ratio
+        * gross and net photosynthetic energy storage
+        * GPP, ecosystem respiration, and NEE
         * multiple soil moisture measurements
 
         A list of all potential scatter plots created: 
 
-        * radiative versus turblent fluxes, initial and corrected
+        * radiative versus turblent fluxes, initial and corrected, and initial
+          with Rn - G without photosynthetic energy storage when the
+          correction removed it (``pes`` of :meth:`QaQc.correct_data`)
         * initial versus corrected latent energy
         * initial versus corrected evapotranspiration
 

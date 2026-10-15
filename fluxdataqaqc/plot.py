@@ -374,6 +374,17 @@ class Plot(object):
             for c in monthly_df.columns:
                 if monthly_df[c].notna().sum() <= 1:
                     monthly_df.drop(c, axis=1, inplace=True)
+
+        # photosynthetic energy storage removed from Rn - G by the correction,
+        # add it back to energy (same days) to compare closure without it
+        pes = getattr(FluxObj, 'pes', None)
+        if pes is not None:
+            pes_var = FluxObj.pes_options[pes]
+        if monthly and pes is not None and\
+                {'energy', pes_var}.issubset(monthly_df.columns):
+            monthly_df['energy_without_pes'] =\
+                monthly_df.energy + monthly_df[pes_var]
+        if monthly:
             monthly_source = ColumnDataSource(monthly_df)
 
         # so that the correction is run, may change this
@@ -381,6 +392,8 @@ class Plot(object):
         df = FluxObj.df.rename(columns=FluxObj.inv_map) 
         variables = FluxObj.variables
         units = FluxObj.units 
+        if pes is not None and {'energy', pes_var}.issubset(df.columns):
+            df['energy_without_pes'] = df.energy + df[pes_var]
         # bokeh column sources for tooltips
         daily_source=ColumnDataSource(df)
         # for aggregating plots
@@ -847,6 +860,8 @@ class Plot(object):
         plt_vars = ['ebr', 'ebr_corr', 'ebr_est', 'ebr_user_corr']
         colors = ['black', 'red', 'blue', 'darkorange']
         title = 'Daily Energy Balance Ratio with Long-term Mean'
+        if pes is not None:
+            title += f' (Rn - G - {pes} PES)'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
         # add mean EBR for each time series in legend
@@ -874,6 +889,8 @@ class Plot(object):
         if fig is not None and monthly:
             # same for monthly fig
             title = 'Monthly Energy Balance Ratio with Long-term Mean'
+            if pes is not None:
+                title += f' (Rn - G - {pes} PES)'
             # add mean for monthly EBRs to legend
             labels = []
             for i, v in enumerate(plt_vars):
@@ -894,6 +911,74 @@ class Plot(object):
             )
             monthly_line.append(fig)
 
+        ####
+        # photosynthetic energy storage time series plots
+        ####
+        plt_vars = ['pes_flux', 'pes_net_flux']
+        labels = ['gross', 'net']
+        colors = ['darkorange', 'blue']
+        # note which storage the correction removed from Rn - G
+        if pes is not None:
+            i = plt_vars.index(pes_var)
+            labels[i] = f'{pes}, removed from Rn - G'
+        title = 'Daily Photosynthetic Energy Storage (PES)'
+        x_label = 'date'
+        y_label = _get_units(plt_vars, units)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height, name='pes_daily'
+        )
+        fig = Plot.add_lines(
+            fig, df, plt_vars, colors, x_label, daily_source, labels=labels
+        )
+        if fig is not None:
+            daily_line.append(fig)
+        if fig is not None and monthly:
+            # same for monthly fig
+            title = 'Monthly Photosynthetic Energy Storage (PES)'
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_height, name='pes_monthly'
+            )
+            fig = Plot.add_lines(
+                fig, monthly_df, plt_vars, colors, x_label, monthly_source,
+                labels=labels
+            )
+            monthly_line.append(fig)
+        # do not print warning if missing, storage is optional
+
+        ####
+        # carbon flux time series plots
+        ####
+        plt_vars = ['gpp', 'reco', 'nee']
+        labels = ['GPP', 'Reco', 'NEE']
+        colors = ['green', 'darkred', 'black']
+        title = 'Daily Carbon Fluxes'
+        x_label = 'date'
+        y_label = _get_units(plt_vars, units)
+        fig = figure(
+            x_axis_label=x_label, y_axis_label=y_label, title=title,
+            width=plot_width, height=plot_height, name='carbon_daily'
+        )
+        fig = Plot.add_lines(
+            fig, df, plt_vars, colors, x_label, daily_source, labels=labels
+        )
+        if fig is not None:
+            daily_line.append(fig)
+        if fig is not None and monthly:
+            # same for monthly fig
+            title = 'Monthly Carbon Fluxes'
+            fig = figure(
+                x_axis_label=x_label, y_axis_label=y_label, title=title,
+                width=plot_width, height=plot_height, name='carbon_monthly'
+            )
+            fig = Plot.add_lines(
+                fig, monthly_df, plt_vars, colors, x_label, monthly_source,
+                labels=labels
+            )
+            monthly_line.append(fig)
+        # do not print warning if missing, carbon fluxes are optional
+
         #### 
         # energy balance closure scatter plots
         #### 
@@ -902,6 +987,8 @@ class Plot(object):
         unit = _get_units(['LE', 'H', 'Rn', 'G'], units)
         y_label = 'LE + H ({})'.format(unit)
         x_label = 'Rn - G ({})'.format(unit)
+        if pes is not None:
+            x_label = f'Rn - G - {pes} PES ({unit})'
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
             width=plot_width, height=plot_width, name='energy_vs_flux_daily'
@@ -912,6 +999,14 @@ class Plot(object):
         # add plot pairs to plot if they exist, add 1:1
         mins_maxs = []
         n_vars_fnd = 0
+        # initial closure before the storage was removed from Rn - G
+        if 'energy_without_pes' in df.columns:
+            min_max = Plot.scatter_plot(
+                fig, 'energy_without_pes', 'flux', daily_source, 'gray',
+                label='init, Rn - G without PES'
+            )
+            if min_max is not None:
+                mins_maxs.append(min_max)
         for i, v in enumerate(y_vars):
             if v in df.columns and not df[v].isna().all():
                 n_vars_fnd += 1
@@ -953,6 +1048,13 @@ class Plot(object):
                     name='energy_vs_flux_monthly'
                 )
                 mins_maxs = []
+                if 'energy_without_pes' in monthly_df.columns:
+                    min_max = Plot.scatter_plot(
+                        fig, 'energy_without_pes', 'flux', monthly_source,
+                        'gray', label='init, Rn - G without PES'
+                    )
+                    if min_max is not None:
+                        mins_maxs.append(min_max)
                 for i, v in enumerate(y_vars):
                     if v in monthly_df.columns:
                         min_max = Plot.scatter_plot(

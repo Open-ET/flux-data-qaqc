@@ -663,6 +663,9 @@ class Data(Plot, Convert):
         * wind speed
         * precipitation 
         * latent energy
+        * gross and net photosynthetic energy storage, if
+          :meth:`Data.calc_pes` was run
+        * GPP, ecosystem respiration, and NEE
         * multiple soil moisture measurements
 
 

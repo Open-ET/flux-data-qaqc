@@ -206,6 +206,17 @@ class TestData(object):
             f'{self.data_obj.site_id}_input_plots.html'
         assert self.data_obj.plot_file.is_file()
 
+    def test_Data_plots_carbon_and_pes(self):
+        # carbon fluxes are plotted from the config, storage after calc_pes
+        figs = self.data_obj.plot(output_type='return_figs')
+        names = [f.name for f in figs]
+        assert 'carbon_daily' in names
+        assert 'pes_daily' not in names
+        self.data_obj.calc_pes()
+        figs = self.data_obj.plot(output_type='return_figs')
+        names = [f.name for f in figs]
+        assert {'carbon_daily', 'pes_daily'}.issubset(names)
+
     #def test_xl_reader(self):
     #    d = Data(self.fluxnet_config)
     #    d.xl_parser = 'openpyxl'
@@ -647,6 +658,19 @@ class TestQaQc(object):
         with pytest.raises(ValueError):
             q.correct_data(et_gap_fill=False, pes='other')
 
+    def test_lin_regress_ignores_pes(self, data):
+        # storage is not removed from monthly Rn - G either
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        d = Data(config)
+        d.calc_pes()
+        q = QaQc(d)
+        q.correct_data(meth='lin_regress', et_gap_fill=False, pes='gross')
+        assert q.pes is None
+        df = q.monthly_df.rename(columns=q.inv_map)
+        ebr = (df.H + df.LE) / (df.Rn - df.G)
+        assert np.allclose(df.ebr, ebr, equal_nan=True)
+
     def test_subdaily_sw_pot_matches_refet_hourly(self):
         latitude = 40.0
         longitude = -75.0
@@ -923,6 +947,33 @@ class TestQaQc(object):
         q.plot(out_file=out_file)
         assert q.plot_file == out_file
         assert out_file.is_file()
+
+    def test_QaQc_plots_with_pes(self, data):
+        # storage and carbon flux plots, closure with and without storage
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        d = Data(config)
+        d.calc_pes()
+        q = QaQc(d)
+        q.correct_data(et_gap_fill=False)
+        figs = {f.name: f for f in q.plot(output_type='return_figs')}
+        for name in ('pes_daily', 'pes_monthly', 'carbon_daily'):
+            assert name in figs
+        closure = figs['energy_vs_flux_daily']
+        assert closure.xaxis[0].axis_label == 'Rn - G (w/m2)'
+        assert len(closure.legend[0].items) == 3
+
+        q.correct_data(et_gap_fill=False, pes='net')
+        figs = {f.name: f for f in q.plot(output_type='return_figs')}
+        labels = [i.label.value for i in figs['pes_daily'].legend[0].items]
+        assert labels == ['gross', 'net, removed from Rn - G']
+        for name in ('energy_vs_flux_daily', 'energy_vs_flux_monthly'):
+            closure = figs[name]
+            assert closure.xaxis[0].axis_label == 'Rn - G - net PES (w/m2)'
+            labels = [i.label.value for i in closure.legend[0].items]
+            assert labels[0].startswith('init, Rn - G without PES')
+            assert labels[1].startswith('init, slope')
+        assert 'net PES' in figs['EBR_daily'].title.text
 
     def test_invalid_refET(self, data, tmp_path):
         q = QaQc(Data(self._qc_example_config(data, tmp_path)))
