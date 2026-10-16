@@ -59,9 +59,10 @@ class QaQc(Plot, Convert):
     applicable limit. Longer gaps remain entirely missing rather than being
     partially filled. Interpolation may be applied to available sub-daily variables
     including ``t_avg``, ``sw_in``, ``ws``, ``vp``, ``LE``, ``H``, ``Rn``,
-    ``G``, the carbon fluxes ``gpp``, ``reco``, and ``nee``, and the
-    photosynthetic energy storage ``pes`` and ``pes_flux`` calculated from GPP
-    by :meth:`.Data.calc_pes`.
+    ``G``, the carbon fluxes ``gpp``, ``reco`` (or ``gpp_nt`` and ``reco_nt``
+    from :meth:`.Data.partition_nee`), and ``nee``, and the photosynthetic
+    energy storage ``pes``, ``pes_flux``, ``pes_net``, and ``pes_net_flux``
+    calculated by :meth:`.Data.calc_pes`.
 
     Keyword Arguments:
         data (:obj:`.Data`): :obj:`.Data` instance to create :obj:`.QaQc` 
@@ -200,6 +201,8 @@ class QaQc(Plot, Convert):
         'pes_net_flux': 'mean',
         'gpp': 'mean',
         'reco': 'mean',
+        'gpp_nt': 'mean',
+        'reco_nt': 'mean',
         'nee': 'mean',
         'fc': 'mean',
         'sc': 'mean',
@@ -783,8 +786,8 @@ class QaQc(Plot, Convert):
             asce_std_interp_vars = ['t_avg','sw_in','ws','vp']
             # carbon fluxes and photosynthetic energy storage from GPP
             carbon_interp_vars = [
-                'gpp', 'reco', 'nee', 'pes', 'pes_flux', 'pes_net',
-                'pes_net_flux'
+                'gpp', 'reco', 'gpp_nt', 'reco_nt', 'nee', 'pes', 'pes_flux',
+                'pes_net', 'pes_net_flux'
             ]
             # for interpolation of energy balance variables if they exist
             energy_bal_vars = list(
@@ -2302,8 +2305,9 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
 
         The function can interpolate any numeric columns supplied in ``df``. In the
         ``QaQc`` workflow these may include ``t_avg``, ``sw_in``, ``ws``, ``vp``,
-        ``LE``, ``H``, ``Rn``, ``G``, ``gpp``, ``reco``, ``nee``, ``pes``, and
-        ``pes_flux``.
+        ``LE``, ``H``, ``Rn``, ``G``, ``gpp``, ``reco``, ``gpp_nt``,
+        ``reco_nt``, ``nee``, ``pes``, ``pes_flux``, ``pes_net``, and
+        ``pes_net_flux``.
 
         Arguments:
             df (:obj:`pandas.DataFrame`): Regularly spaced subdaily time series.

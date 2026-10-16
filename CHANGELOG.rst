@@ -1,8 +1,8 @@
 Change Log
 ==========
 
-Unreleased
-----------
+Version 0.5.0
+-------------
 
 GPP (``gpp``), ecosystem respiration (``reco``), NEE (``nee``), and the
 photosynthetic energy storage calculated from GPP (``pes`` and ``pes_flux``)
@@ -40,6 +40,15 @@ was removed.
 
 New function :func:`.util.solar_night`; the sub-daily potential shortwave
 radiation calculation moved to :func:`.util.subdaily_sw_pot`.
+
+New method :meth:`Data.partition_nee` partitions sub-daily net ecosystem
+exchange (the CO2 flux plus storage) into GPP and ecosystem respiration with
+the nighttime method, u* filtering (Papale et al., 2006) and a respiration
+temperature response fit to nighttime NEE (Lloyd and Taylor, 1994; Reichstein
+et al., 2005), so GPP is estimated the same way at every site. New variables
+gpp_nt and reco_nt, e.g. for gross and net photosynthetic energy storage
+with ``calc_pes(gpp_var='gpp_nt', reco_var='reco_nt')``. New module
+``fluxdataqaqc.partition``.
 
 Version 0.4.1
 -------------

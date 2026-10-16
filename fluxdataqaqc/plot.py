@@ -917,10 +917,6 @@ class Plot(object):
         plt_vars = ['pes_flux', 'pes_net_flux']
         labels = ['gross', 'net']
         colors = ['darkorange', 'blue']
-        # note which storage the correction removed from Rn - G
-        if pes is not None:
-            i = plt_vars.index(pes_var)
-            labels[i] = f'{pes}, removed from Rn - G'
         title = 'Daily Photosynthetic Energy Storage (PES)'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)

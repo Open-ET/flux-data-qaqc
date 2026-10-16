@@ -19,6 +19,7 @@ from fluxdataqaqc import QaQc
 from fluxdataqaqc import Plot
 from fluxdataqaqc import Convert
 from fluxdataqaqc import util
+from fluxdataqaqc import partition
 
 
 @pytest.fixture(scope="session")
@@ -339,6 +340,43 @@ class TestData(object):
             rtol=0,
             atol=1e-9
         )
+
+    def test_partition_nee(self):
+        d = self.data_obj
+        d.partition_nee()
+        df = d.df.rename(columns=d.inv_map)
+        assert {'gpp_nt', 'reco_nt'}.issubset(df.columns)
+        assert d.units['gpp_nt'] == 'umolco2/m2/s'
+        yearly = d.nee_partitioning
+        assert len(yearly) == 6
+        assert yearly.ustar_threshold.between(0.01, 1).all()
+        assert yearly.E0.between(30, 450).all()
+        # daytime GPP is close to the site's partitioned GPP
+        day = (df.sw_in > 20) & df.gpp_nt.notna() & df.gpp.notna()
+        assert np.corrcoef(df.gpp_nt[day], df.gpp[day])[0, 1] > 0.95
+        assert 0.9 < df.gpp_nt[day].sum() / df.gpp[day].sum() < 1.1
+        # no photosynthesis at night
+        night = df.sw_in < 10
+        assert (df.gpp_nt[night].dropna() == 0).all()
+        assert (df.reco_nt.dropna() > 0).all()
+        # photosynthetic energy storage from the partitioned GPP
+        d.calc_pes(gpp_var='gpp_nt')
+        df = d.df.rename(columns=d.inv_map)
+        mask = df.gpp_nt.notna()
+        assert np.allclose(
+            df.pes_flux[mask], df.gpp_nt[mask].clip(lower=0) * 0.422
+        )
+        # daily means in QaQc
+        q = QaQc(d)
+        daily = q.df.rename(columns=q.inv_map)
+        assert daily.gpp_nt.notna().sum() > 1000
+        assert q.agg_dict['gpp_nt'] == 'mean'
+
+    def test_partition_nee_needs_subdaily(self):
+        d = Data(self.fluxnet_config)
+        d.partition_nee()
+        assert 'gpp_nt' not in d.df.columns
+        assert d.nee_partitioning is None
 
 
 
@@ -965,8 +1003,10 @@ class TestQaQc(object):
 
         q.correct_data(et_gap_fill=False, pes='net')
         figs = {f.name: f for f in q.plot(output_type='return_figs')}
+        # the storage plots show gross and net storage, also after the
+        # correction removed one of them from Rn - G
         labels = [i.label.value for i in figs['pes_daily'].legend[0].items]
-        assert labels == ['gross', 'net, removed from Rn - G']
+        assert labels == ['gross', 'net']
         for name in ('energy_vs_flux_daily', 'energy_vs_flux_monthly'):
             closure = figs[name]
             assert closure.xaxis[0].axis_label == 'Rn - G - net PES (w/m2)'
@@ -1257,3 +1297,80 @@ class TestUtil(object):
 
         assert np.isclose(offset, expected)
 
+
+class TestPartition(object):
+    """
+    Tests of the NEE partitioning functions on synthetic data with known
+    respiration, GPP and u* threshold.
+    """
+    @pytest.fixture(scope='class')
+    def synthetic(self):
+        rng = np.random.default_rng(0)
+        idx = pd.date_range('2018-01-01', '2019-12-31 23:30', freq='30min')
+        doy = idx.dayofyear.values
+        hour = idx.hour.values + idx.minute.values / 60
+        # seasonal and daily air temperature cycles [C]
+        t_air = (12 - 10 * np.cos(2 * np.pi * (doy - 15) / 365) + 5 *
+            np.sin(2 * np.pi * (hour - 9) / 24) + rng.normal(0, 1, len(idx)))
+        sw_in = np.clip(800 * np.sin(np.pi * (hour - 6) / 12), 0, None)
+        reco = partition.lloyd_taylor(t_air, 3, 250)
+        gpp = 0.03 * sw_in * (0.3 + 0.7 * np.sin(np.pi * doy / 365))
+        ustar = rng.gamma(2, 0.15, len(idx))
+        nee = reco - gpp
+        # respiration is underestimated below a u* of 0.2 m/s at night
+        night = sw_in < 10
+        low = night & (ustar < 0.2)
+        nee[low] = nee[low] * ustar[low] / 0.2
+        nee = nee + rng.normal(0, 0.8, len(idx))
+        nee[rng.random(len(idx)) < 0.3] = np.nan
+        series = lambda v: pd.Series(v, index=idx)
+        return {
+            'nee': series(nee), 't_air': series(t_air),
+            'night': series(night), 'ustar': series(ustar),
+            'gpp': series(gpp), 'reco': series(reco)
+        }
+
+    def test_lloyd_taylor_reference(self):
+        assert np.isclose(partition.lloyd_taylor(15, 2, 300), 2)
+        assert partition.lloyd_taylor(25, 2, 300) > 2
+
+    def test_ustar_thresholds(self, synthetic):
+        s = synthetic
+        thresholds = partition.ustar_thresholds(
+            s['nee'], s['ustar'], s['t_air'], s['night']
+        )
+        assert list(thresholds.index) == [2018, 2019]
+        assert thresholds.between(0.15, 0.3).all()
+
+    def test_nighttime_partitioning(self, synthetic):
+        s = synthetic
+        result, yearly = partition.nighttime_partitioning(
+            s['nee'], s['t_air'], s['night'], ustar=s['ustar']
+        )
+        assert yearly.E0.between(175, 325).all()
+        day = ~s['night'] & result.gpp.notna()
+        assert np.corrcoef(result.gpp[day], s['gpp'][day])[0, 1] > 0.98
+        assert 0.95 < result.gpp[day].sum() / s['gpp'][day].sum() < 1.05
+        assert 0.95 < result.reco.mean() / s['reco'].mean() < 1.05
+        # daytime GPP only where NEE is measured, none at night
+        assert result.gpp[~s['night'] & s['nee'].isna()].isna().all()
+        assert result.gpp[~s['night'] & s['nee'].notna()].notna().all()
+        assert (result.gpp[s['night'] & result.reco.notna()] == 0).all()
+        # without the u* filter respiration is underestimated
+        result, _ = partition.nighttime_partitioning(
+            s['nee'], s['t_air'], s['night']
+        )
+        assert result.reco.mean() / s['reco'].mean() < 0.9
+
+    def test_partitioning_long_gap(self, synthetic):
+        s = synthetic
+        # no u* in 2019, its nighttime data can not be used
+        ustar = s['ustar'].copy()
+        ustar[ustar.index.year == 2019] = np.nan
+        result, yearly = partition.nighttime_partitioning(
+            s['nee'], s['t_air'], s['night'], ustar=ustar
+        )
+        assert yearly.loc[2019, 'n_night'] == 0
+        # respiration is not estimated far from data with u*
+        assert result.reco['2019-01-20':].isna().all()
+        assert result.reco['2018-02':'2018-11'].notna().all()

@@ -31,6 +31,13 @@ Plot
     :undoc-members:
     :show-inheritance:
 
+NEE partitioning
+----------------
+
+.. automodule:: fluxdataqaqc.partition
+    :members:
+    :show-inheritance:
+
 utility classes and functions
 -----------------------------
 

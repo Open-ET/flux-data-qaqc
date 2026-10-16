@@ -746,7 +746,7 @@ Filter days with sub-daily gaps
 
 The ``drop_gaps`` and ``daily_frac`` keyword arguments used when creating a :obj:`.QaQc` instance allow you to control how days with sub-daily measurement gaps will or will not be filtered out when resampling to daily frequency.
 
-Sub-daily gaps in energy balance variables :math:`LE`, :math:`H`, :math:`Rn`, and :math:`G` , daily ASCE standaridized reference ET inputs, e.g. hourly :math:`ea` ("vp"), :math:`rs` ("sw_in"), :math:`t_min`, :math:`t_max`, and :math:`ws`, and the carbon fluxes GPP ("gpp"), ecosystem respiration ("reco"), and NEE ("nee") with the photosynthetic energy storage calculated from GPP ("pes" and "pes_flux"), can be linearly interpolated automatically before daily aggregations. Interpolation is performed over gap lengths measured in hours, with options to control the longest length of gap to interpolate when :math:`Rn \ge 0` controlled by the :obj:`.QaQc` keyword argument ``max_interp_hours`` (default 2 hours) and the longest gap to interpolate when :math:`Rn < 0` set by the ``max_interp_hours_night`` (default 4 hours).:math:`
+Sub-daily gaps in energy balance variables :math:`LE`, :math:`H`, :math:`Rn`, and :math:`G` , daily ASCE standaridized reference ET inputs, e.g. hourly :math:`ea` ("vp"), :math:`rs` ("sw_in"), :math:`t_min`, :math:`t_max`, and :math:`ws`, and the carbon fluxes GPP ("gpp", or "gpp_nt" from :meth:`.Data.partition_nee`), ecosystem respiration ("reco" or "reco_nt"), and NEE ("nee") with the photosynthetic energy storage calculated from GPP ("pes", "pes_flux", "pes_net", and "pes_net_flux"), can be linearly interpolated automatically before daily aggregations. Interpolation is performed over gap lengths measured in hours, with options to control the longest length of gap to interpolate when :math:`Rn \ge 0` controlled by the :obj:`.QaQc` keyword argument ``max_interp_hours`` (default 2 hours) and the longest gap to interpolate when :math:`Rn < 0` set by the ``max_interp_hours_night`` (default 4 hours).:math:`
 
 .. Important:: 
 
@@ -1145,6 +1145,127 @@ declination, the day of the year and the solar constant (see equations
 21-29 in the `ASCE
 report <https://www.mesonet.org/images/site/ASCE_Evapotranspiration_Formula.pdf>`__).
 
+Partitioning NEE into GPP and respiration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Gross primary productivity (GPP) is not measured by eddy covariance. The
+measured CO2 flux plus the CO2 storage flux below the sensor is the net
+ecosystem exchange (NEE), the difference of ecosystem respiration
+(:math:`R_{eco}`) and GPP,
+
+.. math:: NEE = R_{eco} - GPP
+
+which is positive for a net flux to the atmosphere. At night there is no
+photosynthesis and NEE is ecosystem respiration. :meth:`.Data.partition_nee`
+uses this to estimate GPP from the CO2 flux with
+the nighttime method of `Reichstein et al. (2005) <https://doi.org/10.1111/j.1365-2486.2005.001002.x>`__, a simplified version of the partitioning in ONEFlux/FLUXNET and REddyProc:
+
+1. nighttime NEE with low turbulence, which underestimates respiration, is
+   removed with friction velocity (:math:`u_*`) thresholds of each year from
+   the moving point test of `Papale et al. (2006)
+   <https://doi.org/10.5194/bg-3-571-2006>`__
+2. respiration is fit to nighttime NEE as a function of air temperature
+   (`Lloyd and Taylor, 1994 <https://doi.org/10.2307/2389824>`__),
+
+   .. math:: R_{eco} = R_{ref} \exp \left( E_0 \left( \frac{1}{T_{ref} - T_0} - \frac{1}{T - T_0} \right) \right)
+
+   with :math:`T_{ref}` = 288.15 K and :math:`T_0` = 227.13 K, the
+   temperature sensitivity :math:`E_0` of each year from fits in 15 day
+   windows and the reference respiration :math:`R_{ref}` from fits in 7 day
+   windows (`Reichstein et al., 2005
+   <https://doi.org/10.1111/j.1365-2486.2005.001002.x>`__)
+3. daytime :math:`GPP = R_{eco} - NEE`, and GPP is 0 at night
+
+The results are added to the data as "gpp_nt" and "reco_nt", and the
+:math:`u_*` threshold and :math:`E_0` of each year are saved in
+:attr:`.Data.nee_partitioning`. The method needs sub-daily CO2 flux (or NEE),
+air temperature, and friction velocity. Use the measured CO2 flux rather than
+one gap filled by the site team, so that the respiration fit and GPP are based
+only on measured data.  GPP is only estimated where NEE is measured; it is not
+gap filled. The results are added to the data as "gpp_nt" and "reco_nt", and
+the :math:`u_*` threshold and :math:`E_0` of each year are saved in
+:attr:`.Data.nee_partitioning`. Call :meth:`.Data.partition_nee` before
+creating a :obj:`.QaQc` instance, which calculates the daily and monthly means
+of ``gpp_nt`` and ``reco_nt`` from the sub-daily values when it is created.  
+
+.. Note::
+   This is the nighttime method of the FLUXNET data products made with
+   ONEFlux (`Pastorello et al., 2020
+   <https://doi.org/10.1038/s41597-020-0534-3>`__), with three
+   simplifications:
+
+   * one :math:`u_*` threshold per year, where ONEFlux filters NEE with an
+     ensemble of thresholds, reports percentiles of the results, and uses the
+     most representative version as the reference (``GPP_NT_VUT_REF``)
+   * no gap filling, GPP is only estimated where NEE is measured, where
+     ONEFlux first gap fills NEE and the meteorological inputs (marginal
+     distribution sampling, Reichstein et al., 2005)
+   * only the nighttime method, ONEFlux also partitions NEE with the daytime
+     method of `Lasslop et al. (2010)
+     <https://doi.org/10.1111/j.1365-2486.2009.02041.x>`__ as a cross-check
+
+   On the same input data, daytime GPP from both usually differs by a few
+   percent. Larger differences mostly come from the input data, e.g. which
+   CO2 flux sensor is used or whether the CO2 storage flux is included.
+
+Example::
+
+   d = Data('US-Tw3_config.ini')
+   d.partition_nee()
+   # u* threshold, E0, and nighttime records used of each year
+   d.nee_partitioning
+   # gross and net photosynthetic energy storage from the partitioned GPP
+   # and respiration
+   d.calc_pes(gpp_var='gpp_nt', reco_var='reco_nt')
+
+The partitioned fluxes over three days around the highest daily GPP are shown below, with the
+GPP partitioned by the site team for comparison. At night NEE is the
+respiration, and during the day GPP is the respiration minus NEE::
+
+   df = d.df.rename(columns=d.inv_map).copy()
+   peak_day = df['gpp_nt'].resample('D').mean().idxmax()
+   start = peak_day - pd.Timedelta(days=1)
+   end = peak_day + pd.Timedelta(days=2)
+
+   plt_vars = ['fc', 'reco_nt', 'gpp_nt', 'gpp']
+   plot_df = df.loc[start:end, plt_vars].copy()
+
+   fig = figure(
+       x_axis_label='date',
+       y_axis_label='CO2 flux (umol/m2/s)',
+       title='Half-hourly NEE partitioned into GPP and ecosystem respiration',
+       width=900,
+       height=400,
+       x_axis_type='datetime'
+   )
+
+   colors = ['black', 'darkred', 'green', 'gray']
+   labels = ['NEE (CO2 flux)', 'Reco (reco_nt)', 'GPP (gpp_nt)',
+       'GPP, site team']
+   source = ColumnDataSource(plot_df)
+
+   Plot.add_lines(
+       fig,
+       plot_df,
+       plt_vars,
+       colors,
+       'date',
+       source,
+       labels=labels
+   )
+   fig.add_layout(fig.legend[0], 'right')
+
+   show(fig)
+
+.. raw:: html
+
+   <iframe
+       src="_static/tutorial/partition_nee_example.html"
+       width="100%"
+       height="500"
+       style="border:none; overflow:hidden;">
+   </iframe>
+
 Photosynthetic energy storage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1215,6 +1336,10 @@ and :meth:`.Data.plot` include time series of the gross and net storage and
 of GPP, Reco, and NEE. After a correction with ``pes``, the energy balance
 closure scatter plots also show the initial closure against :math:`Rn - G`
 without the storage, on the same days, for comparison.
+
+GPP and Reco are the input variables (``gpp_var='gpp'``,
+``reco_var='reco'``, default) or the ones partitioned from NEE
+(``gpp_var='gpp_nt'``, ``reco_var='reco_nt'``, see above).
 
 Example::
 

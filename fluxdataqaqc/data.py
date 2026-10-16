@@ -9,8 +9,11 @@ import pandas as pd
 import refet
 from datetime import datetime
 from pathlib import Path
+from .partition import nighttime_partitioning
 from .plot import Plot
-from .util import Convert, get_subdaily_timestep_info, solar_night
+from .util import (
+    Convert, get_subdaily_timestep_info, solar_night, standard_utc_offset
+)
 
 class Data(Plot, Convert):
     """
@@ -46,6 +49,10 @@ class Data(Plot, Convert):
             internal names as values. May only include pairs when they differ.
         latitude (float): Site latitude in decimal degrees, set in config.
         longitude (float): Site longitude in decimal degrees, set in config.
+        nee_partitioning (:obj:`pandas.DataFrame` or None): u* threshold
+            [m/s], respiration temperature sensitivity E0 [K] and number of
+            nighttime records used of each year, set by
+            :meth:`Data.partition_nee`.
         out_dir (pathlib.Path): Default directory to save output of 
             :meth:`QaQc.write` or :meth:`QaQc.plot` methods.
         plot_file (pathlib.Path or None): path to plot file once it is 
@@ -145,6 +152,7 @@ class Data(Plot, Convert):
         self.out_dir = self.config_file.parent / 'output'
         self._df = None
         self.plot_file = None
+        self.nee_partitioning = None
 
 
     # largest valid GPP and Reco magnitude [umol m-2 s-1] for calc_pes
@@ -319,6 +327,136 @@ class Data(Plot, Convert):
         else:
             return pd.DataFrame(new_vars, index=df.index)
 
+
+    def partition_nee(self):
+        """
+        Partition sub-daily net ecosystem exchange (NEE) into gross primary
+        productivity (GPP) and ecosystem respiration with the nighttime
+        method, saved as "gpp_nt" and "reco_nt".
+
+        GPP is estimated the same way at every site from the measured CO2
+        flux, e.g. for :meth:`Data.calc_pes` with ``gpp_var='gpp_nt'``.
+        NEE is the CO2 flux plus the CO2 storage flux (fc + sc), the CO2 flux
+        alone where storage was not measured, or the input NEE if there is
+        no CO2 flux. Use the measured CO2 flux, not one gap filled by the
+        site team. Values outside -100 to 100 umol m-2 s-1 are treated as
+        missing. Nighttime is incoming shortwave radiation < 10 w/m2, or
+        potential radiation of 0 where incoming shortwave radiation is
+        missing or not given. See
+        :func:`fluxdataqaqc.partition.nighttime_partitioning` for the method:
+        u* filter of nighttime NEE (Papale et al., 2006), respiration from
+        air temperature fit to nighttime NEE (Lloyd and Taylor, 1994;
+        Reichstein et al., 2005), daytime GPP = Reco - NEE and GPP = 0 at
+        night. Daytime GPP is not gap filled.
+
+        Needs sub-daily CO2 flux (or NEE) in umol m-2 s-1 and air
+        temperature, and friction velocity for the u* filter. The u*
+        threshold, E0 and number of nighttime records used of each year are
+        saved in :attr:`Data.nee_partitioning`.
+
+        Returns:
+            :obj:`None`
+
+        Example:
+            Partition NEE, then calculate gross and net photosynthetic
+            energy storage from the partitioned GPP and respiration
+
+            >>> from fluxdataqaqc import Data
+            >>> d = Data('path/to/config.ini')
+            >>> d.partition_nee()
+            >>> d.calc_pes(gpp_var='gpp_nt', reco_var='reco_nt')
+            >>> d.nee_partitioning
+        """
+        self.df.head()
+        # use internal variable names for calculations
+        df = self._df.rename(columns=self.inv_map)
+
+        # only for sub-daily data
+        try:
+            _, _, dt_seconds = get_subdaily_timestep_info(df)
+        except Exception as e:
+            print(f'ERROR: could not determine sub-daily timestep: {e}')
+            return
+        if dt_seconds >= 86400:
+            print('ERROR: partitioning NEE needs sub-daily input data.')
+            return
+
+        # NEE from the CO2 flux plus storage or from the input NEE
+        if 'fc' in df.columns:
+            flux_var = 'fc'
+        elif 'nee' in df.columns:
+            flux_var = 'nee'
+        else:
+            print(
+                'ERROR: partitioning NEE needs the CO2 flux '
+                '(co2_turbulent_flux_col) or net ecosystem exchange '
+                '(net_ecosystem_exchange_col).'
+            )
+            return
+        flux_units = str(self.units.get(flux_var, '')).lower()
+        if flux_units != 'umolco2/m2/s':
+            print(
+                f'ERROR: unsupported units for "{flux_var}": {flux_units}. '
+                'Expected "umolco2/m2/s".'
+            )
+            return
+        if not 't_avg' in df.columns:
+            print('ERROR: partitioning NEE needs air temperature (t_avg).')
+            return
+
+        # CO2 fluxes outside a plausible range [umol m-2 s-1] are missing
+        nee = pd.to_numeric(df[flux_var], errors='coerce')
+        nee = nee.where(nee.abs() <= 100)
+        if flux_var == 'fc' and 'sc' in df.columns:
+            # add the CO2 storage flux where it was measured
+            sc = pd.to_numeric(df.sc, errors='coerce')
+            nee = nee + sc.where(sc.abs() <= 100).fillna(0)
+
+        # air temperature in C, it is converted by QaQc after this step
+        t_avg = pd.to_numeric(df.t_avg, errors='coerce')
+        t_units = str(self.units.get('t_avg', 'c')).lower()
+        if t_units == 'f':
+            t_avg = (t_avg - 32) * 5 / 9
+        elif t_units == 'k':
+            t_avg = t_avg - 273.15
+
+        # nighttime from incoming shortwave radiation, or from potential
+        # radiation where it is missing
+        from .qaqc import QaQc
+        sw_pot = QaQc._calc_subdaily_sw_pot(
+            df.index, self.latitude, self.longitude,
+            standard_utc_offset(self.latitude, self.longitude),
+            dt_seconds / 3600
+        )
+        night = pd.Series(sw_pot <= 0, index=df.index)
+        if 'sw_in' in df.columns:
+            sw_in = pd.to_numeric(df.sw_in, errors='coerce')
+            night = night.where(sw_in.isna(), sw_in < 10)
+
+        if 'ustar' in df.columns:
+            ustar = pd.to_numeric(df.ustar, errors='coerce')
+        else:
+            print(
+                'WARNING: no friction velocity (ustar) in the input data, '
+                'nighttime NEE is not u* filtered for partitioning.'
+            )
+            ustar = None
+
+        result, yearly = nighttime_partitioning(
+            nee, t_avg, night.astype(bool), ustar=ustar
+        )
+        yearly.index.name = 'year'
+        self.nee_partitioning = yearly
+
+        # store derived variables, update dicts
+        self._df['gpp_nt'] = result.gpp.values
+        self._df['reco_nt'] = result.reco.values
+        for var in ('gpp_nt', 'reco_nt'):
+            self.variables[var] = var
+            self.units[var] = 'umolco2/m2/s'
+        self.inv_map = {
+            v: k for k, v in self.variables.items() if k != v
+        }
 
     def hourly_ASCE_refET(self, reference='short', anemometer_height=None):
         """

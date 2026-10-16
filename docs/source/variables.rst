@@ -56,6 +56,7 @@ and units`.
  G_[1,2,3,…]        soil heat flux at sensor                                                        W m⁻²
  G_subday_gaps      number of gaps in initial G per day                                             —
  gpp                gross primary productivity                                                      μmol CO₂ m⁻² s⁻¹
+ gpp_nt             GPP partitioned from NEE with the nighttime method (Data.partition_nee)         μmol CO₂ m⁻² s⁻¹
  gridMET_ETo        gridMET short/grass reference ET (nearest cell)                                 mm time⁻¹
  gridMET_ETr        gridMET tall/alfalfa reference ET (nearest cell)                                mm time⁻¹
  gridMET_prcp       gridMET precipitation (nearest cell)                                            mm time⁻¹
@@ -77,6 +78,7 @@ and units`.
  ppfd_in            incoming photosynthetic photon flux density                                     μmol photons m⁻² s⁻¹
  ppt                precipitation                                                                   mm time⁻¹
  reco               ecosystem respiration                                                           μmol CO₂ m⁻² s⁻¹
+ reco_nt            ecosystem respiration from the nighttime method (Data.partition_nee)            μmol CO₂ m⁻² s⁻¹
  rh                 relative humidity                                                               %
  Rn                 net radiation                                                                   W m⁻²
  Rn_subday_gaps     number of gaps in initial Rn per day                                            —
