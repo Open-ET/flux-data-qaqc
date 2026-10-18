@@ -18,7 +18,7 @@ assuming you have succesfully created a :obj:`.QaQc` object,
     # q is a QaQc instance
     q.correct_data(meth='br')
 
-Photosynthetic energy storage, gross or net of ecosystem respiration, can be subtracted from the available energy (:math:`Rn - G`) used by the Energy Balance Ratio and Bowen Ratio methods with the ``pes`` keyword argument, e.g. ``q.correct_data(meth='ebr', pes='net')`` after calculating the storage with :meth:`.Data.calc_pes`, see :ref:`Photosynthetic energy storage`. The variable *energy* is then :math:`Rn - G - PES`.
+Photosynthetic energy storage, gross (from GPP) or net (from GPP minus ecosystem respiration), can be subtracted from the available energy (:math:`Rn - G`) used by the Energy Balance Ratio and Bowen Ratio methods with the ``pes`` keyword argument, e.g. ``q.correct_data(meth='ebr', pes='net')`` after calculating the storage with :meth:`.Data.calc_pes`, see :ref:`Photosynthetic energy storage`. The variable *energy* is then :math:`Rn - G - PES`.
 
 The other keyword argument for :meth:`.QaQc.correct_data` allows for gap filling corrected evapotranspiration (:math:`ET`) which is calculated from corrected latent energy (:math:`LE`). By default the gap filling option is set to True, more details on this below in :ref:`Step 9, optionally gap fill corrected ET using gridMET reference ET and reference ET fraction`.
 
@@ -49,13 +49,6 @@ calculates a daily energy balance closure correction factor, the inverse of
 the Energy Balance Ratio, filters out extreme values, smooths and gap fills
 it using moving windows, and multiplies the initial latent energy
 (:math:`LE`) and sensible heat (:math:`H`) flux time series by it.
-
-.. note::
-   Changed in version 0.4.0: outliers are filtered and moving window
-   statistics are calculated on the correction factor instead of the Energy
-   Balance Ratio, method 2 uses the mean, and remaining gaps are first filled
-   from the previous and next years as done by FLUXNET before the all-year
-   climatology is used.
 
 All steps, abbreviated
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -197,9 +190,8 @@ Calculate the daily EBR = :math:`\frac{H + LE}{Rn - G}` and correction
 factor :math:`EBC_{CF} = \frac{Rn - G}{H + LE}` time series and filter out
 correction factors that are outside 1.5 times the interquartile range, as
 done by FLUXNET. Note, in ``flux-data-qaqc`` these are named “ebr” and
-“ebc_cf”. Versions before 0.4.0 applied this filter to EBR, which removes a
-different set of days because the inverse is not linear. The plot below shows
-the correction factor before and after the filter.
+“ebc_cf”. The plot below shows the correction factor before and after the
+filter.
 
 .. raw:: html
     :file: _static/closure_algorithms/steps1_2_PreFiltered.html
@@ -230,9 +222,8 @@ e.g. in records shorter than two years, the gap is filled with the 5 day
 climatology of the correction factor (method 4): the day of year mean of the
 correction factors from steps 3 and 4 over all years in the record, smoothed
 with a moving +/- 5 day (11 day) window. Correction factors from these steps
-that are :math:`\le 0.5` or :math:`\ge 2` are not used. In versions before
-0.4.0 the 5 day climatology was used for all remaining gaps. The plot below
-shows the days filled by each step, at this site mostly before the tower was
+that are :math:`\le 0.5` or :math:`\ge 2` are not used. The plot below shows
+the days filled by each step, at this site mostly before the tower was
 installed in May 2013 and in a gap in 2016.
 
 .. raw:: html
@@ -396,8 +387,7 @@ This routine forces energy balance closure for each day in the time
 series. Days where the Bowen Ratio is undefined (:math:`LE` is zero or
 :math:`\beta = -1`) or where the corrected :math:`LE` is :math:`\ge 850`
 or :math:`\le -100` :math:`w/m^2`, the same limits used by the Energy
-Balance Ratio method, are left without a correction (changed in version
-0.4.0).
+Balance Ratio method, are left without a correction.
 
 Here is the resulting :math:`ET_{corr}` time series using the pre-filtered (:math:`Rn`) energy balance time series and the Bowen Ratio method:
 

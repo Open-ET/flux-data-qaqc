@@ -1172,7 +1172,7 @@ class QaQc(Plot, Convert):
             pes (str or None): default None. Photosynthetic energy storage
                 subtracted from available energy, Rn - G, before the 'ebr' or
                 'br' correction: 'gross' (``pes_flux``) or 'net'
-                (``pes_net_flux``, net of ecosystem respiration), see
+                (``pes_net_flux``, GPP minus ecosystem respiration), see
                 :meth:`.Data.calc_pes`, which must be run before creating the
                 :obj:`QaQc` instance. Days without storage are not used to
                 estimate the correction. Not used by 'lin_regress'.

@@ -163,15 +163,16 @@ class Data(Plot, Convert):
                  night_gpp_zero=True):
         """
         Calculate photosynthetic energy storage from sub-daily GPP, gross
-        (pes, pes_flux) and net of ecosystem respiration (pes_net,
+        (pes, pes_flux) and net, GPP minus ecosystem respiration (pes_net,
         pes_net_flux).
 
         Gross storage is the chemical energy fixed by photosynthesis,
         k x GPP (Meyers & Hollinger, 2004). Net storage subtracts the energy
-        released by plant and soil respiration, k x (GPP - Reco), which is
-        the biochemical storage term of the surface energy balance (Gu et
-        al., 2007; Leuning et al., 2012). Respiration releases the stored
-        energy as heat in the canopy and soil, which leaves through the
+        released by plant and soil respiration, k x (GPP - Reco), where
+        GPP - Reco is the net ecosystem production (NEP, about -NEE). Net
+        storage is the biochemical storage term of the surface energy balance
+        (Gu et al., 2007; Leuning et al., 2012). Respiration releases the
+        stored energy as heat in the canopy and soil, which leaves through the
         measured fluxes (mostly H, but also LE, outgoing longwave radiation
         in Rn, and G), so net storage is the term that closes the energy
         balance and gross storage is an upper bound. Net storage is negative

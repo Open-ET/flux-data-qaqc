@@ -1,6 +1,16 @@
 Change Log
 ==========
 
+Unreleased
+----------
+
+The titles of the :meth:`.QaQc.plot` plots that show corrected variables
+(latent energy, ET, gap filled days, energy balance ratio, and the closure
+scatter plots) name the closure method used, e.g. "closure method: ebr",
+followed by the photosynthetic energy storage removed from Rn - G when
+``pes`` was used. In the closure scatter plots the initial closure is then
+labeled "init, with net PES" (or gross) and "init, without PES".
+
 Version 0.5.0
 -------------
 

@@ -1011,9 +1011,35 @@ class TestQaQc(object):
             closure = figs[name]
             assert closure.xaxis[0].axis_label == 'Rn - G - net PES (w/m2)'
             labels = [i.label.value for i in closure.legend[0].items]
-            assert labels[0].startswith('init, Rn - G without PES')
-            assert labels[1].startswith('init, slope')
+            assert labels[0].startswith('init, without PES')
+            assert labels[1].startswith('init, with net PES')
         assert 'net PES' in figs['EBR_daily'].title.text
+
+    def test_QaQc_plot_titles_name_closure_method(self, data):
+        config = data['package_root_dir']\
+            /'examples'/'Basic_usage'/'US-Tw3_config.ini'
+        q = QaQc(Data(config))
+        q.correct_data(meth='br', et_gap_fill=False)
+        figs = {f.name: f for f in q.plot(output_type='return_figs')}
+        # plots with corrected variables name the method, others do not
+        corrected = [
+            'LE_daily', 'ET_daily', 'EBR_daily', 'energy_vs_flux_daily',
+            'LE_scatter_daily', 'ET_scatter_daily', 'LE_monthly', 'ET_monthly',
+            'EBR_monthly', 'energy_vs_flux_monthly', 'LE_scatter_monthly',
+            'ET_scatter_monthly'
+        ]
+        for name in corrected:
+            assert figs[name].title.text.endswith(', closure method: br')
+        assert 'closure method' not in figs['energy_balance_daily'].title.text
+        # storage removed from Rn - G is named after the method
+        d = Data(config)
+        d.calc_pes()
+        q = QaQc(d)
+        q.correct_data(et_gap_fill=False, pes='net')
+        figs = {f.name: f for f in q.plot(output_type='return_figs')}
+        assert figs['ET_daily'].title.text.endswith(
+            ', closure method: ebr (Rn - G - net PES)'
+        )
 
     def test_invalid_refET(self, data, tmp_path):
         q = QaQc(Data(self._qc_example_config(data, tmp_path)))

@@ -1300,6 +1300,8 @@ biochemical energy storage term of the surface energy balance (Gu et al.,
    pes\_net\_flux = (GPP - Reco) \times k
 
 which is negative when respiration exceeds photosynthesis, e.g. at night.
+Here :math:`GPP - Reco` is the net ecosystem production (NEP), about
+:math:`-NEE`.
 The gross term is an upper bound of the storage. Energy stored or released
 over the timestep is
 
@@ -1420,12 +1422,11 @@ In ``flux-data-qaqc`` actual vapor pressure is named "vp" not "ea". Also, during
 .. math:: rh = 100 \times \frac{ea}{es}.
 
 .. hint:: 
-   For daily input data the same equations are applied to daily mean values
-   (changed in version 0.4.0, earlier versions only applied them to hourly or
-   shorter input data). Saturation vapor pressure from daily mean air
-   temperature is lower than the daily mean of hourly values, so vapor
-   pressure calculated from daily vapor pressure deficit is an
-   approximation and hourly or shorter input data is preferred.
+   For daily input data the same equations are applied to daily mean values.
+   Saturation vapor pressure from daily mean air temperature is lower than
+   the daily mean of hourly values, so vapor pressure calculated from daily
+   vapor pressure deficit is an approximation and hourly or shorter input
+   data is preferred.
    
 Legend for calculated variable names
 ------------------------------------
@@ -1507,7 +1508,8 @@ same options such as number of subplot columns, super title, subplot
 dimensions, output type, output file path, etc. are available. Similar to
 :meth:`.QaQc.write` and :attr:`.QaQc.monthly_df`, if the data has not yet been
 corrected the ``plot`` method will correct it using the default parameters
-before creating the plots. 
+before creating the plots. The titles of the plots that show corrected
+variables name the closure method used, e.g. "closure method: ebr".
 
 Here is an example of the default daily and monthly time series plots produced after running the Energy Balance Ratio closure correction. The photosynthetic energy storage is calculated first so that its plots are included:
 

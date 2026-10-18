@@ -387,6 +387,15 @@ class Plot(object):
         if monthly:
             monthly_source = ColumnDataSource(monthly_df)
 
+        # closure method (and storage) used by the correction, added to the
+        # titles of plots with corrected variables
+        corr_txt = ''
+        corr_meth = getattr(FluxObj, 'corr_meth', None)
+        if corr_meth is not None:
+            corr_txt = f', closure method: {corr_meth}'
+            if pes is not None:
+                corr_txt += f' (Rn - G - {pes} PES)'
+
         # so that the correction is run, may change this
         FluxObj.df.head(); # if Data, need to access to calc vp/vpd 
         df = FluxObj.df.rename(columns=FluxObj.inv_map) 
@@ -727,7 +736,7 @@ class Plot(object):
         #### 
         plt_vars = ['LE', 'LE_corr', 'LE_user_corr']
         colors = ['black', 'red', 'darkorange']
-        title = 'Daily Average Latent Energy Flux'
+        title = 'Daily Average Latent Energy Flux' + corr_txt
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
         fig = figure(
@@ -743,7 +752,7 @@ class Plot(object):
             print('Latent energy time series graphs missing all variables')
         if fig is not None and monthly:
             # same for monthly fig
-            title = 'Monthly Average Latent Energy Flux'
+            title = 'Monthly Average Latent Energy Flux' + corr_txt
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
                 width=plot_width, height=plot_height, name='LE_monthly'
@@ -761,7 +770,7 @@ class Plot(object):
         plt_vars = ['ET', 'ET_corr', 'ET_user_corr', f'gridMET_{refET}']
         labels = plt_vars[0:3] + [refET]
         colors = ['black', 'red', 'darkorange', 'blue']
-        title = 'Daily Evapotranspiration'
+        title = 'Daily Evapotranspiration' + corr_txt
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
         fig = figure(
@@ -786,7 +795,7 @@ class Plot(object):
             )
         if fig is not None and monthly:
             # same for monthly fig
-            title = 'Monthly Evapotranspiration'
+            title = 'Monthly Evapotranspiration' + corr_txt
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
                 width=plot_width, height=plot_height, name='ET_monthly'
@@ -804,7 +813,9 @@ class Plot(object):
             txt = ''
             if 'ET_corr' in df.columns:
                 txt = ' Corrected'
-            title = 'Number of Gap Filled Days in{} Monthly ET'.format(txt)
+            title = 'Number of Gap Filled Days in{} Monthly ET{}'.format(
+                txt, corr_txt
+            )
             x_label = 'date'
             y_label = 'number of gap-filled days'
             fig = figure(
@@ -859,9 +870,7 @@ class Plot(object):
         #### 
         plt_vars = ['ebr', 'ebr_corr', 'ebr_est', 'ebr_user_corr']
         colors = ['black', 'red', 'blue', 'darkorange']
-        title = 'Daily Energy Balance Ratio with Long-term Mean'
-        if pes is not None:
-            title += f' (Rn - G - {pes} PES)'
+        title = 'Daily Energy Balance Ratio with Long-term Mean' + corr_txt
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
         # add mean EBR for each time series in legend
@@ -888,9 +897,8 @@ class Plot(object):
             )
         if fig is not None and monthly:
             # same for monthly fig
-            title = 'Monthly Energy Balance Ratio with Long-term Mean'
-            if pes is not None:
-                title += f' (Rn - G - {pes} PES)'
+            title = 'Monthly Energy Balance Ratio with Long-term Mean' +\
+                corr_txt
             # add mean for monthly EBRs to legend
             labels = []
             for i, v in enumerate(plt_vars):
@@ -978,8 +986,8 @@ class Plot(object):
         #### 
         # energy balance closure scatter plots
         #### 
-        title = 'Daily Energy Balance Closure, Energy Versus Flux with Slope '\
-            'Through Origin'
+        title = 'Daily Energy Balance Closure with Slope Through Origin' +\
+            corr_txt
         unit = _get_units(['LE', 'H', 'Rn', 'G'], units)
         y_label = 'LE + H ({})'.format(unit)
         x_label = 'Rn - G ({})'.format(unit)
@@ -992,6 +1000,10 @@ class Plot(object):
         y_vars = ['flux', 'flux_corr', 'flux_user_corr']
         colors = ['black', 'red', 'darkorange']
         labels = ['init', 'corr', 'user_corr']
+        # name the storage on the initial closure when it was removed from
+        # Rn - G, to tell it apart from the initial closure without it
+        if pes is not None:
+            labels[0] = f'init, with {pes} PES'
         # add plot pairs to plot if they exist, add 1:1
         mins_maxs = []
         n_vars_fnd = 0
@@ -999,7 +1011,7 @@ class Plot(object):
         if 'energy_without_pes' in df.columns:
             min_max = Plot.scatter_plot(
                 fig, 'energy_without_pes', 'flux', daily_source, 'gray',
-                label='init, Rn - G without PES'
+                label='init, without PES'
             )
             if min_max is not None:
                 mins_maxs.append(min_max)
@@ -1036,8 +1048,8 @@ class Plot(object):
                 daily_scatter.append(fig)
             if monthly:
                 # same for monthly fig
-                title = 'Monthly Energy Balance Closure, Energy Versus Flux '\
-                    'with Slope Through Origin'
+                title = 'Monthly Energy Balance Closure with Slope Through '\
+                    'Origin' + corr_txt
                 fig = figure(
                     x_axis_label=x_label, y_axis_label=y_label, title=title,
                     width=plot_width, height=plot_width, 
@@ -1047,7 +1059,7 @@ class Plot(object):
                 if 'energy_without_pes' in monthly_df.columns:
                     min_max = Plot.scatter_plot(
                         fig, 'energy_without_pes', 'flux', monthly_source,
-                        'gray', label='init, Rn - G without PES'
+                        'gray', label='init, without PES'
                     )
                     if min_max is not None:
                         mins_maxs.append(min_max)
@@ -1084,7 +1096,7 @@ class Plot(object):
         #### 
         # latent energy scatter plots
         #### 
-        title = 'Daily Latent Energy, Initial Versus Corrected'
+        title = 'Daily Latent Energy, Initial Versus Corrected' + corr_txt
         unit = _get_units(['LE', 'LE_corr', 'LE_user_corr'], units)
         y_label = 'corrected ({})'.format(unit)
         x_label = 'initial ({})'.format(unit)
@@ -1126,7 +1138,8 @@ class Plot(object):
                 daily_scatter.append(fig)
             if monthly:
                 # same for monthly fig
-                title = 'Monthly Latent Energy, Initial Versus Corrected'
+                title = 'Monthly Latent Energy, Initial Versus Corrected' +\
+                    corr_txt
                 fig = figure(
                     x_axis_label=x_label, y_axis_label=y_label, title=title,
                     width=plot_width, height=plot_width, 
@@ -1165,7 +1178,8 @@ class Plot(object):
         #### 
         # ET scatter plots
         #### 
-        title = 'Daily Evapotranspiration, Initial Versus Corrected'
+        title = 'Daily Evapotranspiration, Initial Versus Corrected' +\
+            corr_txt
         unit = _get_units(['ET', 'ET_corr', 'ET_user_corr'], units)
         y_label = 'corrected ({})'.format(unit)
         x_label = 'initial ({})'.format(unit)
@@ -1206,7 +1220,8 @@ class Plot(object):
             daily_scatter.append(fig)
             if monthly:
                 # same for monthly fig
-                title = 'Monthly Evapotranspiration, Initial Versus Corrected'
+                title = 'Monthly Evapotranspiration, Initial Versus '\
+                    'Corrected' + corr_txt
                 fig = figure(
                     x_axis_label=x_label, y_axis_label=y_label, title=title,
                     width=plot_width, height=plot_width, 
