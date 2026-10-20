@@ -62,7 +62,8 @@ class QaQc(Plot, Convert):
     ``G``, the carbon fluxes ``gpp``, ``reco`` (or ``gpp_nt`` and ``reco_nt``
     from :meth:`.Data.partition_nee`), and ``nee``, and the photosynthetic
     energy storage ``pes``, ``pes_flux``, ``pes_net``, and ``pes_net_flux``
-    calculated by :meth:`.Data.calc_pes`.
+    (and the same with the suffix ``_input``) calculated by
+    :meth:`.Data.calc_pes`.
 
     Keyword Arguments:
         data (:obj:`.Data`): :obj:`.Data` instance to create :obj:`.QaQc` 
@@ -199,6 +200,10 @@ class QaQc(Plot, Convert):
         'pes_flux': 'mean',
         'pes_net': 'sum',
         'pes_net_flux': 'mean',
+        'pes_input': 'sum',
+        'pes_flux_input': 'mean',
+        'pes_net_input': 'sum',
+        'pes_net_flux_input': 'mean',
         'gpp': 'mean',
         'reco': 'mean',
         'gpp_nt': 'mean',
@@ -216,10 +221,13 @@ class QaQc(Plot, Convert):
     }
 
     # photosynthetic energy storage options of correct_data and the daily
-    # flux [W m-2] subtracted from Rn - G, from Data.calc_pes
+    # flux [W m-2] subtracted from Rn - G, from Data.calc_pes with the
+    # partitioned GPP and Reco or with the input GPP and Reco ("_input")
     pes_options = {
         'gross': 'pes_flux',
         'net': 'pes_net_flux',
+        'gross_input': 'pes_flux_input',
+        'net_input': 'pes_net_flux_input',
     }
 
     # EBR correction methods available
@@ -787,7 +795,8 @@ class QaQc(Plot, Convert):
             # carbon fluxes and photosynthetic energy storage from GPP
             carbon_interp_vars = [
                 'gpp', 'reco', 'gpp_nt', 'reco_nt', 'nee', 'pes', 'pes_flux',
-                'pes_net', 'pes_net_flux'
+                'pes_net', 'pes_net_flux', 'pes_input', 'pes_flux_input',
+                'pes_net_input', 'pes_net_flux_input'
             ]
             # for interpolation of energy balance variables if they exist
             energy_bal_vars = list(
@@ -1171,11 +1180,14 @@ class QaQc(Plot, Convert):
                 set to zero if False. Only used if ``meth='lin_regress'``.
             pes (str or None): default None. Photosynthetic energy storage
                 subtracted from available energy, Rn - G, before the 'ebr' or
-                'br' correction: 'gross' (``pes_flux``) or 'net'
-                (``pes_net_flux``, GPP minus ecosystem respiration), see
-                :meth:`.Data.calc_pes`, which must be run before creating the
-                :obj:`QaQc` instance. Days without storage are not used to
-                estimate the correction. Not used by 'lin_regress'.
+                'br' correction: 'net' (``pes_net_flux``, GPP minus ecosystem
+                respiration, recommended) or 'gross' (``pes_flux``, an upper
+                bound meant as a diagnostic), or 'net_input' and
+                'gross_input' for the storage from the GPP and Reco of the
+                input data, see :meth:`.Data.calc_pes`, which must be run
+                before creating the :obj:`QaQc` instance. Days without
+                storage are not used to estimate the correction. Not used by
+                'lin_regress'.
         
         Returns:
             :obj:`None`
@@ -1788,8 +1800,16 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         if pes_var not in self.df.rename(columns=self.inv_map).columns:
             raise ValueError(
                 'ERROR: {} not found, run Data.calc_pes() before creating the '
-                'QaQc instance, net storage also needs ecosystem respiration '
-                '(reco)'.format(pes_var)
+                'QaQc instance, or Data.calc_pes(gpp_var="gpp") for the '
+                'storage from the input GPP and Reco, net storage also '
+                'needs ecosystem respiration'.format(pes_var)
+            )
+        if pes.startswith('gross'):
+            print(
+                'WARNING: gross photosynthetic energy storage is an upper '
+                'bound of the storage term and depends on the partitioning '
+                'of NEE, e.g. nighttime partitioning likely overestimates '
+                'GPP, net storage is recommended for closure corrections.'
             )
         if meth == 'lin_regress':
             print(
@@ -2307,7 +2327,7 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         ``QaQc`` workflow these may include ``t_avg``, ``sw_in``, ``ws``, ``vp``,
         ``LE``, ``H``, ``Rn``, ``G``, ``gpp``, ``reco``, ``gpp_nt``,
         ``reco_nt``, ``nee``, ``pes``, ``pes_flux``, ``pes_net``, and
-        ``pes_net_flux``.
+        ``pes_net_flux``, and the same with the suffix ``_input``.
 
         Arguments:
             df (:obj:`pandas.DataFrame`): Regularly spaced subdaily time series.

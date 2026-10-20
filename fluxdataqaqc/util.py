@@ -123,12 +123,17 @@ def subdaily_sw_pot(index, latitude, longitude, utc_offset,
 
 def solar_night(index, latitude, longitude, period_hours, rn=None):
     """
-    Sub-daily periods of solar night.
+    Find the sub-daily periods that are at night.
 
-    Night is when potential (extraterrestrial) shortwave radiation is zero
-    and net radiation, where it is available, is negative. This is the
-    nighttime definition used for sub-daily gap filling in
-    :obj:`fluxdataqaqc.QaQc`, applied to each period.
+    A period is at night when the sun is below the horizon, i.e. the
+    potential (top of the atmosphere) shortwave radiation is zero. Where
+    net radiation is given, periods with net radiation of zero or more are
+    not counted as night, e.g. where the timestamps of the data and the
+    calculated position of the sun do not line up.
+    :obj:`.QaQc` uses the same definition to decide which gaps in sub-daily
+    data are at night, where longer gaps are interpolated
+    (``max_interp_hours_night``), and :meth:`.Data.calc_pes` uses this
+    function to set missing GPP at night to zero.
 
     Arguments:
         index (:obj:`pandas.DatetimeIndex`): start of each period in local

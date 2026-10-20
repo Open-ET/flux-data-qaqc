@@ -29,20 +29,40 @@ def lloyd_taylor(t_air, r_ref, e_0):
     """
     Ecosystem respiration from air temperature (Lloyd and Taylor, 1994).
 
+    This is the respiration model of :func:`nighttime_partitioning`, which
+    estimates ``e_0`` for each year and ``r_ref`` for every 7 day window
+    from nighttime NEE, so neither needs to be set to partition NEE. The
+    E0 of each year is saved in :attr:`.Data.nee_partitioning`. Use this
+    function on its own to see how respiration changes with air
+    temperature, e.g. with the E0 of a year.
+
+    The model is::
+
+        Reco = r_ref * exp(e_0 * (1 / (T_ref - T_0) - 1 / (T - T_0)))
+
+    T is air temperature in kelvin [K] (the input in C plus 273.15), T_ref
+    = 288.15 K (15 C) is the reference temperature, and T_0 = 227.13 K
+    (-46.02 C) is the temperature where respiration goes to zero. The model
+    is not defined at or below T_0. The temperature sensitivity ``e_0`` is
+    in K because it is multiplied by the inverse of temperatures in K, it is
+    not a temperature itself. A larger ``e_0`` means respiration increases
+    faster with temperature, Lloyd and Taylor (1994) found 308.56 K.
+
     Arguments:
         t_air (array like): air temperature [C].
-        r_ref (float or array like): respiration at 15 C, the output has
-            the same units.
+        r_ref (float or array like): respiration at 15 C [umol m-2 s-1].
         e_0 (float or array like): temperature sensitivity [K].
 
     Returns:
-        reco (:obj:`numpy.ndarray`): ecosystem respiration.
+        reco (:obj:`numpy.ndarray`): ecosystem respiration [umol m-2 s-1].
 
     Example:
-        Respiration at 15 C is ``r_ref``.
+        Respiration at 5, 15, and 25 C with 2 umol m-2 s-1 at 15 C and the
+        temperature sensitivity of Lloyd and Taylor (1994)
 
         >>> from fluxdataqaqc.partition import lloyd_taylor
-        >>> reco = lloyd_taylor([5, 15, 25], 2, 300)
+        >>> lloyd_taylor([5, 15, 25], 2, 308.56)
+        array([0.74232028, 2.        , 4.0761718 ])
     """
     t_kelvin = np.asarray(t_air, dtype=float) + 273.15
     return r_ref * np.exp(e_0 * (1 / (T_REF - T_0) - 1 / (t_kelvin - T_0)))
@@ -51,21 +71,43 @@ def lloyd_taylor(t_air, r_ref, e_0):
 def ustar_thresholds(nee, ustar, t_air, night, n_t_classes=6,
         n_ustar_classes=20, min_records=100, plateau=0.99, max_corr=0.4):
     """
-    Friction velocity (u*) threshold of each year with the moving point
-    test of Papale et al. (2006), without bootstrapping.
+    Friction velocity (u*) threshold of each year, below which nighttime
+    NEE is too low, using the moving point test of Papale et al. (2006).
 
-    Nighttime records of each 3 month season (January to March, April to
-    June, ...) are split into 6 air temperature classes of equal size, and
-    each of these into 20 u* classes of equal size. The threshold of a
-    temperature class is the mean u* of the first u* class with mean NEE of
-    at least 99% of the mean NEE of the higher u* classes. Temperature
-    classes where air temperature and u* are correlated (abs(r) >= 0.4) are
-    skipped. The threshold of a season is the median of its temperature
-    classes and the threshold of a year the highest of its seasons. Years
-    without a threshold get the median of the other years.
+    On calm nights eddy covariance misses part of the CO2 released by the
+    ecosystem, because with weak turbulence CO2 builds up near the ground
+    or drains away instead of reaching the sensor. Below a threshold of
+    u*, a measure of turbulence, nighttime NEE drops as u* drops; above it
+    NEE no longer depends on u*. :func:`nighttime_partitioning` removes
+    nighttime NEE below the threshold before fitting respiration. The
+    threshold is found as follows:
+
+    1. The nighttime records of each 3 month season (January to March,
+       April to June, ...) are split into 6 air temperature classes with
+       the same number of records, so that the effect of temperature on
+       respiration is not mistaken for an effect of u*.
+    2. Each temperature class is split into 20 u* classes with the same
+       number of records. Starting from the lowest u*, the threshold of the
+       temperature class is the mean u* of the first u* class whose mean
+       NEE reaches 99% of the mean NEE of all higher u* classes, where NEE
+       stops increasing with u*.
+    3. The threshold of a season is the median of the thresholds of its
+       temperature classes, and the threshold of a year is the highest of
+       its seasons, which removes the most data (conservative).
+
+    A temperature class is left out of the median of its season if air
+    temperature and u* are correlated in it (absolute correlation of 0.4 or
+    more), because the effects of temperature and u* on NEE cannot be
+    separated then, or if its NEE never reaches the 99% level. A season
+    has no threshold if it has fewer than 600 nighttime records (100 per
+    temperature class) or none of its temperature classes has a threshold.
+    Years without a threshold get the median threshold of the other years.
+    Papale et al. (2006) repeat the test on resampled data (bootstrapping)
+    to estimate its uncertainty, here it is done once.
 
     Arguments:
-        nee (:obj:`pandas.Series`): sub-daily NEE with a datetime index.
+        nee (:obj:`pandas.Series`): sub-daily NEE [umol m-2 s-1] with a
+            datetime index.
         ustar (:obj:`pandas.Series`): friction velocity [m/s].
         t_air (:obj:`pandas.Series`): air temperature [C].
         night (:obj:`pandas.Series`): True for nighttime records.
@@ -146,30 +188,37 @@ def nighttime_partitioning(nee, t_air, night, ustar=None, e0_days=15,
     Partition NEE into GPP and ecosystem respiration with the nighttime
     method of Reichstein et al. (2005).
 
-    Steps:
+    At night there is no photosynthesis, so nighttime NEE is ecosystem
+    respiration (Reco). A model of Reco from air temperature
+    (:func:`lloyd_taylor`) is fit to nighttime NEE and then used to
+    estimate Reco during the day. The steps are:
 
-    1. nighttime NEE with friction velocity below the threshold of its year
-       is removed, see :func:`ustar_thresholds`
-    2. the temperature sensitivity E0 of each year is the mean of the 3
-       short term estimates with the smallest standard errors, from fits of
-       :func:`lloyd_taylor` to nighttime NEE in 15 day windows moved by 5
-       days, with at least 6 records and a 5 C air temperature range,
-       estimates outside 30-450 K are not used
-    3. the respiration at 15 C (Rref) is fit with E0 fixed in 7 day windows
-       moved by 4 days and linearly interpolated in time, but not across
-       gaps of more than 30 days between windows
-    4. Reco = Rref f(air temperature, E0), daytime GPP = Reco - NEE and
-       GPP = 0 at night (no photosynthesis)
+    1. Nighttime NEE with friction velocity (u*) below the threshold of its
+       year is removed, because NEE is too low when turbulence is weak, see
+       :func:`ustar_thresholds`.
+    2. The temperature sensitivity of respiration (E0) is estimated for
+       each year. The model is fit to the nighttime NEE of 15 day windows,
+       with a new window every 5 days, so the windows overlap. A window is
+       used if it has at least 6 records, its air temperatures span at
+       least 5 C, and its E0 is between 30 and 450 K. The E0 of the year is
+       the mean E0 of the 3 windows with the smallest standard errors, the
+       most certain estimates.
+    3. The respiration at 15 C (Rref) is fit with the E0 of the year in 7
+       day windows, with a new window every 4 days. Rref is linearly
+       interpolated in time between windows, but not across gaps of more
+       than 30 days, where Reco and GPP are null.
+    4. Reco is calculated from air temperature, Rref, and E0 for every
+       record. Daytime GPP = Reco - NEE and GPP = 0 at night.
 
-    Years without an E0 estimate use the mean of the other years. Daytime
-    GPP is null where NEE or air temperature is missing, like the measured
-    (quality flag 0) NEE of FLUXNET2015. Air temperature outside -45 to 60 C
-    is treated as missing (the respiration model is not defined at or below
-    -46.02 C).
+    Years without an E0 estimate use the mean E0 of the other years. GPP is
+    not gap filled, so daytime GPP is null where NEE or air temperature is
+    missing. Air temperature below -45 C or above 60 C is treated as
+    missing, -45 C is just above -46.02 C, where the respiration model goes
+    to zero (see :func:`lloyd_taylor`).
 
     Arguments:
-        nee (:obj:`pandas.Series`): sub-daily NEE with a datetime index,
-            positive for a flux to the atmosphere, e.g. [umol m-2 s-1].
+        nee (:obj:`pandas.Series`): sub-daily NEE [umol m-2 s-1] with a
+            datetime index, positive for a flux to the atmosphere.
         t_air (:obj:`pandas.Series`): air temperature [C].
         night (:obj:`pandas.Series`): True for nighttime records.
 
@@ -188,7 +237,7 @@ def nighttime_partitioning(nee, t_air, night, ustar=None, e0_days=15,
 
     Returns:
         result (:obj:`pandas.DataFrame`): sub-daily "gpp" and "reco" in the
-        units of NEE, and yearly (:obj:`pandas.DataFrame`): u* threshold
+        same units as NEE, and yearly (:obj:`pandas.DataFrame`): u* threshold
         "ustar_threshold" [m/s], "E0" [K] and the number of nighttime
         records used "n_night" of each year.
 

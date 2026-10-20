@@ -158,13 +158,22 @@ class Data(Plot, Convert):
     # largest valid GPP and Reco magnitude [umol m-2 s-1] for calc_pes
     max_co2_flux = 100
 
-    def calc_pes(self, gpp_var='gpp', coeff_kj_per_mol=422.0,
-                 clip_negative_gpp=True, inplace=True, reco_var='reco',
+    def calc_pes(self, gpp_var='gpp_nt', coeff_kj_per_mol=422.0,
+                 clip_negative_gpp=True, inplace=True, reco_var=None,
                  night_gpp_zero=True):
         """
         Calculate photosynthetic energy storage from sub-daily GPP, gross
         (pes, pes_flux) and net, GPP minus ecosystem respiration (pes_net,
         pes_net_flux).
+
+        By default GPP and ecosystem respiration (Reco) are partitioned from
+        the measured CO2 flux by :meth:`Data.partition_nee` (gpp_nt and
+        reco_nt), which is run first if it has not been, so that the storage
+        is calculated the same way at every site. GPP and Reco from the input
+        data, e.g. partitioned by the site team, are used with
+        ``gpp_var='gpp'``, and the storage variables are then named with the
+        suffix "_input" (pes_input, pes_flux_input, pes_net_input, and
+        pes_net_flux_input), so that both can be calculated and compared.
 
         Gross storage is the chemical energy fixed by photosynthesis,
         k x GPP (Meyers & Hollinger, 2004). Net storage subtracts the energy
@@ -198,8 +207,9 @@ class Data(Plot, Convert):
             * 480 kJ mol-1, Blankenship (2002) as used by Gu et al. (2007)
 
         Keyword Arguments:
-            gpp_var (str): default 'gpp'.
-                Internal variable name for gross primary productivity.
+            gpp_var (str): default 'gpp_nt'.
+                Internal variable name for gross primary productivity, 'gpp_nt'
+                from :meth:`Data.partition_nee` or 'gpp' from the input data.
             coeff_kj_per_mol (float): default 422.0.
                 Energy equivalent per mol CO2 fixed, in kJ mol-1 CO2.
             clip_negative_gpp (bool): default True
@@ -208,9 +218,12 @@ class Data(Plot, Convert):
             inplace (bool): default True
                 If True, add the new variables to :attr:`Data.df`.
                 If False, return them in a new DataFrame.
-            reco_var (str): default 'reco'.
+            reco_var (str or None): default None.
                 Internal variable name for ecosystem respiration, needed for
-                net storage. Without it only gross storage is calculated.
+                net storage. None uses the Reco from the same source as GPP,
+                'reco_nt' for 'gpp_nt' and 'reco' otherwise. Without it, or
+                with GPP and Reco from different sources, only gross storage
+                is calculated.
             night_gpp_zero (bool): default True.
                 If True, missing GPP at night is set to zero.
 
@@ -218,19 +231,60 @@ class Data(Plot, Convert):
             :obj:`pandas.DataFrame` or :obj:`None`
                 If ``inplace=False``, returns a DataFrame with ``pes`` and
                 ``pes_flux``, and ``pes_net`` and ``pes_net_flux`` when Reco
-                is available. Otherwise returns :obj:`None`.
+                is available (with the suffix "_input" for GPP other than
+                gpp_nt). Otherwise returns :obj:`None`.
+
+        Caution:
+            ``flux-data-qaqc`` partitions NEE with the nighttime method only,
+            not with the daytime method (Lasslop et al., 2010). The nighttime
+            method extrapolates nighttime respiration to the day with air
+            temperature, without the inhibition of leaf respiration by light,
+            so daytime Reco, GPP, and gross storage are likely biased high
+            (Wehr et al., 2016; Keenan et al., 2019). Net storage does not
+            depend on the daytime respiration estimate, GPP - Reco is about
+            -NEE where NEE was measured. Use net storage for energy balance
+            closure corrections; gross storage is an upper bound of the
+            storage term and is meant as a diagnostic. Daytime GPP from the
+            partitioning is not gap filled, so fewer days may have storage
+            than with gap filled input GPP and the ``br`` correction with
+            ``pes`` is then made on fewer days. ``ebr`` is not affected, its
+            correction factor is smoothed over several days.
 
         Example:
-            Gross and net storage with the factor of Leuning et al. (2012),
-            then the energy balance closure correction with net storage
-            subtracted from Rn - G
+            Gross and net storage from the partitioned GPP and Reco with the
+            factor of Leuning et al. (2012), then the energy balance closure
+            correction with net storage subtracted from Rn - G
 
             >>> d = Data('path/to/config.ini')
             >>> d.calc_pes(coeff_kj_per_mol=469)
             >>> q = QaQc(d)
             >>> q.correct_data(pes='net')
+
+            Storage from the GPP and Reco of the input data as well, saved
+            with the suffix "_input"
+
+            >>> d.calc_pes(gpp_var='gpp')
+            >>> q = QaQc(d)
+            >>> q.correct_data(pes='net_input')
         """
         self.df.head()
+        # Reco from the same source as GPP by default
+        if reco_var is None:
+            reco_var = 'reco_nt' if gpp_var == 'gpp_nt' else 'reco'
+        # partition NEE first for the default GPP and Reco
+        if gpp_var == 'gpp_nt' and 'gpp_nt' not in self.variables:
+            try:
+                self.partition_nee()
+            except ValueError as e:
+                print(e)
+            if 'gpp_nt' not in self.variables:
+                print(
+                    'ERROR: photosynthetic energy storage not calculated, '
+                    'partitioning NEE failed. Use gpp_var="gpp" for GPP and '
+                    'Reco from the input data.'
+                )
+                return
+
         # use internal variable names for calculations
         df = self._df.rename(columns=self.inv_map).copy()
 
@@ -291,8 +345,15 @@ class Data(Plot, Convert):
         new_vars = {'pes': pes, 'pes_flux': pes_flux}
         new_units = {'pes': 'j/m2', 'pes_flux': 'w/m2'}
 
-        # net storage, photosynthesis minus plant and soil respiration
-        if reco_var not in df.columns:
+        # net storage, photosynthesis minus plant and soil respiration, from
+        # GPP and Reco of the same source
+        if (gpp_var == 'gpp_nt') != (reco_var == 'reco_nt'):
+            print(
+                f'WARNING: GPP ("{gpp_var}") and Reco ("{reco_var}") are '
+                'from different sources, net photosynthetic energy storage '
+                '(pes_net) not calculated.'
+            )
+        elif reco_var not in df.columns:
             print(
                 f'WARNING: "{reco_var}" not found, net photosynthetic energy '
                 'storage (pes_net) not calculated.'
@@ -313,6 +374,12 @@ class Data(Plot, Convert):
             new_vars['pes_net_flux'] = pes_net_flux
             new_units['pes_net'] = 'j/m2'
             new_units['pes_net_flux'] = 'w/m2'
+
+        # storage from GPP other than the partitioned GPP, e.g. from the
+        # input data, is named with the suffix "_input"
+        if gpp_var != 'gpp_nt':
+            new_vars = {f'{k}_input': v for k, v in new_vars.items()}
+            new_units = {f'{k}_input': v for k, v in new_units.items()}
 
         if inplace:
             # store derived variables update dicts
@@ -336,7 +403,8 @@ class Data(Plot, Convert):
         method, saved as "gpp_nt" and "reco_nt".
 
         GPP is estimated the same way at every site from the measured CO2
-        flux, e.g. for :meth:`Data.calc_pes` with ``gpp_var='gpp_nt'``.
+        flux. :meth:`Data.calc_pes` uses gpp_nt and reco_nt by default and
+        runs this method first if needed.
         NEE is the CO2 flux plus the CO2 storage flux (fc + sc), the CO2 flux
         alone where storage was not measured, or the input NEE if there is
         no CO2 flux. Use the measured CO2 flux, not one gap filled by the
@@ -359,13 +427,12 @@ class Data(Plot, Convert):
             :obj:`None`
 
         Example:
-            Partition NEE, then calculate gross and net photosynthetic
-            energy storage from the partitioned GPP and respiration
+            Partition NEE and look at the u* threshold, E0, and number of
+            nighttime records used of each year
 
             >>> from fluxdataqaqc import Data
             >>> d = Data('path/to/config.ini')
             >>> d.partition_nee()
-            >>> d.calc_pes(gpp_var='gpp_nt', reco_var='reco_nt')
             >>> d.nee_partitioning
         """
         self.df.head()

@@ -922,9 +922,11 @@ class Plot(object):
         ####
         # photosynthetic energy storage time series plots
         ####
-        plt_vars = ['pes_flux', 'pes_net_flux']
-        labels = ['gross', 'net']
-        colors = ['darkorange', 'blue']
+        plt_vars = [
+            'pes_flux', 'pes_net_flux', 'pes_flux_input', 'pes_net_flux_input'
+        ]
+        labels = ['gross', 'net', 'gross_input', 'net_input']
+        colors = ['darkorange', 'blue', 'saddlebrown', 'deepskyblue']
         title = 'Daily Photosynthetic Energy Storage (PES)'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
@@ -954,9 +956,13 @@ class Plot(object):
         ####
         # carbon flux time series plots
         ####
-        plt_vars = ['gpp', 'reco', 'nee']
-        labels = ['GPP', 'Reco', 'NEE']
-        colors = ['green', 'darkred', 'black']
+        # partitioned from NEE by Data.partition_nee and from the input data
+        plt_vars = ['gpp_nt', 'reco_nt', 'gpp', 'reco', 'nee']
+        labels = [
+            'GPP (gpp_nt)', 'Reco (reco_nt)', 'GPP (input)', 'Reco (input)',
+            'NEE'
+        ]
+        colors = ['green', 'darkred', 'yellowgreen', 'lightcoral', 'black']
         title = 'Daily Carbon Fluxes'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)

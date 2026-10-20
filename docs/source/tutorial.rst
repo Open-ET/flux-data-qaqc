@@ -1182,11 +1182,10 @@ The results are added to the data as "gpp_nt" and "reco_nt", and the
 air temperature, and friction velocity. Use the measured CO2 flux rather than
 one gap filled by the site team, so that the respiration fit and GPP are based
 only on measured data.  GPP is only estimated where NEE is measured; it is not
-gap filled. The results are added to the data as "gpp_nt" and "reco_nt", and
-the :math:`u_*` threshold and :math:`E_0` of each year are saved in
-:attr:`.Data.nee_partitioning`. Call :meth:`.Data.partition_nee` before
+gap filled. :meth:`.Data.calc_pes` uses "gpp_nt" and "reco_nt" by default and
+runs :meth:`.Data.partition_nee` first if needed. Partition NEE before
 creating a :obj:`.QaQc` instance, which calculates the daily and monthly means
-of ``gpp_nt`` and ``reco_nt`` from the sub-daily values when it is created.  
+of ``gpp_nt`` and ``reco_nt`` from the sub-daily values when it is created.
 
 .. Note::
    This is the nighttime method of the FLUXNET data products made with
@@ -1206,7 +1205,10 @@ of ``gpp_nt`` and ``reco_nt`` from the sub-daily values when it is created.
 
    On the same input data, daytime GPP from both usually differs by a few
    percent. Larger differences mostly come from the input data, e.g. which
-   CO2 flux sensor is used or whether the CO2 storage flux is included.
+   CO2 flux sensor is used or whether the CO2 storage flux is included. The
+   nighttime method does not include the inhibition of leaf respiration by
+   light during the day, see the caution in :ref:`Photosynthetic energy
+   storage`.
 
 Example::
 
@@ -1214,16 +1216,13 @@ Example::
    d.partition_nee()
    # u* threshold, E0, and nighttime records used of each year
    d.nee_partitioning
-   # gross and net photosynthetic energy storage from the partitioned GPP
-   # and respiration
-   d.calc_pes(gpp_var='gpp_nt', reco_var='reco_nt')
 
 The partitioned fluxes over three days around the highest daily GPP are shown below, with the
 GPP partitioned by the site team for comparison. At night NEE is the
 respiration, and during the day GPP is the respiration minus NEE::
 
    df = d.df.rename(columns=d.inv_map).copy()
-   peak_day = df['gpp_nt'].resample('D').mean().idxmax()
+   peak_day = df['gpp_nt'].resample('D').sum().idxmax()
    start = peak_day - pd.Timedelta(days=1)
    end = peak_day + pd.Timedelta(days=2)
 
@@ -1325,8 +1324,8 @@ components.
 
 The storage can be subtracted from the available energy, :math:`Rn - G`,
 before the energy balance closure correction with the ``pes`` keyword
-argument of :meth:`.QaQc.correct_data`, ``pes='gross'`` or ``pes='net'``,
-for the Energy Balance Ratio and Bowen Ratio methods::
+argument of :meth:`.QaQc.correct_data`, ``pes='net'`` (recommended) or
+``pes='gross'``, for the Energy Balance Ratio and Bowen Ratio methods::
 
    d = Data('US-Tw3_config.ini')
    d.calc_pes(coeff_kj_per_mol=469)
@@ -1335,13 +1334,48 @@ for the Energy Balance Ratio and Bowen Ratio methods::
 
 The linear regression method does not use the storage. :meth:`.QaQc.plot`
 and :meth:`.Data.plot` include time series of the gross and net storage and
-of GPP, Reco, and NEE. After a correction with ``pes``, the energy balance
-closure scatter plots also show the initial closure against :math:`Rn - G`
-without the storage, on the same days, for comparison.
+of GPP and Reco (partitioned and from the input data) and NEE. After a
+correction with ``pes``, the energy balance closure scatter plots also show
+the initial closure against :math:`Rn - G` without the storage, on the same
+days, for comparison.
 
-GPP and Reco are the input variables (``gpp_var='gpp'``,
-``reco_var='reco'``, default) or the ones partitioned from NEE
-(``gpp_var='gpp_nt'``, ``reco_var='reco_nt'``, see above).
+By default GPP and Reco are the ones partitioned from NEE by
+:meth:`.Data.partition_nee` (``gpp_nt`` and ``reco_nt``, see above), which
+:meth:`.Data.calc_pes` runs first if needed, so that the storage is
+calculated the same way at every site with a measured CO2 flux. The GPP and
+Reco of the input data, e.g. partitioned by the site team, are used with
+``gpp_var='gpp'``, and the storage variables are then named with the suffix
+"_input" (``pes_input``, ``pes_flux_input``, ``pes_net_input``, and
+``pes_net_flux_input``), so both can be calculated and compared::
+
+   d = Data('US-Tw3_config.ini')
+   # storage from the partitioned GPP and Reco (default)
+   d.calc_pes()
+   # and from the GPP and Reco of the input data
+   d.calc_pes(gpp_var='gpp')
+   q = QaQc(d)
+   q.correct_data(pes='net_input')
+
+.. caution::
+   ``flux-data-qaqc`` partitions NEE with the nighttime method only. It
+   extrapolates nighttime respiration to the day with air temperature and
+   does not include the inhibition of leaf respiration by light, so daytime
+   Reco and GPP, and with them the gross storage, are likely biased high.
+   With isotope flux partitioning at a temperate forest, `Wehr et al. (2016)
+   <https://doi.org/10.1038/nature17966>`__ found that the standard
+   partitioning overestimated GPP and daytime respiration in the first half
+   of the growing season, and across flux sites `Keenan et al. (2019)
+   <https://doi.org/10.1038/s41559-019-0809-2>`__ found daytime ecosystem
+   respiration inhibited by about 14 to 20% in the growing season and annual
+   photosynthesis from the nighttime method about 7% too high. Net storage
+   does not depend on the daytime respiration estimate, because GPP - Reco
+   is about -NEE where NEE was measured. Use net storage for energy balance
+   closure corrections (``pes='net'``); gross storage is an upper bound of
+   the storage term and is meant as a diagnostic. Daytime GPP from the
+   partitioning is not gap filled, so fewer days may have storage than with
+   gap filled input GPP and the ``br`` correction with ``pes`` is then made
+   on fewer days. ``ebr`` is not affected, its correction factor is smoothed
+   over several days.
 
 Example::
 

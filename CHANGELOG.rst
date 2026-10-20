@@ -1,8 +1,8 @@
 Change Log
 ==========
 
-Unreleased
-----------
+Version 0.6.0
+-------------
 
 The titles of the :meth:`.QaQc.plot` plots that show corrected variables
 (latent energy, ET, gap filled days, energy balance ratio, and the closure
@@ -10,6 +10,21 @@ scatter plots) name the closure method used, e.g. "closure method: ebr",
 followed by the photosynthetic energy storage removed from Rn - G when
 ``pes`` was used. In the closure scatter plots the initial closure is then
 labeled "init, with net PES" (or gross) and "init, without PES".
+
+:meth:`.Data.calc_pes` uses the GPP and Reco partitioned from NEE by
+:meth:`.Data.partition_nee` by default (``gpp_var='gpp_nt'``), which it runs
+first if needed, so that the storage is calculated the same way at every
+site. The GPP and Reco of the input data are used with ``gpp_var='gpp'``, and
+the storage variables are then named with the suffix "_input", used with
+``pes='net_input'`` or ``pes='gross_input'`` in :meth:`.QaQc.correct_data`.
+``reco_var`` defaults to the Reco from the same source as GPP, and net
+storage is not calculated from GPP and Reco from different sources. A warning
+is printed when gross storage is used for the closure correction, net storage
+is recommended. The carbon flux plots also show the partitioned GPP and Reco.
+
+The US-Tw3 example config uses the measured CO2 flux (FC) instead of the CO2
+flux gap filled by the site team (FC_PI_F), so that NEE is partitioned from
+measured data only.
 
 Version 0.5.0
 -------------

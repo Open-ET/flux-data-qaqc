@@ -217,6 +217,10 @@ class TestData(object):
         figs = self.data_obj.plot(output_type='return_figs')
         names = [f.name for f in figs]
         assert {'carbon_daily', 'pes_daily'}.issubset(names)
+        # the partitioned GPP and Reco used for the storage are plotted
+        carbon = [f for f in figs if f.name == 'carbon_daily'][0]
+        labels = [i.label.value for i in carbon.legend[0].items]
+        assert labels[:2] == ['GPP (gpp_nt)', 'Reco (reco_nt)']
 
     #def test_xl_reader(self):
     #    d = Data(self.fluxnet_config)
@@ -313,20 +317,29 @@ class TestData(object):
         assert d.qc_var_pairs['G_1_1_1'] == 'G_2_1_1'
 
     def test_calc_pes(self):
-        df = self.data_obj.df.rename(columns=self.data_obj.inv_map)
-        assert 'gpp' in df.columns
+        # by default from the GPP and Reco partitioned from NEE
+        d = self.data_obj
+        assert 'gpp_nt' not in d.variables
+        d.calc_pes()
+        assert 'gpp_nt' in d.variables
+        assert d.nee_partitioning is not None
+        df = d.df.rename(columns=d.inv_map)
 
-        self.data_obj.calc_pes()
-        df = self.data_obj.df
-
-        assert {'pes', 'pes_flux'}.issubset(df.columns)
-        assert self.data_obj.units['pes'] == 'j/m2'
-        assert self.data_obj.units['pes_flux'] == 'w/m2'
+        assert {'pes', 'pes_flux', 'pes_net', 'pes_net_flux'}.issubset(
+            df.columns
+        )
+        assert not [c for c in df.columns if c.endswith('_input')]
+        assert d.units['pes'] == 'j/m2'
+        assert d.units['pes_flux'] == 'w/m2'
 
         _, _, dt_seconds = util.get_subdaily_timestep_info(df)
 
-        gpp = df.rename(columns=self.data_obj.inv_map)['gpp'].clip(lower=0)
+        gpp = df.gpp_nt.clip(lower=0)
         mask = gpp.notna() & df['pes_flux'].notna() & df['pes'].notna()
+        ok = mask & df.reco_nt.notna()
+        assert np.allclose(
+            df.pes_net_flux[ok], 0.422 * (gpp[ok] - df.reco_nt[ok])
+        )
 
         assert np.allclose(
             df.loc[mask, 'pes_flux'],
@@ -340,6 +353,42 @@ class TestData(object):
             rtol=0,
             atol=1e-9
         )
+
+    def test_calc_pes_input(self):
+        # storage from the input GPP and Reco is named with "_input"
+        d = self.data_obj
+        d.calc_pes()
+        d.calc_pes(gpp_var='gpp')
+        df = d.df.rename(columns=d.inv_map)
+        for var in ('pes', 'pes_flux', 'pes_net', 'pes_net_flux'):
+            assert {var, f'{var}_input'}.issubset(df.columns)
+        mask = df.gpp.notna()
+        assert np.allclose(
+            df.pes_flux_input[mask], df.gpp[mask].clip(lower=0) * 0.422
+        )
+        assert not np.allclose(
+            df.pes_flux[mask], df.pes_flux_input[mask], equal_nan=True
+        )
+        # both are kept as daily values in QaQc
+        q = QaQc(d)
+        daily = q.df.rename(columns=q.inv_map)
+        assert daily.pes_net_flux.notna().sum() > 1000
+        assert daily.pes_net_flux_input.notna().sum() > 1000
+
+    def test_calc_pes_mixed_sources(self, capsys):
+        # net storage needs GPP and Reco from the same source
+        d = self.data_obj
+        d.partition_nee()
+        pes = d.calc_pes(gpp_var='gpp', reco_var='reco_nt', inplace=False)
+        assert list(pes.columns) == ['pes_input', 'pes_flux_input']
+        assert 'different sources' in capsys.readouterr().out
+
+    def test_calc_pes_partitioning_fails(self, capsys):
+        # daily input cannot be partitioned, nothing is calculated
+        d = Data(self.fluxnet_config)
+        assert d.calc_pes() is None
+        assert not [c for c in d.df.columns if c.startswith('pes')]
+        assert 'gpp_var="gpp"' in capsys.readouterr().out
 
     def test_partition_nee(self):
         d = self.data_obj
@@ -393,17 +442,17 @@ class TestData(object):
         day_time = df.index[~night & (df.Rn > 100) & df.gpp.notna()][100]
         d._df.loc[[night_time, day_time], 'gpp'] = np.nan
 
-        pes = d.calc_pes(inplace=False)
-        assert pes.loc[night_time, 'pes_flux'] == 0
-        assert np.isnan(pes.loc[day_time, 'pes_flux'])
+        pes = d.calc_pes(gpp_var='gpp', inplace=False)
+        assert pes.loc[night_time, 'pes_flux_input'] == 0
+        assert np.isnan(pes.loc[day_time, 'pes_flux_input'])
 
-        pes = d.calc_pes(inplace=False, night_gpp_zero=False)
-        assert np.isnan(pes.loc[night_time, 'pes_flux'])
+        pes = d.calc_pes(gpp_var='gpp', inplace=False, night_gpp_zero=False)
+        assert np.isnan(pes.loc[night_time, 'pes_flux_input'])
 
     def test_calc_pes_net(self):
         # net storage is k x (GPP - Reco) with the same GPP as gross storage
         d = self.data_obj
-        pes = d.calc_pes(inplace=False)
+        pes = d.calc_pes(gpp_var='gpp', inplace=False)
         df = d.df.rename(columns=d.inv_map)
         gpp = df.gpp.clip(lower=0)
         reco = df.reco
@@ -411,19 +460,20 @@ class TestData(object):
 
         assert ok.sum() > 1000
         assert np.allclose(
-            pes.pes_net_flux[ok], 0.422 * (gpp[ok] - reco[ok])
+            pes.pes_net_flux_input[ok], 0.422 * (gpp[ok] - reco[ok])
         )
         assert np.allclose(
-            (pes.pes_flux - pes.pes_net_flux)[ok], 0.422 * reco[ok]
+            (pes.pes_flux_input - pes.pes_net_flux_input)[ok],
+            0.422 * reco[ok]
         )
         # negative respiration is not used
-        assert pes.pes_net_flux[reco < 0].isna().all()
+        assert pes.pes_net_flux_input[reco < 0].isna().all()
 
         # fill values of Reco are not used
         bad_time = reco.index[ok][10]
         d._df.loc[bad_time, 'reco'] = 1e30
-        pes = d.calc_pes(inplace=False)
-        assert np.isnan(pes.loc[bad_time, 'pes_net_flux'])
+        pes = d.calc_pes(gpp_var='gpp', inplace=False)
+        assert np.isnan(pes.loc[bad_time, 'pes_net_flux_input'])
 
 
 class TestQaQc(object):
@@ -635,27 +685,28 @@ class TestQaQc(object):
         # 1 hour gap at midday, 5.5 hour gap in the morning
         d._df.loc[f'{short_day} 11:00':f'{short_day} 11:30', 'gpp'] = np.nan
         d._df.loc[f'{long_day} 07:00':f'{long_day} 12:00', 'gpp'] = np.nan
-        d.calc_pes()
+        d.calc_pes(gpp_var='gpp')
 
         q = QaQc(d)
         daily = q.df.rename(columns=q.inv_map)
 
         assert pd.notna(daily.loc[short_day, 'gpp'])
-        assert pd.notna(daily.loc[short_day, 'pes'])
+        assert pd.notna(daily.loc[short_day, 'pes_input'])
         assert pd.isna(daily.loc[long_day, 'gpp'])
-        assert pd.isna(daily.loc[long_day, 'pes_flux'])
+        assert pd.isna(daily.loc[long_day, 'pes_flux_input'])
         # daily sum of energy equals the daily mean flux times a day
         assert np.isclose(
-            daily.loc[short_day, 'pes'],
-            daily.loc[short_day, 'pes_flux'] * 86400
+            daily.loc[short_day, 'pes_input'],
+            daily.loc[short_day, 'pes_flux_input'] * 86400
         )
 
-    def test_correct_data_with_pes(self, data):
+    def test_correct_data_with_pes(self, data, capsys):
         # storage is subtracted from Rn - G by the ebr and br methods
         config = data['package_root_dir']\
             /'examples'/'Basic_usage'/'US-Tw3_config.ini'
         d = Data(config)
         d.calc_pes()
+        d.calc_pes(gpp_var='gpp')
         q = QaQc(d)
         q.correct_data(et_gap_fill=False)
         base = q.df.rename(columns=q.inv_map).copy()
@@ -668,8 +719,10 @@ class TestQaQc(object):
                 df.energy, df.Rn - df.G - df[pes_var], equal_nan=True
             )
 
-        # gross storage lowers corrected ET
+        # gross storage lowers corrected ET, with a warning
+        capsys.readouterr()
         q.correct_data(et_gap_fill=False, pes='gross')
+        assert 'WARNING: gross' in capsys.readouterr().out
         gross = q.df.rename(columns=q.inv_map)
         both = base.ET_corr.notna() & gross.ET_corr.notna()
         assert gross.ET_corr[both].sum() < base.ET_corr[both].sum()

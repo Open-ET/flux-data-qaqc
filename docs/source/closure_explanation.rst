@@ -18,7 +18,7 @@ assuming you have succesfully created a :obj:`.QaQc` object,
     # q is a QaQc instance
     q.correct_data(meth='br')
 
-Photosynthetic energy storage, gross (from GPP) or net (from GPP minus ecosystem respiration), can be subtracted from the available energy (:math:`Rn - G`) used by the Energy Balance Ratio and Bowen Ratio methods with the ``pes`` keyword argument, e.g. ``q.correct_data(meth='ebr', pes='net')`` after calculating the storage with :meth:`.Data.calc_pes`, see :ref:`Photosynthetic energy storage`. The variable *energy* is then :math:`Rn - G - PES`.
+Photosynthetic energy storage, gross (from GPP) or net (from GPP minus ecosystem respiration), can be subtracted from the available energy (:math:`Rn - G`) used by the Energy Balance Ratio and Bowen Ratio methods with the ``pes`` keyword argument, e.g. ``q.correct_data(meth='ebr', pes='net')`` after calculating the storage with :meth:`.Data.calc_pes` (``pes='net_input'`` and ``pes='gross_input'`` use the storage from the GPP and Reco of the input data), see :ref:`Photosynthetic energy storage`. Net storage is recommended; gross storage is an upper bound of the storage term and is meant as a diagnostic. The variable *energy* is then :math:`Rn - G - PES`.
 
 The other keyword argument for :meth:`.QaQc.correct_data` allows for gap filling corrected evapotranspiration (:math:`ET`) which is calculated from corrected latent energy (:math:`LE`). By default the gap filling option is set to True, more details on this below in :ref:`Step 9, optionally gap fill corrected ET using gridMET reference ET and reference ET fraction`.
 

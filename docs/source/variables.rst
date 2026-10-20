@@ -75,6 +75,7 @@ and units`.
  pes_flux           photosynthetic energy storage flux-equivalent term                              W m⁻²
  pes_net            net photosynthetic energy storage (GPP - Reco) over the timestep                J m⁻²
  pes_net_flux       net photosynthetic energy storage flux-equivalent term                          W m⁻²
+ pes_*_input        pes, pes_flux, pes_net, pes_net_flux from the input GPP and Reco                J m⁻² or W m⁻²
  ppfd_in            incoming photosynthetic photon flux density                                     μmol photons m⁻² s⁻¹
  ppt                precipitation                                                                   mm time⁻¹
  reco               ecosystem respiration                                                           μmol CO₂ m⁻² s⁻¹
