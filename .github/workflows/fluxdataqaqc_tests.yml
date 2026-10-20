@@ -4,7 +4,8 @@ on: [push, pull_request]
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    # Python 3.9 is not available for ubuntu-latest (26.04)
+    runs-on: ubuntu-24.04
     strategy:
       # finish all versions even if one fails
       fail-fast: false
