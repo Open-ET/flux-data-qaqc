@@ -10,17 +10,25 @@ flux-data-qaqc - Tools for Energy Balance Closure Analysis
 
 `View on GitHub <https://github.com/Open-ET/flux-data-qaqc>`_. 
 
-``flux-data-qaqc`` provides a framework to create reproducible workflows for validation and analysis of eddy covariance data. The package is intended for those who need to post-process flux data, particularly for generating daily and monthly evapotransipration (ET) timeseries estimates with energy balance closure corrections applied. Applications where this software may be useful include analysis involving eddy covariance flux tower data, hydrologic or atmospehric model validation, and irrigation and water consumption studies. 
+``flux-data-qaqc`` provides a framework to create reproducible workflows for validation and analysis of eddy covariance data. The package is intended for those who need to post-process flux data, particularly for generating daily and monthly evapotranspiration (ET) timeseries estimates with energy balance closure corrections applied. Applications where this software may be useful include analysis involving eddy covariance flux tower data, hydrologic or atmospheric model validation, and irrigation and water consumption studies. 
 
 Key functionalities and tools include:
 
-* data validation with methods for quality-based filtering
-* time series data tools, e.g. temporal aggregation and resampling
-* management of site metadata, data provenance, and file structure
-* energy balance closure algorithms and other meterological calculations
-* downloading and management of `gridMET <http://www.climatologylab.org/gridmet.html>`__ meterological data
-* customizable and interactive data visualizations
-* batch processing and unit conversions
+* reading sub-daily or daily station data (e.g. AmeriFlux, FLUXNET, or other
+  CSV and Excel files) with a config file that holds the site metadata and
+  column names
+* quality control with QC flags, averaging of multiple sensors, and a filter
+  for days with too many sub-daily gaps
+* daily and monthly aggregation, with interpolation of short sub-daily gaps
+* energy balance closure corrections (energy balance ratio, Bowen ratio, and
+  linear regression), optionally with photosynthetic energy storage removed
+  from Rn - G
+* download of `gridMET <https://www.climatologylab.org/gridmet.html>`__ data
+  and gap filling of daily ET with the gridMET reference ET fraction (ETrF)
+* partitioning of NEE into GPP and ecosystem respiration
+* ASCE reference ET and other meteorological calculations
+* interactive plots, unit conversions, and writing config files for batches
+  of sites
 
 .. toctree::
    :maxdepth: 2
