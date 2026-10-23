@@ -176,7 +176,7 @@ class Plot(object):
             >>> fig = figure(
             >>>     x_axis_label='ET, corrected', y_axis_label='ET, gap fill'
             >>> )
-            >>> # note, we are calling this plot method from a QaQc instace
+            >>> # note, we are calling this plot method from a QaQc instance
             >>> q.scatter_plot(
             >>>     fig, 'ET_corr', 'ET_fill', source, 'red', label='lslr'
             >>> )

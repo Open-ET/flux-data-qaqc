@@ -341,7 +341,7 @@ class Convert(object):
     @classmethod
     def convert(cls, var_name, initial_unit, desired_unit, df):
         """
-        Givin a valid initial and desired variable dimension for a variable
+        Given a valid initial and desired variable dimension for a variable
         within a :obj:`pandas.DataFrame`, make the conversion and return the
         updated :obj:`pandas.DataFrame`.
 
@@ -549,7 +549,7 @@ def write_configs(meta_df, data_dict, out_dir=None):
 
     Keyword Arguments:
         out_dir (str or None): default None. Directory to save config
-            files, if None then save to currect working directory.
+            files, if None then save to current working directory.
 
     Returns:
         configs (list): list of :obj:`pathlib.Path` objects of full paths

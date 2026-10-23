@@ -41,6 +41,40 @@ Key functionalities and tools include:
 * interactive plots, unit conversions, and writing config files for batches
   of sites
 
+Installation
+------------
+
+.. code-block:: bash
+
+   pip install fluxdataqaqc
+
+``flux-data-qaqc`` requires Python 3.9 or newer. See the
+`installation page <https://flux-data-qaqc.readthedocs.io/en/latest/install.html>`__
+for installing with the provided conda environment or in developer mode.
+
+Quick start
+-----------
+
+.. code-block:: python
+
+   from fluxdataqaqc import Data, QaQc
+
+   # read the config file and the station data
+   d = Data('US-Tw3_config.ini')
+   # resample to daily and monthly, filter days with data gaps
+   q = QaQc(d)
+   # energy balance closure correction, ET gaps filled with gridMET
+   q.correct_data(meth='ebr')
+   # save interactive plots (HTML) and daily and monthly CSV files
+   q.plot()
+   q.write()
+
+Outputs are saved in an "output" folder next to the config file.
+The example config file and data are in
+`examples/Basic_usage <https://github.com/Open-ET/flux-data-qaqc/tree/master/examples/Basic_usage>`__,
+and the `tutorial <https://flux-data-qaqc.readthedocs.io/en/latest/tutorial.html>`__
+explains each step and its options.
+
 Used in
 -------
 
@@ -56,53 +90,6 @@ Documentation
 -------------
 
 `ReadTheDocs <https://flux-data-qaqc.readthedocs.io/>`_
-
-Installation
-------------
-
-Using PIP:
-
-.. code-block:: bash
-
-   pip install fluxdataqaqc
-
-PIP should install the necessary dependencies however it is recommended to use
-conda and first install the provided virtual environment. This is useful to
-avoid changing your local Python environment. Note, ``flux-data-qaqc``
-requires Python 3.9 or newer and is tested with Python 3.9, 3.11, and 3.13.
-
-First make sure you have the ``fluxdataqaqc`` environment file, you can download it `here <https://raw.githubusercontent.com/Open-ET/flux-data-qaqc/master/environment.yml>`_. Next to install run,
-
-.. code-block:: bash
-
-   conda env create -f environment.yml
-
-To activate the environment before using the ``flux-data-qaqc`` package run,
-
-.. code-block:: bash
-
-   conda activate fluxdataqaqc
-
-Now install using PIP:
-
-.. code-block:: bash
-
-   pip install fluxdataqaqc
-
-Now all package modules and tools should be available in your Python environment PATH and able to be imported. Note if you did not install the Conda virtual environment above, PIP should install dependencies automatically but be sure to be using a version of Python above or equal to 3.9. To test that everything has installed correctly by opening a Python interpreter or IDE and run the following:
-
-.. code-block:: python
-
-   import fluxdataqaqc
-
-and 
-
-.. code-block:: python
-
-   from fluxdataqaqc import Data, QaQc, Plot
-
-If everything has been installed correctly you should get no errors. 
-
 
 How to cite
 -----------

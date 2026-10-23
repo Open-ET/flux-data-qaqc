@@ -30,6 +30,32 @@ Key functionalities and tools include:
 * interactive plots, unit conversions, and writing config files for batches
   of sites
 
+.. rubric:: Quick start
+
+.. code-block:: bash
+
+   pip install fluxdataqaqc
+
+.. code-block:: python
+
+   from fluxdataqaqc import Data, QaQc
+
+   # read the config file and the station data
+   d = Data('US-Tw3_config.ini')
+   # resample to daily and monthly, filter days with data gaps
+   q = QaQc(d)
+   # energy balance closure correction, ET gaps filled with gridMET
+   q.correct_data(meth='ebr')
+   # save interactive plots (HTML) and daily and monthly CSV files
+   q.plot()
+   q.write()
+
+Outputs are saved in an "output" folder next to the config file.
+The example config file and data are in
+`examples/Basic_usage <https://github.com/Open-ET/flux-data-qaqc/tree/master/examples/Basic_usage>`__,
+see :ref:`Installation` for other ways to install and the :ref:`Tutorial`
+for each step and its options.
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:

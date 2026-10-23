@@ -24,9 +24,9 @@ The Energy Balance Ratio correction method was modified from the `FLUXNET2015
 <https://fluxnet.fluxdata.org/>`__ methodology for correcting daily latent energy and
 sensible heat.  Additionally, FLUXNET and `AmeriFlux
 <https://ameriflux.lbl.gov/>`__ eddy covariance data was used for code
-development and we thank them for mantaining and providing eddy flux data.
+development and we thank them for maintaining and providing eddy flux data.
 
-We would also like to acknowledge the `RefET <https://github.com/WSWUP/RefET>`__ python package and its developer Charles Morton. ``RefET`` methods are used in ``flux-data-qaqc`` for calculating the American Soceity of Civil Engineers Standardized reference ET using the hourly and daily formulations, as well as the calculation for potential solar radiation.
+We would also like to acknowledge the `RefET <https://github.com/WSWUP/RefET>`__ python package and its developer Charles Morton. ``RefET`` methods are used in ``flux-data-qaqc`` for calculating the American Society of Civil Engineers Standardized reference ET using the hourly and daily formulations, as well as the calculation for potential solar radiation.
 
 Contributing
 ^^^^^^^^^^^^

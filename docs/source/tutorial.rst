@@ -515,7 +515,7 @@ mean for energy balance components, it also demonstrates how to use the
     >>> doy_means = df[vars_we_want].groupby(d.df.index.dayofyear).mean()
     >>> # create a Bokeh figure
     >>> fig = figure(x_axis_label='day of year', y_axis_label='day of year mean (w/m2)')
-    >>> # arguements needed for creating interactive plots
+    >>> # arguments needed for creating interactive plots
     >>> plt_vars = vars_we_want
     >>> colors = ['red', 'blue', 'black', 'green']
     >>> x_name = 'date'
@@ -536,7 +536,7 @@ mean for energy balance components, it also demonstrates how to use the
 
 .. seealso::
    Some routines occur automatically when creating a :obj:`.Data` object,
-   including calcuation of weighted and non-weighted averages of soil heat flux
+   including calculation of weighted and non-weighted averages of soil heat flux
    and soil moisture which is described in :ref:`Averaging data from multiple
    sensors`.
 
@@ -571,7 +571,7 @@ Visualize input data
 --------------------
 
 The :meth:`.Data.plot` method create a series of interactive time series
-plots of input data, potential plots inlcude:
+plots of input data, potential plots include:
 
 -  energy balance components
 -  radiation components
@@ -644,7 +644,7 @@ The :obj:`.QaQc` object holds several tools for managing data and eddy
 covariance data analysis, but one of it’s primary features is temporal
 resampling of input data to daily and monthly frequencies. The
 resampling of time series data to daily frequency occurs upon the
-creation of a :obj:`.QaQc` instance if the frequency within the preceeding
+creation of a :obj:`.QaQc` instance if the frequency within the preceding
 :obj:`.Data` object is not already daily:
 
     >>> # the frequency of the input data is 30 minute
@@ -746,7 +746,7 @@ Filter days with sub-daily gaps
 
 The ``drop_gaps`` and ``daily_frac`` keyword arguments used when creating a :obj:`.QaQc` instance allow you to control how days with sub-daily measurement gaps will or will not be filtered out when resampling to daily frequency.
 
-Sub-daily gaps in energy balance variables :math:`LE`, :math:`H`, :math:`Rn`, and :math:`G` , daily ASCE standaridized reference ET inputs, e.g. hourly :math:`ea` ("vp"), :math:`rs` ("sw_in"), :math:`t_min`, :math:`t_max`, and :math:`ws`, and the carbon fluxes GPP ("gpp", or "gpp_nt" from :meth:`.Data.partition_nee`), ecosystem respiration ("reco" or "reco_nt"), and NEE ("nee") with the photosynthetic energy storage calculated from GPP ("pes", "pes_flux", "pes_net", and "pes_net_flux"), can be linearly interpolated automatically before daily aggregations. Interpolation is performed over gap lengths measured in hours, with options to control the longest length of gap to interpolate when :math:`Rn \ge 0` controlled by the :obj:`.QaQc` keyword argument ``max_interp_hours`` (default 2 hours) and the longest gap to interpolate when :math:`Rn < 0` set by the ``max_interp_hours_night`` (default 4 hours).:math:`
+Sub-daily gaps in energy balance variables :math:`LE`, :math:`H`, :math:`Rn`, and :math:`G` , daily ASCE standardized reference ET inputs, e.g. hourly :math:`ea` ("vp"), :math:`rs` ("sw_in"), :math:`t_min`, :math:`t_max`, and :math:`ws`, and the carbon fluxes GPP ("gpp", or "gpp_nt" from :meth:`.Data.partition_nee`), ecosystem respiration ("reco" or "reco_nt"), and NEE ("nee") with the photosynthetic energy storage calculated from GPP ("pes", "pes_flux", "pes_net", and "pes_net_flux"), can be linearly interpolated automatically before daily aggregations. Interpolation is performed over gap lengths measured in hours, with options to control the longest length of gap to interpolate when :math:`Rn \ge 0` controlled by the :obj:`.QaQc` keyword argument ``max_interp_hours`` (default 2 hours) and the longest gap to interpolate when :math:`Rn < 0` set by the ``max_interp_hours_night`` (default 4 hours).
 
 .. Important:: 
 
@@ -777,7 +777,7 @@ The percentage of sub-daily samples to require set by the ``daily_frac`` argumen
         Linearly interpolating complete internal gaps up to 2 hours when sw_pot <= 0 and all available Rn values are < 0, and up to 2 hours otherwise.
         Filtering days with less then 83.33333333333334% or 40/48 sub-daily measurements
 
-In this case we set ``daily_frac=20/24`` because we are only allowing a maximum of 4 hours of total gaps in the day in other words we are requiring 40 of the 48 half hourly samples to exist before we filter out a day. Remember, because linear interpolation of gaps is done before counting sub-daily gaps, this could result in retaining days with more than 4 hours of gaps in the original time series of energy balance components. You may also pass the ``daily_frac`` arugment as a decimal fraction, e.g. :math:`0.8333 \approx 20/24`.
+In this case we set ``daily_frac=20/24`` because we are only allowing a maximum of 4 hours of total gaps in the day in other words we are requiring 40 of the 48 half hourly samples to exist before we filter out a day. Remember, because linear interpolation of gaps is done before counting sub-daily gaps, this could result in retaining days with more than 4 hours of gaps in the original time series of energy balance components. You may also pass the ``daily_frac`` argument as a decimal fraction, e.g. :math:`0.8333 \approx 20/24`.
 
 To not drop any days and take daily means/sums based on whatever data exists in a given day *without* any interpolation of energy balance variables,
 
@@ -925,7 +925,7 @@ Monthly time series
 ^^^^^^^^^^^^^^^^^^^
 
 The :attr:`.QaQc.monthly_df` property allows for creating the monthly time
-series of input anc calculated variables provided by
+series of input and calculated variables provided by
 :meth:`.QaQc.correct_data`. It uses the same temporal aggregation methods as
 the daily time series i.e. from :attr:`.QaQc.agg_dict`. Although there are
 many similarities there are important differences between :attr:`.QaQc.df`
@@ -976,7 +976,7 @@ automatically
    :func:`.util.monthly_resample` function and adjust the keyword argument
    ``thresh`` which is the fraction (0-1) of days of the month required to not
    be gaps otherwise the month’s value will be forced to null, e.g. if you
-   wanted to caclulate the monthly mean air temperature requiring 30 and 90
+   wanted to calculate the monthly mean air temperature requiring 30 and 90
    percent of the days in the month to not be gaps:
 
     >>> from fluxdataqaqc.util import monthly_resample
@@ -1278,14 +1278,15 @@ photosynthetic energy storage flux term is
    pes\_flux = GPP \times k
 
 where :math:`k` is the energy stored per mol of :math:`CO_2` fixed, by
-default 0.422 :math:`J\ \mu mol^{-1}\ CO_2` (422 :math:`kJ\ mol^{-1}`,
-Nobel, 1974, as used by Meyers and Hollinger, 2004), GPP is in
-:math:`\mu mol\ CO_2\ m^{-2}\ s^{-1}`, and :math:`pes\_flux` is in
-:math:`W\ m^{-2}`. Other values in the literature are 469
-:math:`kJ\ mol^{-1}` (Blanken et al., 1997, as used by Leuning et al., 2012,
-close to the heat of combustion of glucose per mol of :math:`CO_2`) and 480
-:math:`kJ\ mol^{-1}` (Blankenship, 2002, as used by Gu et al., 2007), set
-with the ``coeff_kj_per_mol`` keyword argument.
+default 0.469 :math:`J\ \mu mol^{-1}\ CO_2` (469 :math:`kJ\ mol^{-1}`,
+Blanken et al., 1997, as used by Leuning et al., 2012, close to the heat of
+combustion of glucose per mol of :math:`CO_2`, 467 :math:`kJ\ mol^{-1}`),
+GPP is in :math:`\mu mol\ CO_2\ m^{-2}\ s^{-1}`, and :math:`pes\_flux` is in
+:math:`W\ m^{-2}`. Other values in the literature are 422
+:math:`kJ\ mol^{-1}` (Nobel, 1974, as used by Meyers and Hollinger, 2004,
+the default up to version 0.6.0) and 480 :math:`kJ\ mol^{-1}` (Blankenship,
+2002, as used by Gu et al., 2007), set with the ``coeff_kj_per_mol`` keyword
+argument.
 
 Plant and soil respiration release this energy again as heat in the canopy
 and soil. That heat leaves through the measured fluxes, mostly as :math:`H`
@@ -1328,7 +1329,7 @@ argument of :meth:`.QaQc.correct_data`, ``pes='net'`` (recommended) or
 ``pes='gross'``, for the Energy Balance Ratio and Bowen Ratio methods::
 
    d = Data('US-Tw3_config.ini')
-   d.calc_pes(coeff_kj_per_mol=469)
+   d.calc_pes()
    q = QaQc(d)
    q.correct_data(meth='ebr', pes='net')
 
@@ -1433,7 +1434,7 @@ is an accurate approximation for saturation vapor pressure (:math:`es`) in kPa a
 
 .. math::  es = 0.6108  e^{\left(\frac{17.27 \cdot T}{(T + 237.3)}\right)} 
 
-where :math:`T` is average hourly air temperature in degrees celcius.
+where :math:`T` is average hourly air temperature in degrees Celsius.
 Vapor pressure deficit (:math:`vpd`) is,
 
 .. math::  vpd = es - ea,

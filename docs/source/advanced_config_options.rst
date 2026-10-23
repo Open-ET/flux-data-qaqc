@@ -76,29 +76,48 @@ The **DATA** section of the config file is where you specify climate
 variables and their units following the same approach explained above. 
 
 Here is a list of all the “expected” climate variable names in the
-**DATA** section of a config file, where keys are the keys in the config 
-file and values are the internal names used by ``flux-data-qaqc``. This list 
-can be accessed at any time from :attr:`.Data.variable_names_dict`:
+**DATA** section of a config file, where keys are the internal names used by
+``flux-data-qaqc`` and values are the keys in the config file. This list can
+be accessed at any time from :attr:`.Data.variable_names_dict`:
 
    >>> from fluxdataqaqc import Data
    >>> Data.variable_names_dict
-       {'datestring_col' : 'date' ,
-       'net_radiation_col' : 'Rn' ,
-       'ground_flux_col' : 'G' ,
-       'latent_heat_flux_col' : 'LE' ,
-       'latent_heat_flux_corrected_col' : 'LE_user_corr' ,
-       'sensible_heat_flux_col' : 'H' ,
-       'sensible_heat_flux_corrected_col' : 'H_user_corr' ,
-       'shortwave_in_col' : 'sw_in' ,
-       'shortwave_out_col' : 'sw_out' ,
-       'shortwave_pot_col' : 'sw_pot' ,
-       'longwave_in_col' : 'lw_in' ,
-       'longwave_out_col' : 'lw_out' ,
-       'vap_press_col' : 'vp' ,
-       'vap_press_def_col' : 'vpd' ,
-       'avg_temp_col' : 't_avg' ,
-       'precip_col' : 'ppt' ,
-       'wind_spd_col' : 'ws'}
+       {'date': 'datestring_col',
+        'Rn': 'net_radiation_col',
+        'G': 'ground_flux_col',
+        'LE': 'latent_heat_flux_col',
+        'LE_user_corr': 'latent_heat_flux_corrected_col',
+        'H': 'sensible_heat_flux_col',
+        'H_user_corr': 'sensible_heat_flux_corrected_col',
+        'sw_in': 'shortwave_in_col',
+        'sw_out': 'shortwave_out_col',
+        'sw_pot': 'shortwave_pot_col',
+        'lw_in': 'longwave_in_col',
+        'lw_out': 'longwave_out_col',
+        'rh': 'rel_humidity_col',
+        'vp': 'vap_press_col',
+        'vpd': 'vap_press_def_col',
+        't_avg': 'avg_temp_col',
+        'ppt': 'precip_col',
+        'wd': 'wind_dir_col',
+        'ws': 'wind_spd_col',
+        'gpp': 'gross_primary_productivity_col',
+        'reco': 'ecosystem_respiration_col',
+        'nee': 'net_ecosystem_exchange_col',
+        'fc': 'co2_turbulent_flux_col',
+        'sc': 'co2_storage_flux_col',
+        'ppfd_in': 'photosynthetic_photon_flux_density_in_col',
+        'co2': 'co2_mole_fraction_col',
+        'ustar': 'friction_velocity_col',
+        'mo_length': 'monin_obukhov_length_col',
+        'zeta': 'monin_obukhov_stability_parameter_col',
+        'sigmav': 'lateral_velocity_fluctuation_std_dev_col',
+        'blh': 'boundary_layer_height_col'}
+
+The energy balance and meteorological variables are described on this page,
+the CO2 flux, carbon flux, and turbulence variables in
+:ref:`Carbon flux and turbulence variables` below, and the accepted units of
+all of them in :ref:`Input units`.
 
 You may view these climate entry keys and values (as found in the config file)
 from within Python using the :attr:`.Data.config` property which contains all
@@ -173,6 +192,72 @@ Here is an example,
        "not given"
 
 
+Carbon flux and turbulence variables
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The CO2 flux, carbon flux, and turbulence variables in the **DATA** section
+are optional. They are needed to partition net ecosystem exchange (NEE) into
+gross primary productivity (GPP) and ecosystem respiration (Reco) with
+:meth:`.Data.partition_nee` and to calculate photosynthetic energy storage
+with :meth:`.Data.calc_pes`, see :ref:`Partitioning NEE into GPP and
+respiration` and :ref:`Photosynthetic energy storage` in the tutorial. The
+CO2 and carbon fluxes must be in μmol CO₂ m⁻² s⁻¹ (``umolco2/m2/s``).
+
+======================================= ======== ============================================================
+Config key                              Internal Used for
+======================================= ======== ============================================================
+``co2_turbulent_flux_col``              fc       NEE for :meth:`.Data.partition_nee`
+``co2_storage_flux_col``                sc       added to fc where it was measured, NEE = fc + sc
+``net_ecosystem_exchange_col``          nee      NEE for :meth:`.Data.partition_nee` when fc is not given
+``friction_velocity_col``               ustar    u* filter of nighttime NEE in :meth:`.Data.partition_nee`
+``gross_primary_productivity_col``      gpp      storage from the input GPP, ``calc_pes(gpp_var='gpp')``
+``ecosystem_respiration_col``           reco     net storage from the input GPP and Reco
+======================================= ======== ============================================================
+
+Partitioning NEE also needs sub-daily data and air temperature
+(``avg_temp_col``). Nighttime is when incoming shortwave radiation
+(``shortwave_in_col``) is below 10 W m⁻², or when the potential shortwave
+radiation calculated from the station location is zero where incoming
+shortwave radiation is missing or not given. Without friction velocity the
+nighttime NEE is not u* filtered and a warning is printed. Use the measured
+CO2 flux, not a CO2 flux gap filled by the site team (e.g. "FC" rather than
+"FC_PI_F" in AmeriFlux files), so that GPP and Reco are partitioned from
+measured data only.
+
+:meth:`.Data.calc_pes` uses the partitioned GPP and Reco by default, so
+``gross_primary_productivity_col`` and ``ecosystem_respiration_col`` are only
+needed to calculate the storage from the GPP and Reco of the input data,
+e.g. as partitioned by the site team.
+
+Here are the carbon flux and turbulence entries of the US-Tw3 example config
+file (``examples/Basic_usage/US-Tw3_config.ini``), an AmeriFlux BASE file
+without the CO2 storage flux:
+
+.. parsed-literal::
+
+    [DATA]
+    ...
+    gross_primary_productivity_col = GPP_PI_F
+    gross_primary_productivity_units = umolco2/m2/s
+    ecosystem_respiration_col = RECO_PI_F
+    ecosystem_respiration_units = umolco2/m2/s
+    co2_turbulent_flux_col = FC
+    co2_turbulent_flux_units = umolco2/m2/s
+    friction_velocity_col = USTAR
+    friction_velocity_units = m/s
+
+The other optional variables, relative humidity (``rel_humidity_col``),
+wind direction (``wind_dir_col``), incoming photosynthetic photon flux
+density (``photosynthetic_photon_flux_density_in_col``), CO2 mole fraction
+(``co2_mole_fraction_col``), Monin-Obukhov length
+(``monin_obukhov_length_col``), the stability parameter z/L
+(``monin_obukhov_stability_parameter_col``), the standard deviation of the
+lateral wind velocity (``lateral_velocity_fluctuation_std_dev_col``), and the
+boundary layer height (``boundary_layer_height_col``), are read and resampled
+with the other variables and written to the output files, but they are not
+used in any calculations.
+
+
 Input formatting and caveats
 ----------------------------
 
@@ -188,7 +273,7 @@ The value should be numeric, e.g.
     missing_data_value = -999
 
 If the input time series file does not contain all climate variables that are
-expeced by ``flux-data-qaqc``, then specify them as missing (‘na’) in the
+expected by ``flux-data-qaqc``, then specify them as missing (‘na’) in the
 config file or simply do not list them in the config. Missing variables will be
 ignored for the most part and will not be present in output files/plots,
 however if key variables for the energy balance are not present (:math:`LE`,
@@ -218,7 +303,7 @@ date       t_avg  sw_pot  sw_in   lw_in   vpd   ppt ws
 ========== ====== ======= ======= ======= ===== === =====
 
 .. note:: 
-   If the the input datas temporal frequency is not recognized
+   If the input data's temporal frequency is not recognized
    ``flux-data-qaqc`` will attempt to resample it to daily frequency when it is
    used to create a :obj:`.QaQc` object. Also, if a value is not recognized a
    numeric in any data column it will be forced to a null value.
@@ -379,7 +464,7 @@ with character flags, the numeric values are being applied to :math:`LE` and :ma
 whereas the flags (‘x’ and ‘b’) are applied to incoming shortwave
 radiation.
 
-    >>> # make copys of before and after the QC filter is applied
+    >>> # make copies of before and after the QC filter is applied
     >>> no_qc = d.df.input_LE.copy()
     >>> no_qc_swrad = d.df.input_sw_in.copy()
     >>> # apply QC flags/values
@@ -506,7 +591,7 @@ Alternatively, you may assign the threshold of flag values at any time directly 
 Example of threshold filtering
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Be sure to validate QC thresholds or flags before applying them to make sure everything seems correct. Below we see that the lowest QC values correspond with poor quality gap-fill data near the begining of the time series of sensible heat (:math:`H`). 
+Be sure to validate QC thresholds or flags before applying them to make sure everything seems correct. Below we see that the lowest QC values correspond with poor quality gap-fill data near the beginning of the time series of sensible heat (:math:`H`).
 
     >>> from bokeh.models import LinearAxis, Range1d
     >>> p = figure(x_axis_label='date', y_axis_label='sensible heat flux (w/m2)')
@@ -525,7 +610,7 @@ Be sure to validate QC thresholds or flags before applying them to make sure eve
 .. raw:: html
     :file: _static/qc_flag3.html
 
-As a reminder, the routine provided for numeric or theshold filtering removes all data entries that have been assigned to a QC column and have a QC value that falls below some threshold.
+As a reminder, the routine provided for numeric or threshold filtering removes all data entries that have been assigned to a QC column and have a QC value that falls below some threshold.
 
     >>> # apply QC numeric threshold filters
     >>> d.apply_qc_flags(threshold=0.5)
@@ -901,7 +986,7 @@ Now, let's visualize the resulting weighted average of multiple :math:`G` measur
     >>> G_cols
         ['G_1_1_1', 'G_2_1_1', 'G_3_1_1', 'G_4_1_1', 'g_mean']
 
-The example below creates the time series plot with a short span of data for easier visibility of weighted mean, it also used the plot routines provided by :obj:`.Data` and :obj:`.QaQc` which are inhereted from the :obj:`.Plot` class within ``flux-data-qaqc``. Specifically this example utilizes :meth:`.Plot.add_lines` which makes the time series plotting of multiple variables more efficient and automatically handles the hover tooltips.
+The example below creates the time series plot with a short span of data for easier visibility of weighted mean, it also used the plot routines provided by :obj:`.Data` and :obj:`.QaQc` which are inherited from the :obj:`.Plot` class within ``flux-data-qaqc``. Specifically this example utilizes :meth:`.Plot.add_lines` which makes the time series plotting of multiple variables more efficient and automatically handles the hover tooltips.
 
     >>> from fluxdataqaqc.plot import ColumnDataSource # for hover tooltips
     >>> # shorter period for visualization

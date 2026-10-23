@@ -1,6 +1,19 @@
 Change Log
 ==========
 
+Version 0.6.1
+-------------
+
+The default energy stored per mol of CO2 fixed in :meth:`.Data.calc_pes`
+(``coeff_kj_per_mol``) is now 469 kJ mol-1 (Blanken et al., 1997, as used by
+Leuning et al., 2012), close to the heat of combustion of glucose per mol of
+CO2 (467 kJ mol-1). The previous default, 422 kJ mol-1 (Nobel, 1974, as used
+by Meyers and Hollinger, 2004), has no clear primary source. Gross and net
+photosynthetic energy storage (``pes``, ``pes_flux``, ``pes_net``,
+``pes_net_flux``) are 11% larger with the new default, and so is the storage
+subtracted from Rn - G with the ``pes`` option of :meth:`.QaQc.correct_data`.
+Use ``calc_pes(coeff_kj_per_mol=422)`` for the previous values.
+
 Version 0.6.0
 -------------
 

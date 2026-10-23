@@ -338,12 +338,12 @@ class TestData(object):
         mask = gpp.notna() & df['pes_flux'].notna() & df['pes'].notna()
         ok = mask & df.reco_nt.notna()
         assert np.allclose(
-            df.pes_net_flux[ok], 0.422 * (gpp[ok] - df.reco_nt[ok])
+            df.pes_net_flux[ok], 0.469 * (gpp[ok] - df.reco_nt[ok])
         )
 
         assert np.allclose(
             df.loc[mask, 'pes_flux'],
-            gpp.loc[mask] * 0.422,
+            gpp.loc[mask] * 0.469,
             rtol=0,
             atol=1e-12
         )
@@ -364,7 +364,7 @@ class TestData(object):
             assert {var, f'{var}_input'}.issubset(df.columns)
         mask = df.gpp.notna()
         assert np.allclose(
-            df.pes_flux_input[mask], df.gpp[mask].clip(lower=0) * 0.422
+            df.pes_flux_input[mask], df.gpp[mask].clip(lower=0) * 0.469
         )
         assert not np.allclose(
             df.pes_flux[mask], df.pes_flux_input[mask], equal_nan=True
@@ -413,7 +413,7 @@ class TestData(object):
         df = d.df.rename(columns=d.inv_map)
         mask = df.gpp_nt.notna()
         assert np.allclose(
-            df.pes_flux[mask], df.gpp_nt[mask].clip(lower=0) * 0.422
+            df.pes_flux[mask], df.gpp_nt[mask].clip(lower=0) * 0.469
         )
         # daily means in QaQc
         q = QaQc(d)
@@ -460,11 +460,11 @@ class TestData(object):
 
         assert ok.sum() > 1000
         assert np.allclose(
-            pes.pes_net_flux_input[ok], 0.422 * (gpp[ok] - reco[ok])
+            pes.pes_net_flux_input[ok], 0.469 * (gpp[ok] - reco[ok])
         )
         assert np.allclose(
             (pes.pes_flux_input - pes.pes_net_flux_input)[ok],
-            0.422 * reco[ok]
+            0.469 * reco[ok]
         )
         # negative respiration is not used
         assert pes.pes_net_flux_input[reco < 0].isna().all()

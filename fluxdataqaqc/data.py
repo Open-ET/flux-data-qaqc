@@ -23,7 +23,7 @@ class Data(Plot, Convert):
     
     A :obj:`Data` object is initialized from a config file (see :ref:`Setting up
     a config file`) with metadata for an eddy covariance tower or other dataset
-    containing time series meterological data. It serves as a starting point in
+    containing time series meteorological data. It serves as a starting point in
     the Python API of the energy balance closure analysis and data validation
     routines that are provided by ``flux-data-qaqc``. 
     
@@ -158,7 +158,7 @@ class Data(Plot, Convert):
     # largest valid GPP and Reco magnitude [umol m-2 s-1] for calc_pes
     max_co2_flux = 100
 
-    def calc_pes(self, gpp_var='gpp_nt', coeff_kj_per_mol=422.0,
+    def calc_pes(self, gpp_var='gpp_nt', coeff_kj_per_mol=469.0,
                  clip_negative_gpp=True, inplace=True, reco_var=None,
                  night_gpp_zero=True):
         """
@@ -201,16 +201,18 @@ class Data(Plot, Convert):
         The energy stored per mol of CO2 fixed (``coeff_kj_per_mol``, k)
         differs in the literature, e.g.
 
-            * 422 kJ mol-1, Nobel (1974) as used by Meyers & Hollinger (2004)
-            * 469 kJ mol-1, Blanken et al. (1997) as used by Leuning et al.
-              (2012), close to the heat of combustion of glucose per mol CO2
+            * 469 kJ mol-1 (default), Blanken et al. (1997) as used by
+              Leuning et al. (2012), close to the heat of combustion of
+              glucose per mol CO2 (2803 / 6 = 467 kJ mol-1)
+            * 422 kJ mol-1, Nobel (1974) as used by Meyers & Hollinger
+              (2004), the default up to version 0.6.0, primary source unclear
             * 480 kJ mol-1, Blankenship (2002) as used by Gu et al. (2007)
 
         Keyword Arguments:
             gpp_var (str): default 'gpp_nt'.
                 Internal variable name for gross primary productivity, 'gpp_nt'
                 from :meth:`Data.partition_nee` or 'gpp' from the input data.
-            coeff_kj_per_mol (float): default 422.0.
+            coeff_kj_per_mol (float): default 469.0.
                 Energy equivalent per mol CO2 fixed, in kJ mol-1 CO2.
             clip_negative_gpp (bool): default True
                 If True, negative GPP values are set to zero before calculating
@@ -251,12 +253,12 @@ class Data(Plot, Convert):
             correction factor is smoothed over several days.
 
         Example:
-            Gross and net storage from the partitioned GPP and Reco with the
-            factor of Leuning et al. (2012), then the energy balance closure
-            correction with net storage subtracted from Rn - G
+            Gross and net storage from the partitioned GPP and Reco, then
+            the energy balance closure correction with net storage
+            subtracted from Rn - G
 
             >>> d = Data('path/to/config.ini')
-            >>> d.calc_pes(coeff_kj_per_mol=469)
+            >>> d.calc_pes()
             >>> q = QaQc(d)
             >>> q.correct_data(pes='net')
 
@@ -743,7 +745,7 @@ class Data(Plot, Convert):
     def _calc_vpd_or_vp(self, df):
         """
         Based on ASCE standardized ref et eqn. 37, air temperature must be in 
-        celcius and actual vapor pressure in kPa.
+        Celsius and actual vapor pressure in kPa.
 
         Can also calculate VP from VPD and air temperature. For daily input
         data daily mean values are used, saturation vapor pressure from mean
@@ -848,8 +850,8 @@ class Data(Plot, Convert):
         plots of input data in whichever temporal frequency it is in.
 
         The main interactive features of the plots include: pan, selection and
-        scrol zoom, hover tool that shows paired variable values including date,
-        and linked x-axes that pan/zoom togehter for daily and monthly time 
+        scroll zoom, hover tool that shows paired variable values including date,
+        and linked x-axes that pan/zoom together for daily and monthly time
         series plots.
  
         It is possible to change the format of the output plots including
@@ -880,7 +882,7 @@ class Data(Plot, Convert):
             output_type (str): default "save". How to output plots, "save", 
                 "show" in browser, "notebook" for Jupyter Notebooks, 
                 "return_figs" to return a list of Bokeh 
-                :obj:`bokeh.plotting.figure.Figure`s, or "return_grid" to 
+                :obj:`bokeh.plotting.figure.Figure` objects, or "return_grid" to
                 return the :obj:`bokeh.layouts.gridplot`.
             out_file (str or None): default :obj:`None`. Path to save output 
                 file, if :obj:`None` save output to :attr:`Data.out_dir` with 
@@ -1493,7 +1495,7 @@ class Data(Plot, Convert):
             energy balance variables, be sure to also update
             :attr:`Data.variables` and :attr:`Data.units` with the appropriate
             entries. New or modified values will be used in any further
-            analysis/ploting routines within ``flux-data-qaqc``.
+            analysis/plotting routines within ``flux-data-qaqc``.
 
             By default the names of variables as found within input data are
             retained in :attr:`QaQc.df`, however you can use the naming scheme

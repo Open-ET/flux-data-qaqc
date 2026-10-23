@@ -588,7 +588,7 @@ class QaQc(Plot, Convert):
         long form can be found in :attr:`QaQc.gridMET_meta`. 
 
         Upon download gridMET time series for the nearest gridMET cell will be
-        merged into the instances dataframe attibute :attr:`QaQc.df` and all
+        merged into the instances dataframe attribute :attr:`QaQc.df` and all
         gridMET variable names will have the prefix ``gridMET_`` for 
         identification. 
         
@@ -1056,7 +1056,7 @@ class QaQc(Plot, Convert):
         with default options before saving time series files to disk.
 
         The default location for saving output time series files is within an
-        "output" subdifrectory of the parent directory containing the
+        "output" subdirectory of the parent directory containing the
         config.ini file that was used to create the :obj:`fluxdataqaqc.Data`
         and :obj:`QaQc` objects, the names of the files will start with the
         site_id and have either the "daily_data" or "monthly_data" suffix. 
@@ -1145,7 +1145,7 @@ class QaQc(Plot, Convert):
         latitude. ET is calculated from raw and corrected LE using daily air
         temperature to correct the latent heat of vaporization, if air temp. is
         not available in the input data then air temp. is assumed at 20 
-        degrees celcius.
+        degrees Celsius.
 
         Corrected or otherwise newly calculated variables are named using the
         following suffixes to distinguish them:
@@ -1324,7 +1324,7 @@ class QaQc(Plot, Convert):
     def _calc_vpd_from_vp(self):
         """
         Based on ASCE standardized ref et eqn. 37, air temperature must be in 
-        celcius and actual vapor pressure in kPa.
+        Celsius and actual vapor pressure in kPa.
 
         Can also calculate VP from VPD and air temperature, es and rel.
         humidity.
@@ -1574,7 +1574,7 @@ class QaQc(Plot, Convert):
         Note:
             Does not overwrite existing calculation for Rso, i.e. once any 
             correction method has been run using :func:`correct_data` it will
-            not be recalculated after subsequent calls since it is indepent of
+            not be recalculated after subsequent calls since it is independent of
             climate variables.
         """
         # avoid recalculating 
@@ -1662,7 +1662,7 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
 
             In this case the intercept is telling us that there may be a systematic
             or constant error in the independent variables and that :math:`G` is
-            "under-measured" at the sensor by over 50 precent, etc. if we assume
+            "under-measured" at the sensor by over 50 percent, etc. if we assume
             daily :math:`Rn` is accurate as measured.
 
         Tip:
@@ -2173,8 +2173,8 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         plots of input and computed daily and monthly aggregated data.
 
         The main interactive features of the plots include: pan, selection and
-        scrol zoom, hover tool that shows paired variable values including date,
-        and linked x-axes that pan/zoom togehter for daily and monthly time 
+        scroll zoom, hover tool that shows paired variable values including date,
+        and linked x-axes that pan/zoom together for daily and monthly time
         series plots.
  
         It is possible to change the format of the output plots including
@@ -2215,7 +2215,7 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
             output_type (str): default "save". How to output plots, "save", 
                 "show" in browser, "notebook" for Jupyter Notebooks, 
                 "return_figs" to return a list of Bokeh 
-                :obj:`bokeh.plotting.figure.Figure`s, or "return_grid" to 
+                :obj:`bokeh.plotting.figure.Figure` objects, or "return_grid" to
                 return the :obj:`bokeh.layouts.gridplot`.
             out_file (str or None): default :obj:`None`. Path to save output 
                 file, if :obj:`None` save output to :attr:`QaQc.out_dir` with 

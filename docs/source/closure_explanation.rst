@@ -11,7 +11,7 @@ Closure methods are assigned as keyword arguments to the
 :meth:`.QaQc.correct_data` method, and for a list of provided 
 closure options see :attr:`.QaQc.corr_methods`.
 For example, if you would like to run the Bowen Ratio correction routine
-assuming you have succesfully created a :obj:`.QaQc` object,
+assuming you have successfully created a :obj:`.QaQc` object,
 
 .. code-block:: python
 
@@ -117,9 +117,9 @@ resulted in overestimates of daily mean :math:`Rn` during these periods. Althoug
 .. raw:: html
     :file: _static/closure_algorithms/step0_NotFiltered.html
 
-There are several ways to conduct manual pre-filtering of poor quality meterological time series data, to filter data based on input quality flags or numeric quality values see :ref:`Quality-based data filtering`. 
+There are several ways to conduct manual pre-filtering of poor quality meteorological time series data, to filter data based on input quality flags or numeric quality values see :ref:`Quality-based data filtering`.
 
-``flux-data-qaqc`` also allows for filtering of poor quality data on the fly as shown in this example. In other words, we simply filter out the periods we think have bad data for :math:`Rn` within Python before running the closure correction. After manually determing the date periods with poor quality :math:`Rn`, here is how they were filtered oiut before running the correction:
+``flux-data-qaqc`` also allows for filtering of poor quality data on the fly as shown in this example. In other words, we simply filter out the periods we think have bad data for :math:`Rn` within Python before running the closure correction. After manually determining the date periods with poor quality :math:`Rn`, here is how they were filtered oiut before running the correction:
 
     >>> import pandas as pd 
     >>> import numpy as np
@@ -270,7 +270,7 @@ heat of vaporization following the method of Harrison, L.P. 1963,
 
 where evapotransipiration (:math:`ET`) in :math:`mm \cdot day^{-1}`,
 :math:`LE` is latent energy flux in :math:`w \cdot m^{-2}`, and
-:math:`T` is air temperature in degrees celcius. The same approach is
+:math:`T` is air temperature in degrees Celsius. The same approach is
 used to calculate corrected :math:`ET` (:math:`ET_{corr}`) using
 :math:`LE_{corr}`.
 
