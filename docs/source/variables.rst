@@ -34,11 +34,14 @@ and units`.
  ebc_cf_method      method used for ebc_cf, 1: median of +/- 7 days, 2: mean of +/- 5 days,         —
                     3: +/- 5 days in previous and next years (1-3 follow FLUXNET2015,
                     `Pastorello et al., 2020`_), 4: 5 day climatology (not in FLUXNET)
+ ebes               ecosystem biochemical energy storage, k x (GPP - Reco), over the timestep       J m⁻²
+ ebes_flux          ecosystem biochemical energy storage flux-equivalent term                       W m⁻²
+ ebes*_input        ebes, ebes_flux from the input GPP and Reco                                     J m⁻² or W m⁻²
  ebr                input energy balance ratio                                                      —
  ebr_5day_clim      5 day climatology of the filtered energy balance ratio (method 4)               —
  ebr_corr           energy balance ratio after correction, (H_corr + LE_corr) / (Rn - G)            —
  ebr_est            energy balance ratio estimated by the 'ebr' correction (inverse of ebc_cf)      —
- energy             input Rn - G, minus pes_flux or pes_net_flux with correct_data(pes=...)         W m⁻²
+ energy             input Rn - G, minus ebes_flux or pes_flux with correct_data(storage=...)        W m⁻²
  es                 saturation vapor pressure                                                       kPa
  ET                 ET calculated from input LE and average air temperature                         mm time⁻¹
  ET_corr            ET calculated from LE_corr                                                      mm time⁻¹
@@ -73,9 +76,7 @@ and units`.
  nee                net ecosystem exchange                                                          μmol CO₂ m⁻² s⁻¹
  pes                photosynthetic energy fixed over the timestep                                   J m⁻²
  pes_flux           photosynthetic energy storage flux-equivalent term                              W m⁻²
- pes_net            net photosynthetic energy storage (GPP - Reco) over the timestep                J m⁻²
- pes_net_flux       net photosynthetic energy storage flux-equivalent term                          W m⁻²
- pes_*_input        pes, pes_flux, pes_net, pes_net_flux from the input GPP and Reco                J m⁻² or W m⁻²
+ pes*_input         pes, pes_flux from the input GPP                                                J m⁻² or W m⁻²
  ppfd_in            incoming photosynthetic photon flux density                                     μmol photons m⁻² s⁻¹
  ppt                precipitation                                                                   mm time⁻¹
  reco               ecosystem respiration                                                           μmol CO₂ m⁻² s⁻¹

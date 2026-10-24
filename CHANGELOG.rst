@@ -1,6 +1,23 @@
 Change Log
 ==========
 
+Version 0.7.0
+-------------
+
+The net photosynthetic energy storage is renamed ecosystem biochemical
+energy storage (EBES, Gu et al., 2007), because k x (GPP - Reco) subtracts
+the respiration of plants, microbes, and animals and is not photosynthetic
+storage alone. :meth:`.Data.calc_pes` writes ``ebes`` and ``ebes_flux``
+(and ``ebes_input`` and ``ebes_flux_input``) instead of ``pes_net`` and
+``pes_net_flux`` (and their "_input" versions). The ``pes`` keyword argument
+of :meth:`.QaQc.correct_data` is now ``storage``, with the options
+``'ebes'`` (recommended), ``'pes'``, ``'ebes_input'``, and ``'pes_input'``
+instead of ``'net'``, ``'gross'``, ``'net_input'``, and ``'gross_input'``,
+and ``QaQc.pes_options`` and ``QaQc.pes`` are now ``QaQc.storage_options``
+and ``QaQc.storage``. Plots label the storage PES and EBES. The
+photosynthetic energy storage (``pes``, ``pes_flux``) and all values are
+unchanged; code using the old names needs to be updated.
+
 Version 0.6.1
 -------------
 

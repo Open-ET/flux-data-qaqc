@@ -581,7 +581,8 @@ plots of input data, potential plots include:
 -  wind speed
 -  precipitation
 -  latent energy
--  gross and net photosynthetic energy storage, after :meth:`.Data.calc_pes`
+-  photosynthetic and ecosystem biochemical energy storage, after
+   :meth:`.Data.calc_pes`
 -  GPP, ecosystem respiration, and NEE
 -  multiple soil moisture measurements
 
@@ -746,7 +747,7 @@ Filter days with sub-daily gaps
 
 The ``drop_gaps`` and ``daily_frac`` keyword arguments used when creating a :obj:`.QaQc` instance allow you to control how days with sub-daily measurement gaps will or will not be filtered out when resampling to daily frequency.
 
-Sub-daily gaps in energy balance variables :math:`LE`, :math:`H`, :math:`Rn`, and :math:`G` , daily ASCE standardized reference ET inputs, e.g. hourly :math:`ea` ("vp"), :math:`rs` ("sw_in"), :math:`t_min`, :math:`t_max`, and :math:`ws`, and the carbon fluxes GPP ("gpp", or "gpp_nt" from :meth:`.Data.partition_nee`), ecosystem respiration ("reco" or "reco_nt"), and NEE ("nee") with the photosynthetic energy storage calculated from GPP ("pes", "pes_flux", "pes_net", and "pes_net_flux"), can be linearly interpolated automatically before daily aggregations. Interpolation is performed over gap lengths measured in hours, with options to control the longest length of gap to interpolate when :math:`Rn \ge 0` controlled by the :obj:`.QaQc` keyword argument ``max_interp_hours`` (default 2 hours) and the longest gap to interpolate when :math:`Rn < 0` set by the ``max_interp_hours_night`` (default 4 hours).
+Sub-daily gaps in energy balance variables :math:`LE`, :math:`H`, :math:`Rn`, and :math:`G` , daily ASCE standardized reference ET inputs, e.g. hourly :math:`ea` ("vp"), :math:`rs` ("sw_in"), :math:`t_min`, :math:`t_max`, and :math:`ws`, and the carbon fluxes GPP ("gpp", or "gpp_nt" from :meth:`.Data.partition_nee`), ecosystem respiration ("reco" or "reco_nt"), and NEE ("nee") with the photosynthetic and ecosystem biochemical energy storage calculated from GPP and Reco ("pes", "pes_flux", "ebes", and "ebes_flux"), can be linearly interpolated automatically before daily aggregations. Interpolation is performed over gap lengths measured in hours, with options to control the longest length of gap to interpolate when :math:`Rn \ge 0` controlled by the :obj:`.QaQc` keyword argument ``max_interp_hours`` (default 2 hours) and the longest gap to interpolate when :math:`Rn < 0` set by the ``max_interp_hours_night`` (default 4 hours).
 
 .. Important:: 
 
@@ -1283,60 +1284,60 @@ Blanken et al., 1997, as used by Leuning et al., 2012, close to the heat of
 combustion of glucose per mol of :math:`CO_2`, 467 :math:`kJ\ mol^{-1}`),
 GPP is in :math:`\mu mol\ CO_2\ m^{-2}\ s^{-1}`, and :math:`pes\_flux` is in
 :math:`W\ m^{-2}`. Other values in the literature are 422
-:math:`kJ\ mol^{-1}` (Nobel, 1974, as used by Meyers and Hollinger, 2004,
-the default up to version 0.6.0) and 480 :math:`kJ\ mol^{-1}` (Blankenship,
+:math:`kJ\ mol^{-1}` (Nobel, 1974, as used by Meyers and Hollinger, 2004)
+and 480 :math:`kJ\ mol^{-1}` (Blankenship,
 2002, as used by Gu et al., 2007), set with the ``coeff_kj_per_mol`` keyword
 argument.
 
 Plant and soil respiration release this energy again as heat in the canopy
 and soil. That heat leaves through the measured fluxes, mostly as :math:`H`
 but also as :math:`LE`, outgoing longwave radiation (part of :math:`Rn`),
-and :math:`G`. When ecosystem respiration (Reco) is available, :meth:`.Data.calc_pes` also calculates the net storage, the
+and :math:`G`. When ecosystem respiration (Reco) is available, :meth:`.Data.calc_pes` also calculates the ecosystem biochemical energy storage (EBES), the
 biochemical energy storage term of the surface energy balance (Gu et al.,
 2007; Leuning et al., 2012),
 
 .. math::
 
-   pes\_net\_flux = (GPP - Reco) \times k
+   ebes\_flux = (GPP - Reco) \times k
 
 which is negative when respiration exceeds photosynthesis, e.g. at night.
 Here :math:`GPP - Reco` is the net ecosystem production (NEP), about
 :math:`-NEE`.
-The gross term is an upper bound of the storage. Energy stored or released
+PES is an upper bound of the storage. Energy stored or released
 over the timestep is
 
 .. math::
 
    pes = pes\_flux \times \Delta t, \quad
-   pes\_net = pes\_net\_flux \times \Delta t
+   ebes = ebes\_flux \times \Delta t
 
 where :math:`\Delta t` is the timestep length in seconds and :math:`pes`
-and :math:`pes\_net` are in :math:`J\ m^{-2}`.
+and :math:`ebes` are in :math:`J\ m^{-2}`.
 
 By default, negative GPP values are clipped to zero, negative Reco values
 are set to null, and missing GPP at night is set to zero because there is
 no photosynthesis without light. Night is when the potential shortwave
 radiation is zero and net radiation, where available, is negative, the same
 nighttime definition used to interpolate sub-daily gaps (see above). The
-variables are summed (``pes``, ``pes_net``) or averaged (``pes_flux``,
-``pes_net_flux``) to daily values when the :obj:`.QaQc` instance is created
+variables are summed (``pes``, ``ebes``) or averaged (``pes_flux``,
+``ebes_flux``) to daily values when the :obj:`.QaQc` instance is created
 and their short sub-daily gaps are interpolated like the energy balance
 components.
 
 The storage can be subtracted from the available energy, :math:`Rn - G`,
-before the energy balance closure correction with the ``pes`` keyword
-argument of :meth:`.QaQc.correct_data`, ``pes='net'`` (recommended) or
-``pes='gross'``, for the Energy Balance Ratio and Bowen Ratio methods::
+before the energy balance closure correction with the ``storage`` keyword
+argument of :meth:`.QaQc.correct_data`, ``storage='ebes'`` (recommended) or
+``storage='pes'``, for the Energy Balance Ratio and Bowen Ratio methods::
 
    d = Data('US-Tw3_config.ini')
    d.calc_pes()
    q = QaQc(d)
-   q.correct_data(meth='ebr', pes='net')
+   q.correct_data(meth='ebr', storage='ebes')
 
 The linear regression method does not use the storage. :meth:`.QaQc.plot`
-and :meth:`.Data.plot` include time series of the gross and net storage and
+and :meth:`.Data.plot` include time series of PES and EBES and
 of GPP and Reco (partitioned and from the input data) and NEE. After a
-correction with ``pes``, the energy balance closure scatter plots also show
+correction with ``storage``, the energy balance closure scatter plots also show
 the initial closure against :math:`Rn - G` without the storage, on the same
 days, for comparison.
 
@@ -1346,8 +1347,8 @@ By default GPP and Reco are the ones partitioned from NEE by
 calculated the same way at every site with a measured CO2 flux. The GPP and
 Reco of the input data, e.g. partitioned by the site team, are used with
 ``gpp_var='gpp'``, and the storage variables are then named with the suffix
-"_input" (``pes_input``, ``pes_flux_input``, ``pes_net_input``, and
-``pes_net_flux_input``), so both can be calculated and compared::
+"_input" (``pes_input``, ``pes_flux_input``, ``ebes_input``, and
+``ebes_flux_input``), so both can be calculated and compared::
 
    d = Data('US-Tw3_config.ini')
    # storage from the partitioned GPP and Reco (default)
@@ -1355,26 +1356,26 @@ Reco of the input data, e.g. partitioned by the site team, are used with
    # and from the GPP and Reco of the input data
    d.calc_pes(gpp_var='gpp')
    q = QaQc(d)
-   q.correct_data(pes='net_input')
+   q.correct_data(storage='ebes_input')
 
 .. caution::
    ``flux-data-qaqc`` partitions NEE with the nighttime method only. It
    extrapolates nighttime respiration to the day with air temperature and
    does not include the inhibition of leaf respiration by light, so daytime
-   Reco and GPP, and with them the gross storage, are likely biased high.
+   Reco and GPP, and with them PES, are likely biased high.
    With isotope flux partitioning at a temperate forest, `Wehr et al. (2016)
    <https://doi.org/10.1038/nature17966>`__ found that the standard
    partitioning overestimated GPP and daytime respiration in the first half
    of the growing season, and across flux sites `Keenan et al. (2019)
    <https://doi.org/10.1038/s41559-019-0809-2>`__ found daytime ecosystem
    respiration inhibited by about 14 to 20% in the growing season and annual
-   photosynthesis from the nighttime method about 7% too high. Net storage
+   photosynthesis from the nighttime method about 7% too high. EBES
    does not depend on the daytime respiration estimate, because GPP - Reco
-   is about -NEE where NEE was measured. Use net storage for energy balance
-   closure corrections (``pes='net'``); gross storage is an upper bound of
+   is about -NEE where NEE was measured. Use EBES for energy balance
+   closure corrections (``storage='ebes'``); PES is an upper bound of
    the storage term and is meant as a diagnostic. Daytime GPP from the
    partitioning is not gap filled, so fewer days may have storage than with
-   gap filled input GPP and the ``br`` correction with ``pes`` is then made
+   gap filled input GPP and the ``br`` correction with ``storage`` is then made
    on fewer days. ``ebr`` is not affected, its correction factor is smoothed
    over several days.
 

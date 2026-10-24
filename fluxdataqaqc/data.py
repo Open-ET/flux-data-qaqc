@@ -162,9 +162,9 @@ class Data(Plot, Convert):
                  clip_negative_gpp=True, inplace=True, reco_var=None,
                  night_gpp_zero=True):
         """
-        Calculate photosynthetic energy storage from sub-daily GPP, gross
-        (pes, pes_flux) and net, GPP minus ecosystem respiration (pes_net,
-        pes_net_flux).
+        Calculate photosynthetic energy storage from sub-daily GPP (pes,
+        pes_flux) and ecosystem biochemical energy storage, GPP minus
+        ecosystem respiration (ebes, ebes_flux).
 
         By default GPP and ecosystem respiration (Reco) are partitioned from
         the measured CO2 flux by :meth:`Data.partition_nee` (gpp_nt and
@@ -172,19 +172,20 @@ class Data(Plot, Convert):
         is calculated the same way at every site. GPP and Reco from the input
         data, e.g. partitioned by the site team, are used with
         ``gpp_var='gpp'``, and the storage variables are then named with the
-        suffix "_input" (pes_input, pes_flux_input, pes_net_input, and
-        pes_net_flux_input), so that both can be calculated and compared.
+        suffix "_input" (pes_input, pes_flux_input, ebes_input, and
+        ebes_flux_input), so that both can be calculated and compared.
 
-        Gross storage is the chemical energy fixed by photosynthesis,
-        k x GPP (Meyers & Hollinger, 2004). Net storage subtracts the energy
-        released by plant and soil respiration, k x (GPP - Reco), where
-        GPP - Reco is the net ecosystem production (NEP, about -NEE). Net
-        storage is the biochemical storage term of the surface energy balance
+        Photosynthetic energy storage (PES) is the chemical energy fixed by
+        photosynthesis, k x GPP (Meyers & Hollinger, 2004). Ecosystem
+        biochemical energy storage (EBES) subtracts the energy released by the
+        respiration of plants, microbes, and animals, k x (GPP - Reco), where
+        GPP - Reco is the net ecosystem production (NEP, about -NEE). EBES
+        is the biochemical storage term of the surface energy balance
         (Gu et al., 2007; Leuning et al., 2012). Respiration releases the
         stored energy as heat in the canopy and soil, which leaves through the
         measured fluxes (mostly H, but also LE, outgoing longwave radiation
-        in Rn, and G), so net storage is the term that closes the energy
-        balance and gross storage is an upper bound. Net storage is negative
+        in Rn, and G), so EBES is the term that closes the energy
+        balance and PES is an upper bound. EBES is negative
         when respiration exceeds photosynthesis, e.g. at night.
 
         By default, negative GPP values are assumed invalid and are clipped
@@ -195,8 +196,8 @@ class Data(Plot, Convert):
         :obj:`.QaQc` (see :func:`.util.solar_night`). Negative Reco values
         are not physical and are set to null, as are GPP and Reco values
         larger than :attr:`Data.max_co2_flux` (100 umol m-2 s-1), which are
-        fill values or errors. Net storage uses the same GPP as gross
-        storage, so their difference is k x Reco.
+        fill values or errors. EBES uses the same GPP as PES, so their
+        difference is k x Reco.
 
         The energy stored per mol of CO2 fixed (``coeff_kj_per_mol``, k)
         differs in the literature, e.g.
@@ -205,7 +206,7 @@ class Data(Plot, Convert):
               Leuning et al. (2012), close to the heat of combustion of
               glucose per mol CO2 (2803 / 6 = 467 kJ mol-1)
             * 422 kJ mol-1, Nobel (1974) as used by Meyers & Hollinger
-              (2004), the default up to version 0.6.0, primary source unclear
+              (2004)
             * 480 kJ mol-1, Blankenship (2002) as used by Gu et al. (2007)
 
         Keyword Arguments:
@@ -222,9 +223,9 @@ class Data(Plot, Convert):
                 If False, return them in a new DataFrame.
             reco_var (str or None): default None.
                 Internal variable name for ecosystem respiration, needed for
-                net storage. None uses the Reco from the same source as GPP,
+                EBES. None uses the Reco from the same source as GPP,
                 'reco_nt' for 'gpp_nt' and 'reco' otherwise. Without it, or
-                with GPP and Reco from different sources, only gross storage
+                with GPP and Reco from different sources, only PES
                 is calculated.
             night_gpp_zero (bool): default True.
                 If True, missing GPP at night is set to zero.
@@ -232,7 +233,7 @@ class Data(Plot, Convert):
         Returns:
             :obj:`pandas.DataFrame` or :obj:`None`
                 If ``inplace=False``, returns a DataFrame with ``pes`` and
-                ``pes_flux``, and ``pes_net`` and ``pes_net_flux`` when Reco
+                ``pes_flux``, and ``ebes`` and ``ebes_flux`` when Reco
                 is available (with the suffix "_input" for GPP other than
                 gpp_nt). Otherwise returns :obj:`None`.
 
@@ -241,33 +242,33 @@ class Data(Plot, Convert):
             not with the daytime method (Lasslop et al., 2010). The nighttime
             method extrapolates nighttime respiration to the day with air
             temperature, without the inhibition of leaf respiration by light,
-            so daytime Reco, GPP, and gross storage are likely biased high
-            (Wehr et al., 2016; Keenan et al., 2019). Net storage does not
+            so daytime Reco, GPP, and PES are likely biased high
+            (Wehr et al., 2016; Keenan et al., 2019). EBES does not
             depend on the daytime respiration estimate, GPP - Reco is about
-            -NEE where NEE was measured. Use net storage for energy balance
-            closure corrections; gross storage is an upper bound of the
+            -NEE where NEE was measured. Use EBES for energy balance
+            closure corrections; PES is an upper bound of the
             storage term and is meant as a diagnostic. Daytime GPP from the
             partitioning is not gap filled, so fewer days may have storage
             than with gap filled input GPP and the ``br`` correction with
-            ``pes`` is then made on fewer days. ``ebr`` is not affected, its
-            correction factor is smoothed over several days.
+            ``storage`` is then made on fewer days. ``ebr`` is not affected,
+            its correction factor is smoothed over several days.
 
         Example:
-            Gross and net storage from the partitioned GPP and Reco, then
-            the energy balance closure correction with net storage
+            PES and EBES from the partitioned GPP and Reco, then
+            the energy balance closure correction with EBES
             subtracted from Rn - G
 
             >>> d = Data('path/to/config.ini')
             >>> d.calc_pes()
             >>> q = QaQc(d)
-            >>> q.correct_data(pes='net')
+            >>> q.correct_data(storage='ebes')
 
             Storage from the GPP and Reco of the input data as well, saved
             with the suffix "_input"
 
             >>> d.calc_pes(gpp_var='gpp')
             >>> q = QaQc(d)
-            >>> q.correct_data(pes='net_input')
+            >>> q.correct_data(storage='ebes_input')
         """
         self.df.head()
         # Reco from the same source as GPP by default
@@ -347,35 +348,35 @@ class Data(Plot, Convert):
         new_vars = {'pes': pes, 'pes_flux': pes_flux}
         new_units = {'pes': 'j/m2', 'pes_flux': 'w/m2'}
 
-        # net storage, photosynthesis minus plant and soil respiration, from
-        # GPP and Reco of the same source
+        # ecosystem biochemical energy storage, photosynthesis minus
+        # respiration, from GPP and Reco of the same source
         if (gpp_var == 'gpp_nt') != (reco_var == 'reco_nt'):
             print(
                 f'WARNING: GPP ("{gpp_var}") and Reco ("{reco_var}") are '
-                'from different sources, net photosynthetic energy storage '
-                '(pes_net) not calculated.'
+                'from different sources, ecosystem biochemical energy storage '
+                '(ebes) not calculated.'
             )
         elif reco_var not in df.columns:
             print(
-                f'WARNING: "{reco_var}" not found, net photosynthetic energy '
-                'storage (pes_net) not calculated.'
+                f'WARNING: "{reco_var}" not found, ecosystem biochemical '
+                'energy storage (ebes) not calculated.'
             )
         elif self.units.get(reco_var) != 'umolco2/m2/s':
             print(
                 f'WARNING: unsupported units for "{reco_var}": '
-                f'{self.units.get(reco_var)}. Expected "umolco2/m2/s", net '
-                'photosynthetic energy storage (pes_net) not calculated.'
+                f'{self.units.get(reco_var)}. Expected "umolco2/m2/s", '
+                'ecosystem biochemical energy storage (ebes) not calculated.'
             )
         else:
             reco = pd.to_numeric(df[reco_var], errors='coerce')
             # negative respiration is not physical, large values are errors
             reco = reco.where((reco >= 0) & (reco <= self.max_co2_flux))
-            # net storage flux [W m-2] and energy over timestep [J m-2]
-            pes_net_flux = (gpp - reco) * coeff_j_per_umol
-            new_vars['pes_net'] = pes_net_flux * dt_seconds
-            new_vars['pes_net_flux'] = pes_net_flux
-            new_units['pes_net'] = 'j/m2'
-            new_units['pes_net_flux'] = 'w/m2'
+            # EBES flux [W m-2] and energy over timestep [J m-2]
+            ebes_flux = (gpp - reco) * coeff_j_per_umol
+            new_vars['ebes'] = ebes_flux * dt_seconds
+            new_vars['ebes_flux'] = ebes_flux
+            new_units['ebes'] = 'j/m2'
+            new_units['ebes_flux'] = 'w/m2'
 
         # storage from GPP other than the partitioned GPP, e.g. from the
         # input data, is named with the suffix "_input"
@@ -871,7 +872,7 @@ class Data(Plot, Convert):
         * wind speed
         * precipitation 
         * latent energy
-        * gross and net photosynthetic energy storage, if
+        * photosynthetic and ecosystem biochemical energy storage, if
           :meth:`Data.calc_pes` was run
         * GPP, ecosystem respiration, and NEE
         * multiple soil moisture measurements

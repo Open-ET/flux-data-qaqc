@@ -325,7 +325,7 @@ class TestData(object):
         assert d.nee_partitioning is not None
         df = d.df.rename(columns=d.inv_map)
 
-        assert {'pes', 'pes_flux', 'pes_net', 'pes_net_flux'}.issubset(
+        assert {'pes', 'pes_flux', 'ebes', 'ebes_flux'}.issubset(
             df.columns
         )
         assert not [c for c in df.columns if c.endswith('_input')]
@@ -338,7 +338,7 @@ class TestData(object):
         mask = gpp.notna() & df['pes_flux'].notna() & df['pes'].notna()
         ok = mask & df.reco_nt.notna()
         assert np.allclose(
-            df.pes_net_flux[ok], 0.469 * (gpp[ok] - df.reco_nt[ok])
+            df.ebes_flux[ok], 0.469 * (gpp[ok] - df.reco_nt[ok])
         )
 
         assert np.allclose(
@@ -360,7 +360,7 @@ class TestData(object):
         d.calc_pes()
         d.calc_pes(gpp_var='gpp')
         df = d.df.rename(columns=d.inv_map)
-        for var in ('pes', 'pes_flux', 'pes_net', 'pes_net_flux'):
+        for var in ('pes', 'pes_flux', 'ebes', 'ebes_flux'):
             assert {var, f'{var}_input'}.issubset(df.columns)
         mask = df.gpp.notna()
         assert np.allclose(
@@ -372,11 +372,11 @@ class TestData(object):
         # both are kept as daily values in QaQc
         q = QaQc(d)
         daily = q.df.rename(columns=q.inv_map)
-        assert daily.pes_net_flux.notna().sum() > 1000
-        assert daily.pes_net_flux_input.notna().sum() > 1000
+        assert daily.ebes_flux.notna().sum() > 1000
+        assert daily.ebes_flux_input.notna().sum() > 1000
 
     def test_calc_pes_mixed_sources(self, capsys):
-        # net storage needs GPP and Reco from the same source
+        # EBES needs GPP and Reco from the same source
         d = self.data_obj
         d.partition_nee()
         pes = d.calc_pes(gpp_var='gpp', reco_var='reco_nt', inplace=False)
@@ -449,8 +449,8 @@ class TestData(object):
         pes = d.calc_pes(gpp_var='gpp', inplace=False, night_gpp_zero=False)
         assert np.isnan(pes.loc[night_time, 'pes_flux_input'])
 
-    def test_calc_pes_net(self):
-        # net storage is k x (GPP - Reco) with the same GPP as gross storage
+    def test_calc_ebes(self):
+        # EBES is k x (GPP - Reco) with the same GPP as PES
         d = self.data_obj
         pes = d.calc_pes(gpp_var='gpp', inplace=False)
         df = d.df.rename(columns=d.inv_map)
@@ -460,20 +460,20 @@ class TestData(object):
 
         assert ok.sum() > 1000
         assert np.allclose(
-            pes.pes_net_flux_input[ok], 0.469 * (gpp[ok] - reco[ok])
+            pes.ebes_flux_input[ok], 0.469 * (gpp[ok] - reco[ok])
         )
         assert np.allclose(
-            (pes.pes_flux_input - pes.pes_net_flux_input)[ok],
+            (pes.pes_flux_input - pes.ebes_flux_input)[ok],
             0.469 * reco[ok]
         )
         # negative respiration is not used
-        assert pes.pes_net_flux_input[reco < 0].isna().all()
+        assert pes.ebes_flux_input[reco < 0].isna().all()
 
         # fill values of Reco are not used
         bad_time = reco.index[ok][10]
         d._df.loc[bad_time, 'reco'] = 1e30
         pes = d.calc_pes(gpp_var='gpp', inplace=False)
-        assert np.isnan(pes.loc[bad_time, 'pes_net_flux_input'])
+        assert np.isnan(pes.loc[bad_time, 'ebes_flux_input'])
 
 
 class TestQaQc(object):
@@ -711,24 +711,24 @@ class TestQaQc(object):
         q.correct_data(et_gap_fill=False)
         base = q.df.rename(columns=q.inv_map).copy()
 
-        for pes, pes_var in QaQc.pes_options.items():
-            q.correct_data(et_gap_fill=False, pes=pes)
+        for storage, storage_var in QaQc.storage_options.items():
+            q.correct_data(et_gap_fill=False, storage=storage)
             df = q.df.rename(columns=q.inv_map)
-            assert q.pes == pes
+            assert q.storage == storage
             assert np.allclose(
-                df.energy, df.Rn - df.G - df[pes_var], equal_nan=True
+                df.energy, df.Rn - df.G - df[storage_var], equal_nan=True
             )
 
-        # gross storage lowers corrected ET, with a warning
+        # PES lowers corrected ET, with a warning
         capsys.readouterr()
-        q.correct_data(et_gap_fill=False, pes='gross')
-        assert 'WARNING: gross' in capsys.readouterr().out
+        q.correct_data(et_gap_fill=False, storage='pes')
+        assert 'WARNING: photosynthetic' in capsys.readouterr().out
         gross = q.df.rename(columns=q.inv_map)
         both = base.ET_corr.notna() & gross.ET_corr.notna()
         assert gross.ET_corr[both].sum() < base.ET_corr[both].sum()
 
         # the Bowen ratio method closes Rn - G - PES
-        q.correct_data(meth='br', et_gap_fill=False, pes='net')
+        q.correct_data(meth='br', et_gap_fill=False, storage='ebes')
         df = q.df.rename(columns=q.inv_map)
         ok = df.LE_corr.notna()
         assert np.allclose(df.LE_corr[ok] + df.H_corr[ok], df.energy[ok])
@@ -736,7 +736,7 @@ class TestQaQc(object):
         # back to the default, energy is Rn - G
         q.correct_data(et_gap_fill=False)
         df = q.df.rename(columns=q.inv_map)
-        assert q.pes is None
+        assert q.storage is None
         assert np.allclose(df.energy, df.Rn - df.G, equal_nan=True)
 
     def test_correct_data_pes_errors(self, data):
@@ -745,9 +745,9 @@ class TestQaQc(object):
             /'examples'/'Basic_usage'/'US-Tw3_config.ini'
         q = QaQc(Data(config))
         with pytest.raises(ValueError):
-            q.correct_data(et_gap_fill=False, pes='net')
+            q.correct_data(et_gap_fill=False, storage='ebes')
         with pytest.raises(ValueError):
-            q.correct_data(et_gap_fill=False, pes='other')
+            q.correct_data(et_gap_fill=False, storage='other')
 
     def test_lin_regress_ignores_pes(self, data):
         # storage is not removed from monthly Rn - G either
@@ -756,8 +756,8 @@ class TestQaQc(object):
         d = Data(config)
         d.calc_pes()
         q = QaQc(d)
-        q.correct_data(meth='lin_regress', et_gap_fill=False, pes='gross')
-        assert q.pes is None
+        q.correct_data(meth='lin_regress', et_gap_fill=False, storage='pes')
+        assert q.storage is None
         df = q.monthly_df.rename(columns=q.inv_map)
         ebr = (df.H + df.LE) / (df.Rn - df.G)
         assert np.allclose(df.ebr, ebr, equal_nan=True)
@@ -1054,19 +1054,19 @@ class TestQaQc(object):
         assert closure.xaxis[0].axis_label == 'Rn - G (w/m2)'
         assert len(closure.legend[0].items) == 3
 
-        q.correct_data(et_gap_fill=False, pes='net')
+        q.correct_data(et_gap_fill=False, storage='ebes')
         figs = {f.name: f for f in q.plot(output_type='return_figs')}
-        # the storage plots show gross and net storage, also after the
+        # the storage plots show PES and EBES, also after the
         # correction removed one of them from Rn - G
         labels = [i.label.value for i in figs['pes_daily'].legend[0].items]
-        assert labels == ['gross', 'net']
+        assert labels == ['PES', 'EBES']
         for name in ('energy_vs_flux_daily', 'energy_vs_flux_monthly'):
             closure = figs[name]
-            assert closure.xaxis[0].axis_label == 'Rn - G - net PES (w/m2)'
+            assert closure.xaxis[0].axis_label == 'Rn - G - EBES (w/m2)'
             labels = [i.label.value for i in closure.legend[0].items]
-            assert labels[0].startswith('init, without PES')
-            assert labels[1].startswith('init, with net PES')
-        assert 'net PES' in figs['EBR_daily'].title.text
+            assert labels[0].startswith('init, without EBES')
+            assert labels[1].startswith('init, with EBES')
+        assert 'Rn - G - EBES' in figs['EBR_daily'].title.text
 
     def test_QaQc_plot_titles_name_closure_method(self, data):
         config = data['package_root_dir']\
@@ -1088,10 +1088,10 @@ class TestQaQc(object):
         d = Data(config)
         d.calc_pes()
         q = QaQc(d)
-        q.correct_data(et_gap_fill=False, pes='net')
+        q.correct_data(et_gap_fill=False, storage='ebes')
         figs = {f.name: f for f in q.plot(output_type='return_figs')}
         assert figs['ET_daily'].title.text.endswith(
-            ', closure method: ebr (Rn - G - net PES)'
+            ', closure method: ebr (Rn - G - EBES)'
         )
 
     def test_invalid_refET(self, data, tmp_path):

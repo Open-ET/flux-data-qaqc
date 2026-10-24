@@ -375,15 +375,17 @@ class Plot(object):
                 if monthly_df[c].notna().sum() <= 1:
                     monthly_df.drop(c, axis=1, inplace=True)
 
-        # photosynthetic energy storage removed from Rn - G by the correction,
+        # energy storage removed from Rn - G by the correction,
         # add it back to energy (same days) to compare closure without it
-        pes = getattr(FluxObj, 'pes', None)
-        if pes is not None:
-            pes_var = FluxObj.pes_options[pes]
-        if monthly and pes is not None and\
-                {'energy', pes_var}.issubset(monthly_df.columns):
-            monthly_df['energy_without_pes'] =\
-                monthly_df.energy + monthly_df[pes_var]
+        storage = getattr(FluxObj, 'storage', None)
+        if storage is not None:
+            storage_var = FluxObj.storage_options[storage]
+            # label, e.g. "EBES" or "PES input"
+            storage_label = storage.upper().replace('_INPUT', ' input')
+        if monthly and storage is not None and\
+                {'energy', storage_var}.issubset(monthly_df.columns):
+            monthly_df['energy_without_storage'] =\
+                monthly_df.energy + monthly_df[storage_var]
         if monthly:
             monthly_source = ColumnDataSource(monthly_df)
 
@@ -393,16 +395,17 @@ class Plot(object):
         corr_meth = getattr(FluxObj, 'corr_meth', None)
         if corr_meth is not None:
             corr_txt = f', closure method: {corr_meth}'
-            if pes is not None:
-                corr_txt += f' (Rn - G - {pes} PES)'
+            if storage is not None:
+                corr_txt += f' (Rn - G - {storage_label})'
 
         # so that the correction is run, may change this
         FluxObj.df.head(); # if Data, need to access to calc vp/vpd 
         df = FluxObj.df.rename(columns=FluxObj.inv_map) 
         variables = FluxObj.variables
         units = FluxObj.units 
-        if pes is not None and {'energy', pes_var}.issubset(df.columns):
-            df['energy_without_pes'] = df.energy + df[pes_var]
+        if storage is not None and\
+                {'energy', storage_var}.issubset(df.columns):
+            df['energy_without_storage'] = df.energy + df[storage_var]
         # bokeh column sources for tooltips
         daily_source=ColumnDataSource(df)
         # for aggregating plots
@@ -923,11 +926,11 @@ class Plot(object):
         # photosynthetic energy storage time series plots
         ####
         plt_vars = [
-            'pes_flux', 'pes_net_flux', 'pes_flux_input', 'pes_net_flux_input'
+            'pes_flux', 'ebes_flux', 'pes_flux_input', 'ebes_flux_input'
         ]
-        labels = ['gross', 'net', 'gross_input', 'net_input']
+        labels = ['PES', 'EBES', 'PES input', 'EBES input']
         colors = ['darkorange', 'blue', 'saddlebrown', 'deepskyblue']
-        title = 'Daily Photosynthetic Energy Storage (PES)'
+        title = 'Daily Energy Storage (PES and EBES)'
         x_label = 'date'
         y_label = _get_units(plt_vars, units)
         fig = figure(
@@ -941,7 +944,7 @@ class Plot(object):
             daily_line.append(fig)
         if fig is not None and monthly:
             # same for monthly fig
-            title = 'Monthly Photosynthetic Energy Storage (PES)'
+            title = 'Monthly Energy Storage (PES and EBES)'
             fig = figure(
                 x_axis_label=x_label, y_axis_label=y_label, title=title,
                 width=plot_width, height=plot_height, name='pes_monthly'
@@ -997,8 +1000,8 @@ class Plot(object):
         unit = _get_units(['LE', 'H', 'Rn', 'G'], units)
         y_label = 'LE + H ({})'.format(unit)
         x_label = 'Rn - G ({})'.format(unit)
-        if pes is not None:
-            x_label = f'Rn - G - {pes} PES ({unit})'
+        if storage is not None:
+            x_label = f'Rn - G - {storage_label} ({unit})'
         fig = figure(
             x_axis_label=x_label, y_axis_label=y_label, title=title,
             width=plot_width, height=plot_width, name='energy_vs_flux_daily'
@@ -1008,16 +1011,16 @@ class Plot(object):
         labels = ['init', 'corr', 'user_corr']
         # name the storage on the initial closure when it was removed from
         # Rn - G, to tell it apart from the initial closure without it
-        if pes is not None:
-            labels[0] = f'init, with {pes} PES'
+        if storage is not None:
+            labels[0] = f'init, with {storage_label}'
         # add plot pairs to plot if they exist, add 1:1
         mins_maxs = []
         n_vars_fnd = 0
         # initial closure before the storage was removed from Rn - G
-        if 'energy_without_pes' in df.columns:
+        if 'energy_without_storage' in df.columns:
             min_max = Plot.scatter_plot(
-                fig, 'energy_without_pes', 'flux', daily_source, 'gray',
-                label='init, without PES'
+                fig, 'energy_without_storage', 'flux', daily_source, 'gray',
+                label=f'init, without {storage_label}'
             )
             if min_max is not None:
                 mins_maxs.append(min_max)
@@ -1062,10 +1065,10 @@ class Plot(object):
                     name='energy_vs_flux_monthly'
                 )
                 mins_maxs = []
-                if 'energy_without_pes' in monthly_df.columns:
+                if 'energy_without_storage' in monthly_df.columns:
                     min_max = Plot.scatter_plot(
-                        fig, 'energy_without_pes', 'flux', monthly_source,
-                        'gray', label='init, without PES'
+                        fig, 'energy_without_storage', 'flux', monthly_source,
+                        'gray', label=f'init, without {storage_label}'
                     )
                     if min_max is not None:
                         mins_maxs.append(min_max)

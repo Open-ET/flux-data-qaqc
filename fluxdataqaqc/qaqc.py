@@ -61,7 +61,8 @@ class QaQc(Plot, Convert):
     including ``t_avg``, ``sw_in``, ``ws``, ``vp``, ``LE``, ``H``, ``Rn``,
     ``G``, the carbon fluxes ``gpp``, ``reco`` (or ``gpp_nt`` and ``reco_nt``
     from :meth:`.Data.partition_nee`), and ``nee``, and the photosynthetic
-    energy storage ``pes``, ``pes_flux``, ``pes_net``, and ``pes_net_flux``
+    and ecosystem biochemical energy storage ``pes``, ``pes_flux``, ``ebes``,
+    and ``ebes_flux``
     (and the same with the suffix ``_input``) calculated by
     :meth:`.Data.calc_pes`.
 
@@ -198,12 +199,12 @@ class QaQc(Plot, Convert):
         'H_user_corr': 'mean',
         'pes': 'sum',
         'pes_flux': 'mean',
-        'pes_net': 'sum',
-        'pes_net_flux': 'mean',
+        'ebes': 'sum',
+        'ebes_flux': 'mean',
         'pes_input': 'sum',
         'pes_flux_input': 'mean',
-        'pes_net_input': 'sum',
-        'pes_net_flux_input': 'mean',
+        'ebes_input': 'sum',
+        'ebes_flux_input': 'mean',
         'gpp': 'mean',
         'reco': 'mean',
         'gpp_nt': 'mean',
@@ -220,14 +221,14 @@ class QaQc(Plot, Convert):
         'blh': 'mean',
     }
 
-    # photosynthetic energy storage options of correct_data and the daily
+    # energy storage options (EBES and PES) of correct_data and the daily
     # flux [W m-2] subtracted from Rn - G, from Data.calc_pes with the
     # partitioned GPP and Reco or with the input GPP and Reco ("_input")
-    pes_options = {
-        'gross': 'pes_flux',
-        'net': 'pes_net_flux',
-        'gross_input': 'pes_flux_input',
-        'net_input': 'pes_net_flux_input',
+    storage_options = {
+        'ebes': 'ebes_flux',
+        'pes': 'pes_flux',
+        'ebes_input': 'ebes_flux_input',
+        'pes_input': 'pes_flux_input',
     }
 
     # EBR correction methods available
@@ -372,7 +373,7 @@ class QaQc(Plot, Convert):
 
         self.corrected = False 
         self.corr_meth = None
-        self.pes = None
+        self.storage = None
 
     def daily_ASCE_refET(self, reference='short', anemometer_height=None):
         """
@@ -795,8 +796,8 @@ class QaQc(Plot, Convert):
             # carbon fluxes and photosynthetic energy storage from GPP
             carbon_interp_vars = [
                 'gpp', 'reco', 'gpp_nt', 'reco_nt', 'nee', 'pes', 'pes_flux',
-                'pes_net', 'pes_net_flux', 'pes_input', 'pes_flux_input',
-                'pes_net_input', 'pes_net_flux_input'
+                'ebes', 'ebes_flux', 'pes_input', 'pes_flux_input',
+                'ebes_input', 'ebes_flux_input'
             ]
             # for interpolation of energy balance variables if they exist
             energy_bal_vars = list(
@@ -1128,7 +1129,7 @@ class QaQc(Plot, Convert):
             self.monthly_df.rename(columns=self.inv_map).to_csv(monthly_outf)
 
     def correct_data(self, meth='ebr', et_gap_fill=True, y='Rn', refET='ETr',
-            x=['G','LE','H'], fit_intercept=False, pes=None):
+            x=['G','LE','H'], fit_intercept=False, storage=None):
         """
         Correct turblent fluxes to improve energy balance closure using an
         Energy Balance Ratio method modified from `FLUXNET
@@ -1178,12 +1179,13 @@ class QaQc(Plot, Convert):
                 for ET gap filling, "ETr" or "ETo" are valid options.
             fit_intercept (bool): default False. Fit intercept for regression or
                 set to zero if False. Only used if ``meth='lin_regress'``.
-            pes (str or None): default None. Photosynthetic energy storage
+            storage (str or None): default None. Energy storage
                 subtracted from available energy, Rn - G, before the 'ebr' or
-                'br' correction: 'net' (``pes_net_flux``, GPP minus ecosystem
-                respiration, recommended) or 'gross' (``pes_flux``, an upper
-                bound meant as a diagnostic), or 'net_input' and
-                'gross_input' for the storage from the GPP and Reco of the
+                'br' correction: 'ebes' (``ebes_flux``, ecosystem biochemical
+                energy storage, GPP minus ecosystem respiration, recommended)
+                or 'pes' (``pes_flux``, photosynthetic energy storage, an
+                upper bound meant as a diagnostic), or 'ebes_input' and
+                'pes_input' for the storage from the GPP and Reco of the
                 input data, see :meth:`.Data.calc_pes`, which must be run
                 before creating the :obj:`QaQc` instance. Days without
                 storage are not used to estimate the correction. Not used by
@@ -1194,8 +1196,8 @@ class QaQc(Plot, Convert):
 
         Raises:
             ValueError: if ``meth`` is not in :attr:`QaQc.corr_methods`,
-                ``refET`` is not "ETr" or "ETo", ``pes`` is not None or in
-                :attr:`QaQc.pes_options`, or the storage variable was not
+                ``refET`` is not "ETr" or "ETo", ``storage`` is not None or in
+                :attr:`QaQc.storage_options`, or the storage variable was not
                 calculated.
 
         Example:
@@ -1225,9 +1227,9 @@ class QaQc(Plot, Convert):
         Note:
             The *ebr_corr* variable is the energy balance ratio after
             correction, (H_corr + LE_corr) / (Rn - G), for all methods,
-            with the storage subtracted, (Rn - G - PES), when ``pes`` is
+            with the storage subtracted (Rn - G - storage) when ``storage`` is
             used; *energy* is the available energy used, Rn - G or
-            Rn - G - PES, and *ebr* is (H + LE) / energy,
+            Rn - G - storage, and *ebr* is (H + LE) / energy,
             monthly values are calculated from monthly sums. With the 'ebr'
             method the daily energy balance ratio estimated by the
             correction (filtered, smoothed, and gap filled) is saved as
@@ -1260,11 +1262,11 @@ class QaQc(Plot, Convert):
                 'ERROR: {} is not a valid refET option, please use "ETr" '
                 'or "ETo"'.format(refET)
             )
-        self._check_pes_option(pes, meth)
+        self._check_storage_option(storage, meth)
         # only the ebr and br methods remove storage from Rn - G
         if meth == 'lin_regress':
-            pes = None
-        self.pes = pes
+            storage = None
+        self.storage = storage
 
         # calculate clear sky radiation if not already computed
         self._calc_rso()
@@ -1781,51 +1783,52 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
 
         return results
 
-    def _check_pes_option(self, pes, meth):
+    def _check_storage_option(self, storage, meth):
         """
-        Check the photosynthetic energy storage option of correct_data.
+        Check the energy storage option of correct_data.
 
         Raises:
-            ValueError: if ``pes`` is not None or in :attr:`QaQc.pes_options`
-                or its daily storage flux is not in the data.
+            ValueError: if ``storage`` is not None or in
+                :attr:`QaQc.storage_options` or its daily storage flux is not
+                in the data.
         """
-        if pes is None:
+        if storage is None:
             return
-        if pes not in self.pes_options:
+        if storage not in self.storage_options:
             raise ValueError(
-                'ERROR: {} is not a valid pes option, please use None or '
-                'one of: {}'.format(pes, ', '.join(self.pes_options))
+                'ERROR: {} is not a valid storage option, please use None or '
+                'one of: {}'.format(storage, ', '.join(self.storage_options))
             )
-        pes_var = self.pes_options[pes]
-        if pes_var not in self.df.rename(columns=self.inv_map).columns:
+        storage_var = self.storage_options[storage]
+        if storage_var not in self.df.rename(columns=self.inv_map).columns:
             raise ValueError(
                 'ERROR: {} not found, run Data.calc_pes() before creating the '
                 'QaQc instance, or Data.calc_pes(gpp_var="gpp") for the '
-                'storage from the input GPP and Reco, net storage also '
-                'needs ecosystem respiration'.format(pes_var)
+                'storage from the input GPP and Reco, EBES also '
+                'needs ecosystem respiration'.format(storage_var)
             )
-        if pes.startswith('gross'):
+        if storage.startswith('pes'):
             print(
-                'WARNING: gross photosynthetic energy storage is an upper '
+                'WARNING: photosynthetic energy storage (PES) is an upper '
                 'bound of the storage term and depends on the partitioning '
                 'of NEE, e.g. nighttime partitioning likely overestimates '
-                'GPP, net storage is recommended for closure corrections.'
+                'GPP, EBES is recommended for closure corrections.'
             )
         if meth == 'lin_regress':
             print(
-                'WARNING: pes is only used by the ebr and br methods, it is '
-                'ignored by lin_regress.'
+                'WARNING: storage is only used by the ebr and br methods, it '
+                'is ignored by lin_regress.'
             )
 
     def _available_energy(self, df):
         """
-        Daily available energy, Rn - G, minus photosynthetic energy storage
+        Daily available energy, Rn - G, minus energy storage (EBES or PES)
         when it was selected in :meth:`QaQc.correct_data` [W m-2].
         """
         energy = df.Rn.astype(float) - df.G.astype(float)
-        if self.pes is not None:
-            pes_var = self.pes_options[self.pes]
-            energy = energy - df[pes_var].astype(float)
+        if self.storage is not None:
+            storage_var = self.storage_options[self.storage]
+            energy = energy - df[storage_var].astype(float)
         return energy
 
     def _ebr_correction(self):
@@ -2198,15 +2201,15 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         * initial, corrected, gap filled, and reference evapotranspiration
         * crop coefficient and smoothed and interpolated crop coefficient
         * initial and corrected energy balance ratio
-        * gross and net photosynthetic energy storage
+        * photosynthetic and ecosystem biochemical energy storage
         * GPP, ecosystem respiration, and NEE
         * multiple soil moisture measurements
 
         A list of all potential scatter plots created: 
 
         * radiative versus turblent fluxes, initial and corrected, and initial
-          with Rn - G without photosynthetic energy storage when the
-          correction removed it (``pes`` of :meth:`QaQc.correct_data`)
+          with Rn - G without energy storage when the
+          correction removed it (``storage`` of :meth:`QaQc.correct_data`)
         * initial versus corrected latent energy
         * initial versus corrected evapotranspiration
 
@@ -2326,8 +2329,8 @@ a_site  Rn                 6.99350781229883 1.552          1.054           0.943
         The function can interpolate any numeric columns supplied in ``df``. In the
         ``QaQc`` workflow these may include ``t_avg``, ``sw_in``, ``ws``, ``vp``,
         ``LE``, ``H``, ``Rn``, ``G``, ``gpp``, ``reco``, ``gpp_nt``,
-        ``reco_nt``, ``nee``, ``pes``, ``pes_flux``, ``pes_net``, and
-        ``pes_net_flux``, and the same with the suffix ``_input``.
+        ``reco_nt``, ``nee``, ``pes``, ``pes_flux``, ``ebes``, and
+        ``ebes_flux``, and the same with the suffix ``_input``.
 
         Arguments:
             df (:obj:`pandas.DataFrame`): Regularly spaced subdaily time series.

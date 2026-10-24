@@ -211,7 +211,7 @@ Config key                              Internal Used for
 ``net_ecosystem_exchange_col``          nee      NEE for :meth:`.Data.partition_nee` when fc is not given
 ``friction_velocity_col``               ustar    u* filter of nighttime NEE in :meth:`.Data.partition_nee`
 ``gross_primary_productivity_col``      gpp      storage from the input GPP, ``calc_pes(gpp_var='gpp')``
-``ecosystem_respiration_col``           reco     net storage from the input GPP and Reco
+``ecosystem_respiration_col``           reco     EBES from the input GPP and Reco
 ======================================= ======== ============================================================
 
 Partitioning NEE also needs sub-daily data and air temperature

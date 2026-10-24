@@ -32,8 +32,8 @@ Key functionalities and tools include:
   for days with too many sub-daily gaps
 * daily and monthly aggregation, with interpolation of short sub-daily gaps
 * energy balance closure corrections (energy balance ratio, Bowen ratio, and
-  linear regression), optionally with photosynthetic energy storage removed
-  from Rn - G
+  linear regression), optionally with photosynthetic or ecosystem
+  biochemical energy storage removed from Rn - G
 * download of `gridMET <https://www.climatologylab.org/gridmet.html>`__ data
   and gap filling of daily ET with the gridMET reference ET fraction (ETrF)
 * partitioning of NEE into GPP and ecosystem respiration
